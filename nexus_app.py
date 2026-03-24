@@ -7,19 +7,21 @@ import pytz
 import plotly.express as px
 
 # 1. CONFIGURACIÓN DE IDENTIDAD Y ESTILO PROFESIONAL
-st.set_page_config(page_title="NEXUS QUEVEDO", layout="wide", page_icon="🌐")
+st.set_page_config(page_title="NEXUS QUEVEDO PRO", layout="wide", page_icon="🩺")
 
 st.markdown("""
     <style>
-    .main { background-color: #f8fafc; }
+    .main { background-color: #f0f2f6; }
     [data-testid="stSidebar"] { background-image: linear-gradient(#1e3a8a, #0f172a); color: white; }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; border-left: 5px solid #3b82f6; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); }
-    h1, h2, h3 { color: #1e40af; font-weight: bold; }
-    div.stButton > button { border-radius: 8px; font-weight: bold; width: 100%; transition: 0.3s; }
+    .stMetric { background-color: #ffffff; padding: 20px; border-radius: 12px; border-left: 6px solid #1e40af; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    h1, h2, h3 { color: #1e40af; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .stButton > button { border-radius: 10px; height: 3em; background-color: #1e40af; color: white; }
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    .stTabs [data-baseweb="tab"] { background-color: #ffffff; border-radius: 5px; padding: 10px 20px; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. FUNCIONES NÚCLEO (TIEMPO Y BASES DE DATOS)
+# 2. FUNCIONES NÚCLEO
 def obtener_tiempo_rd():
     zona = pytz.timezone('America/Santo_Domingo')
     ahora = datetime.now(zona)
@@ -43,19 +45,18 @@ def color_glucosa(valor):
 db = iniciar_db_salud()
 f_rd, h_rd, mes_rd, objeto_fecha = obtener_tiempo_rd()
 
-# 3. BARRA LATERAL (CONTROL TOTAL)
+# 3. BARRA LATERAL
 with st.sidebar:
     st.markdown("<h1 style='color: white; text-align: center;'>NEXUS QUEVEDO</h1>", unsafe_allow_html=True)
-    st.write(f"📅 **{f_rd}**")
-    st.write(f"⏰ **{h_rd}**")
+    st.markdown(f"<p style='text-align: center; color: #cbd5e1;'>{f_rd} | {h_rd}</p>", unsafe_allow_html=True)
     st.divider()
     menu = st.radio("SELECCIONE MÓDULO:", ["💰 FINANZAS", "🩺 SALUD", "📝 BITÁCORA"])
     st.divider()
-    st.success("SISTEMA CONECTADO")
+    st.info("SISTEMA ACTIVO v2.0")
 
-# --- MÓDULO 1: FINANZAS (GOOGLE SHEETS) ---
+# --- MÓDULO 1: FINANZAS ---
 if menu == "💰 FINANZAS":
-    st.title("💰 Control Financiero (Google Sheets)")
+    st.title("💰 Centro de Control Financiero")
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_f = conn.read(ttl=0).dropna(how="all")
@@ -64,139 +65,140 @@ if menu == "💰 FINANZAS":
             df_f["Monto"] = pd.to_numeric(df_f["Monto"])
             total = df_f["Monto"].sum()
             
-            # --- NUEVA SECCIÓN: RESUMEN SEMANAL ---
-            st.subheader("📊 Análisis de Gastos")
-            col_met1, col_met2 = st.columns(2)
-            col_met1.metric("BALANCE TOTAL", f"RD$ {total:,.2f}")
+            # Dashboard Finanzas
+            m1, m2, m3 = st.columns(3)
+            m1.metric("DISPONIBLE TOTAL", f"RD$ {total:,.2f}")
             
-            # Cálculo de la última semana
             df_f['Fecha_dt'] = pd.to_datetime(df_f['Fecha'], format="%d/%m/%Y")
-            hace_una_semana = objeto_fecha.replace(tzinfo=None) - timedelta(days=7)
-            gastos_semana = df_f[(df_f['Monto'] < 0) & (df_f['Fecha_dt'] >= hace_una_semana)]
-            total_semana = gastos_semana['Monto'].abs().sum()
+            hace_7 = objeto_fecha.replace(tzinfo=None) - timedelta(days=7)
+            gastos_7 = df_f[(df_f['Monto'] < 0) & (df_f['Fecha_dt'] >= hace_7)]
+            total_7 = gastos_7['Monto'].abs().sum()
             
-            col_met2.metric("GASTOS ÚLTIMOS 7 DÍAS", f"RD$ {total_semana:,.2f}", delta_color="inverse")
+            m2.metric("GASTOS SEMANALES", f"RD$ {total_7:,.2f}", delta="-Semana")
             
-            if not gastos_semana.empty:
-                with st.expander("👁️ Ver detalle de gastos de esta semana"):
-                    st.table(gastos_semana[['Fecha', 'Categoría', 'Detalle', 'Monto']].sort_values(by='Fecha_dt', ascending=False))
+            g_max = df_f[df_f['Monto'] < 0]['Monto'].min()
+            m3.metric("MAYOR GASTO REGISTRADO", f"RD$ {abs(g_max) if not pd.isna(g_max) else 0:,.2f}")
 
-            # Gráfico Circular
-            df_gastos_total = df_f[df_f["Monto"] < 0].copy()
-            if not df_gastos_total.empty:
-                df_gastos_total["Monto"] = df_gastos_total["Monto"].abs()
-                fig = px.pie(df_gastos_total, values='Monto', names='Categoría', title='DISTRIBUCIÓN TOTAL DE GASTOS')
-                st.plotly_chart(fig, use_container_width=True)
+            # Gráficos
+            c_izq, c_der = st.columns(2)
+            with c_izq:
+                df_gastos_pie = df_f[df_f["Monto"] < 0].copy()
+                if not df_gastos_pie.empty:
+                    df_gastos_pie["Monto"] = df_gastos_pie["Monto"].abs()
+                    fig_pie = px.sunburst(df_gastos_pie, path=['Categoría', 'Tipo'], values='Monto', title='DISTRIBUCIÓN DE GASTOS')
+                    st.plotly_chart(fig_pie, use_container_width=True)
+            with c_der:
+                st.subheader("📝 Nuevo Registro")
+                with st.form("f_fin", clear_on_submit=True):
+                    c1, c2 = st.columns(2)
+                    tipo = c1.selectbox("TIPO", ["GASTO", "INGRESO"])
+                    monto = c2.number_input("MONTO RD$", min_value=0.0)
+                    cat = st.text_input("CATEGORÍA (Ej: COMIDA, SALUD)").upper()
+                    det = st.text_input("DETALLE (Ej: SUPERMERCADO)").upper()
+                    if st.form_submit_button("GUARDAR MOVIMIENTO"):
+                        if cat and monto > 0:
+                            m_real = -abs(monto) if tipo == "GASTO" else abs(monto)
+                            nueva = pd.DataFrame([{"Fecha": f_rd, "Mes": mes_rd, "Tipo": tipo, "Categoría": cat, "Detalle": det, "Monto": float(m_real)}])
+                            df_final = pd.concat([df_f.drop(columns=['Fecha_dt'], errors='ignore'), nueva], ignore_index=True)
+                            conn.update(data=df_final)
+                            st.rerun()
 
-        with st.expander("📝 REGISTRAR NUEVO MOVIMIENTO", expanded=True):
-            with st.form("f_fin", clear_on_submit=True):
-                col1, col2, col3, col4 = st.columns([1,2,2,1])
-                t = col1.selectbox("TIPO", ["GASTO", "INGRESO"])
-                cat = col2.text_input("CATEGORÍA").upper()
-                det = col3.text_input("DETALLE").upper()
-                mon = col4.number_input("MONTO RD$", min_value=0.0)
-                if st.form_submit_button("GUARDAR EN LA NUBE"):
-                    if cat and mon > 0:
-                        m_real = -abs(mon) if t == "GASTO" else abs(mon)
-                        nueva = pd.DataFrame([{"Fecha": f_rd, "Mes": mes_rd, "Tipo": t, "Categoría": cat, "Detalle": det, "Monto": float(m_real)}])
-                        df_final = pd.concat([df_f.drop(columns=['Fecha_dt'], errors='ignore'), nueva], ignore_index=True)
-                        conn.update(data=df_final)
-                        st.success("✅ Sincronizado")
-                        st.rerun()
-                    else:
-                        st.warning("⚠️ Completa Categoría y Monto.")
-
-        st.subheader("📑 Historial Completo")
+        st.subheader("📑 Historial de Transacciones")
         st.dataframe(df_f.drop(columns=['Fecha_dt'], errors='ignore').sort_index(ascending=False), use_container_width=True)
-        
-        with st.expander("🗑️ ELIMINAR REGISTRO"):
-            if not df_f.empty:
-                idx = st.number_input("Número de fila a borrar:", min_value=0, max_value=len(df_f)-1, step=1)
-                if st.button("ELIMINAR DE GOOGLE SHEETS"):
-                    df_f = df_f.drop(df_f.index[idx]).drop(columns=['Fecha_dt'], errors='ignore')
-                    conn.update(data=df_f)
-                    st.rerun()
     except Exception as e:
-        st.error(f"⚠️ Error: {e}")
+        st.error(f"Error conexión: {e}")
 
-# --- MÓDULO 2: SALUD (SQLITE LOCAL) ---
+# --- MÓDULO 2: SALUD (DISEÑO ROBUSTO) ---
 elif menu == "🩺 SALUD":
-    st.title("🩺 Gestión de Salud")
-    t1, t2, t3 = st.tabs(["🩸 Glucosa", "💊 Medicación", "📅 Citas Médicas"])
+    st.title("🩺 Panel de Salud Nexus")
+    
+    # 1. Dashboard de Salud arriba
+    df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db)
+    
+    col_s1, col_s2, col_s3 = st.columns(3)
+    if not df_g.empty:
+        promedio = df_g['valor'].mean()
+        col_s1.metric("PROMEDIO GLUCOSA", f"{promedio:.1f} mg/dL")
+        ultima = df_g['valor'].iloc[0]
+        col_s2.metric("ÚLTIMA LECTURA", f"{ultima} mg/dL")
+        estado = "ESTABLE" if 70 <= ultima <= 140 else "REVISAR"
+        col_s3.metric("ESTADO ACTUAL", estado)
+    else:
+        st.info("Registra tu primera lectura para ver estadísticas.")
+
+    # 2. Gráfico de Evolución
+    if not df_g.empty:
+        st.subheader("📈 Evolución de Glucosa")
+        df_g_sorted = df_g.sort_values(by='id')
+        fig_glu = px.line(df_g_sorted, x='fecha', y='valor', color='momento', markers=True, 
+                         title='Histórico de Niveles', color_discrete_sequence=px.colors.qualitative.Set1)
+        st.plotly_chart(fig_glu, use_container_width=True)
+
+    # 3. Pestañas de Gestión
+    t1, t2, t3 = st.tabs(["🩸 Registrar Glucosa", "💊 Mi Medicación", "📅 Agenda Médica"])
 
     with t1:
         with st.form("f_glu", clear_on_submit=True):
-            v = st.number_input("Nivel (mg/dL):", min_value=0)
-            m = st.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Antes de Cena", "Post-Cena"])
-            if st.form_submit_button("REGISTRAR LECTURA"):
+            col_g1, col_g2 = st.columns(2)
+            v = col_g1.number_input("Valor (mg/dL):", min_value=0)
+            m = col_g2.selectbox("Momento del día:", ["Ayunas", "Post-Desayuno", "Antes de Cena", "Post-Cena"])
+            if st.form_submit_button("GUARDAR LECTURA"):
                 if v > 0:
                     db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", (f_rd, h_rd, m, v))
-                    db.commit()
-                    st.rerun()
-        df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db)
-        if not df_g.empty:
-            st.dataframe(df_g.style.applymap(color_glucosa, subset=['valor']), use_container_width=True)
+                    db.commit(); st.rerun()
+        st.dataframe(df_g.style.applymap(color_glucosa, subset=['valor']), use_container_width=True)
 
     with t2:
-        c1, c2 = st.columns(2)
-        with c1:
+        c_m1, c_m2 = st.columns([1, 2])
+        with c_m1:
+            st.subheader("📝 Agregar")
             with st.form("f_med", clear_on_submit=True):
-                n = st.text_input("Medicamento:").upper()
+                n = st.text_input("Nombre:").upper()
                 d = st.text_input("Dosis:")
                 h = st.text_input("Horario:")
-                if st.form_submit_button("AGREGAR A LISTA"):
+                if st.form_submit_button("AGREGAR"):
                     if n:
                         db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h))
-                        db.commit()
-                        st.rerun()
-        with c2:
+                        db.commit(); st.rerun()
+        with c_m2:
+            st.subheader("📋 Lista Actual")
             df_m = pd.read_sql_query("SELECT * FROM medicamentos", db)
             if not df_m.empty:
                 st.table(df_m[['nombre', 'dosis', 'horario']])
                 opciones = ["--- Seleccione para borrar ---"] + df_m['nombre'].tolist()
-                m_del = st.selectbox("Borrar medicamento:", opciones)
-                if st.button("ELIMINAR SELECCIONADO"):
+                m_del = st.selectbox("Borrar:", opciones)
+                if st.button("ELIMINAR MEDICAMENTO"):
                     if m_del != "--- Seleccione para borrar ---":
                         db.execute("DELETE FROM medicamentos WHERE nombre = ?", (m_del,))
-                        db.commit()
-                        st.rerun()
+                        db.commit(); st.rerun()
 
     with t3:
         with st.form("f_citas", clear_on_submit=True):
-            doc = st.text_input("Doctor / Especialidad:").upper()
-            f_c = st.date_input("Fecha de la Cita:")
-            mot = st.text_area("Motivo:")
+            c_c1, c_c2 = st.columns(2)
+            doc = c_c1.text_input("Doctor:").upper()
+            f_c = c_c2.date_input("Fecha:")
+            mot = st.text_area("Motivo de consulta:")
             if st.form_submit_button("AGENDAR CITA"):
                 if doc:
                     db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(f_c), mot.upper()))
-                    db.commit()
-                    st.rerun()
+                    db.commit(); st.rerun()
         df_c = pd.read_sql_query("SELECT id, doctor, fecha, motivo FROM citas ORDER BY fecha ASC", db)
-        if not df_c.empty:
-            st.dataframe(df_c, use_container_width=True)
-            id_c = st.number_input("ID de cita a cancelar:", min_value=1)
-            if st.button("BORRAR CITA"):
-                db.execute("DELETE FROM citas WHERE id = ?", (id_c,))
-                db.commit()
-                st.rerun()
+        st.dataframe(df_c, use_container_width=True)
 
 # --- MÓDULO 3: BITÁCORA ---
 elif menu == "📝 BITÁCORA":
-    st.title("📝 Notas Personales")
+    st.title("📝 Notas y Pendientes")
     with st.form("f_nota", clear_on_submit=True):
-        nota = st.text_area("Escribe algo importante:", height=150)
+        nota = st.text_area("Escriba aquí...", height=150)
         if st.form_submit_button("GUARDAR NOTA"):
             if nota:
-                with open("notas_nexus.txt", "a") as f: 
-                    f.write(f"[{f_rd} {h_rd}]: {nota}\n---\n")
+                with open("notas_nexus.txt", "a") as f: f.write(f"[{f_rd} {h_rd}]: {nota}\n---\n")
                 st.rerun()
     
-    if st.button("LIMPIAR TODO"):
-        open("notas_nexus.txt", "w").close()
-        st.rerun()
-        
+    col_n1, col_n2 = st.columns([1, 5])
+    if col_n1.button("BORRAR TODO"):
+        open("notas_nexus.txt", "w").close(); st.rerun()
+    
     try:
-        with open("notas_nexus.txt", "r") as f: 
-            st.text_area("Historial de Notas:", f.read(), height=300)
-    except: 
-        st.info("No hay notas guardadas.")
+        with open("notas_nexus.txt", "r") as f: st.text_area("Historial de Notas:", f.read(), height=400)
+    except: st.info("Bitácora vacía.")
