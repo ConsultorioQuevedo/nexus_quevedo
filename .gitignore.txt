@@ -1,0 +1,5 @@
+.streamlit/
+nexus_salud_core.db
+nexus_quevedo_core
+notas_nexus.txt
+__pycache__/
