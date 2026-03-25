@@ -17,6 +17,7 @@ st.markdown("""
     .balance-box { background-color: #1f2937; padding: 25px; border-radius: 15px; text-align: center; border: 1px solid #30363d; margin: 20px 0; }
     .tendencia-box { padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 20px; border: 1px solid #ffffff33; }
     div.stButton > button { background-color: #1f2937; color: white; border: 1px solid #30363d; border-radius: 8px; width: 100%; font-weight: bold; height: 48px; }
+    /* Botón de borrado en rojo oscuro */
     .btn-borrar > div > button { background-color: #441111 !important; color: #ff9999 !important; border: 1px solid #662222 !important; height: 35px !important; font-size: 12px !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -60,7 +61,7 @@ with st.sidebar:
     st.markdown("<h2 style='text-align: center;'>🌐 CONTROL</h2>", unsafe_allow_html=True)
     st.info(f"📅 {f_str} | ⏰ {h_str}")
     
-    df_citas_side = pd.read_sql_query("SELECT doctor, fecha FROM citas ORDER BY fecha ASC LIMIT 2", db)
+    df_citas_side = pd.read_sql_query("SELECT doctor, fecha FROM citas WHERE fecha >= date('now') ORDER BY fecha ASC LIMIT 2", db)
     if not df_citas_side.empty:
         st.markdown("📅 **PRÓXIMAS CITAS:**")
         for _, r in df_citas_side.iterrows():
@@ -71,7 +72,7 @@ with st.sidebar:
     if st.button("CERRAR SESIÓN"):
         del st.session_state["password_correct"]; st.rerun()
 
-# --- 5. FINANZAS (CON BORRADO) ---
+# --- 5. FINANZAS ---
 if menu == "💰 FINANZAS":
     st.title("💰 Gestión Financiera")
     res_conf = db.execute("SELECT valor FROM config WHERE param='presupuesto'").fetchone()
@@ -96,8 +97,15 @@ if menu == "💰 FINANZAS":
         col_m1, col_m2 = st.columns(2)
         total_disp = df_f["monto"].sum()
         gastos_mes = abs(df_f[(df_f['tipo'] == 'GASTO') & (df_f['mes'] == mes_str)]['monto'].sum())
+        
         col_m1.markdown(f"<div class='balance-box'><h3>DISPONIBLE</h3><h1 style='color:#2ecc71;'>RD$ {total_disp:,.2f}</h1></div>", unsafe_allow_html=True)
         
+        # Termómetro de Presupuesto
+        porc = min(gastos_mes / presupuesto_mensual, 1.0)
+        col_m2.markdown(f"<h3>Presupuesto: {porc*100:.0f}%</h3>", unsafe_allow_html=True)
+        col_m2.progress(porc)
+        col_m2.write(f"Gastado este mes: RD$ {gastos_mes:,.2f}")
+
         st.markdown("<div class='btn-borrar'>", unsafe_allow_html=True)
         if st.button("🗑️ BORRAR ÚLTIMO MOVIMIENTO"):
             db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)"); db.commit(); st.rerun()
@@ -105,9 +113,10 @@ if menu == "💰 FINANZAS":
 
         df_gastos = df_f[df_f['tipo'] == 'GASTO']
         if not df_gastos.empty:
-            st.plotly_chart(px.pie(df_gastos, values=abs(df_gastos['monto']), names='categoria', hole=.4, template="plotly_dark"))
+            fig = px.pie(df_gastos, values=abs(df_gastos['monto']), names='categoria', hole=.4, template="plotly_dark", title="DISTRIBUCIÓN DE GASTOS")
+            st.plotly_chart(fig, use_container_width=True)
 
-# --- 6. SALUD (CON BORRADO) ---
+# --- 6. SALUD ---
 elif menu == "🩺 SALUD":
     st.title("🩺 Control de Salud")
     t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
@@ -137,16 +146,20 @@ elif menu == "🩺 SALUD":
         if c_p2.button("🗑️ BORRAR ÚLTIMA LECTURA"):
             db.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)"); db.commit(); st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
+        
+        if not df_g.empty:
+            st.plotly_chart(px.line(df_g.sort_values('id'), x='fecha', y='valor', markers=True, template="plotly_dark", title="HISTÓRICO CRONOLÓGICO"))
 
     with t2:
         with st.form("f_med", clear_on_submit=True):
             c1, c2, c3 = st.columns([2, 1, 1.5])
             n = c1.text_input("MEDICINA:").upper()
             d = c2.text_input("DOSIS:").upper()
-            h = c3.selectbox("HORARIO:", ["CADA 8 HORAS", "CADA 12 HORAS", "UNA VEZ AL DÍA", "SI HAY DOLOR"])
+            h = c3.selectbox("HORARIO:", ["UNA VEZ AL DÍA", "CADA 8 HORAS", "CADA 12 HORAS", "CADA 24 HORAS", "SI HAY DOLOR"])
             if st.form_submit_button("AÑADIR"):
-                db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h))
-                db.commit(); st.rerun()
+                if n:
+                    db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h))
+                    db.commit(); st.rerun()
         
         df_m = pd.read_sql_query("SELECT id, nombre, dosis, horario FROM medicamentos", db)
         for _, r in df_m.iterrows():
@@ -158,7 +171,7 @@ elif menu == "🩺 SALUD":
     with t3:
         st.subheader("🗓️ Agenda de Citas")
         with st.form("f_citas", clear_on_submit=True):
-            doc = st.text_input("DOCTOR:").upper()
+            doc = st.text_input("DOCTOR / CLÍNICA:").upper()
             fec = st.date_input("FECHA:")
             mot = st.text_input("MOTIVO:").upper()
             if st.form_submit_button("AGENDAR"):
@@ -168,7 +181,7 @@ elif menu == "🩺 SALUD":
         df_c = pd.read_sql_query("SELECT id, doctor, fecha, motivo FROM citas ORDER BY fecha ASC", db)
         for _, r in df_c.iterrows():
             c1, c2 = st.columns([5,1])
-            c1.write(f"📅 {r['fecha']} | {r['doctor']}")
+            c1.write(f"📅 **{r['fecha']}** | {r['doctor']} ({r['motivo']})")
             if c2.button("Eliminar", key=f"c_{r['id']}"):
                 db.execute("DELETE FROM citas WHERE id=?", (r['id'],)); db.commit(); st.rerun()
 
@@ -176,20 +189,23 @@ elif menu == "🩺 SALUD":
 elif menu == "📝 BITÁCORA":
     st.title("📝 Bitácora")
     with st.form("f_nota", clear_on_submit=True):
-        entrada = st.text_area("Nota:", height=100)
-        if st.form_submit_button("GUARDAR"):
-            with open("nexus_notas.txt", "a", encoding="utf-8") as f:
-                f.write(f"[{f_str}]: {entrada}\n\n")
-            st.rerun()
+        entrada = st.text_area("Escriba aquí su anotación:", height=150)
+        if st.form_submit_button("GUARDAR NOTA"):
+            if entrada.strip():
+                with open("nexus_notas.txt", "a", encoding="utf-8") as f:
+                    f.write(f"[{f_str} {h_str}]: {entrada}\n\n")
+                st.success("Nota guardada.")
+                st.rerun()
     try:
         with open("nexus_notas.txt", "r", encoding="utf-8") as f:
-            st.text_area("Historial:", f.read(), height=300)
-    except: st.info("Sin notas.")
+            st.text_area("Historial de Notas:", f.read(), height=400)
+    except FileNotFoundError: st.info("La bitácora está lista para su primera nota.")
 
 # --- 8. CONFIGURACIÓN ---
 elif menu == "⚙️ CONFIG":
-    st.title("⚙️ Ajustes")
-    nuevo_p = st.number_input("Presupuesto Mensual (RD$):", min_value=0.0, value=20000.0)
-    if st.button("GUARDAR"):
+    st.title("⚙️ Ajustes del Sistema")
+    st.markdown("### 🎯 Meta Financiera")
+    nuevo_p = st.number_input("Establecer Presupuesto Mensual de Gastos (RD$):", min_value=0.0, value=presupuesto_mensual)
+    if st.button("ACTUALIZAR CONFIGURACIÓN"):
         db.execute("INSERT OR REPLACE INTO config (param, valor) VALUES ('presupuesto', ?)", (nuevo_p,))
-        db.commit(); st.success("Guardado.")
+        db.commit(); st.success("Configuración actualizada correctamente.")
