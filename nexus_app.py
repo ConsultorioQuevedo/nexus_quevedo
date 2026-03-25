@@ -1,10 +1,11 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 import plotly.express as px
+import requests
+from io import StringIO
 
 # --- 1. CONFIGURACIÓN VISUAL NEXUS ---
 st.set_page_config(page_title="NEXUS QUEVEDO", layout="wide", page_icon="🌐")
@@ -58,7 +59,7 @@ if check_password():
     db = iniciar_db()
     f_str, h_str, mes_str, f_obj = obtener_tiempo_rd()
 
-    # --- 4. BARRA LATERAL CON ALERTAS ---
+    # --- 4. BARRA LATERAL ---
     with st.sidebar:
         st.markdown("<h2 style='text-align: center;'>🌐 NEXUS CONTROL</h2>", unsafe_allow_html=True)
         st.info(f"📅 {f_str} | ⏰ {h_str}")
@@ -68,57 +69,49 @@ if check_password():
         if not df_citas_aviso.empty:
             for _, r in df_citas_aviso.iterrows():
                 st.markdown(f"<div class='info-box'>📍 {r['doctor']}<br>📅 {r['fecha']}</div>", unsafe_allow_html=True)
-        else: st.write("Sin citas pendientes.")
+        else: st.write("Sin citas.")
 
         st.divider()
         menu = st.radio("MENÚ PRINCIPAL", ["💰 FINANZAS", "🩺 SALUD", "📝 BITÁCORA"])
         if st.button("CERRAR SESIÓN"):
             del st.session_state["password_correct"]; st.rerun()
 
-    # --- 5. MÓDULO: FINANZAS (CONEXIÓN DIRECTA) ---
+    # --- 5. MÓDULO: FINANZAS (CONEXIÓN POR CSV DIRECTO) ---
     if menu == "💰 FINANZAS":
         st.title("💰 Gestión Financiera")
         
-        # LINK DIRECTO INSERTADO AQUÍ PARA EVITAR ERRORES DE SECRETS
-        URL_HOJA = "https://docs.google.com/spreadsheets/d/12jg8nHRUCJwwty0VcsbWFvTIpRcGLCITNKLevZ7Nwb8/edit?usp=sharing"
+        # URL de exportación directa (reemplaza el /edit por /export)
+        URL_BASE = "https://docs.google.com/spreadsheets/d/12jg8nHRUCJwwty0VcsbWFvTIpRcGLCITNKLevZ7Nwb8"
+        URL_CSV = f"{URL_BASE}/export?format=csv"
         
         try:
-            conn = st.connection("gsheets", type=GSheetsConnection)
-            # Leemos directamente usando la URL de su hoja
-            df_f = conn.read(spreadsheet=URL_HOJA, ttl=0).dropna(how="all")
+            # Lectura directa desde la web
+            response = requests.get(URL_CSV)
+            df_f = pd.read_csv(StringIO(response.text))
             
+            # Limpieza básica
+            df_f = df_f.dropna(how="all")
+
             with st.form("f_fin", clear_on_submit=True):
                 c1, c2 = st.columns(2)
                 tipo = c1.selectbox("MOVIMIENTO", ["GASTO", "INGRESO"])
                 f_gasto = c2.date_input("FECHA", value=f_obj)
-                cat = st.text_input("CATEGORÍA:").upper()
+                cat = st.text_input("CATEGORIA:").upper()
                 det = st.text_input("DETALLE:").upper()
                 monto = st.number_input("VALOR RD$:", min_value=0.0)
-                if st.form_submit_button("REGISTRAR MOVIMIENTO"):
-                    if monto > 0:
-                        m_real = -abs(monto) if tipo == "GASTO" else abs(monto)
-                        nueva_fila = pd.DataFrame([{"Fecha": f_gasto.strftime("%d/%m/%Y"), "Mes": mes_str, "Tipo": tipo, "Categoría": cat, "Detalle": det, "Monto": float(m_real)}])
-                        # Actualizamos la hoja usando el link directo
-                        conn.update(spreadsheet=URL_HOJA, data=pd.concat([df_f, nueva_fila], ignore_index=True))
-                        st.success("✅ Sincronizado con Google Sheets"); st.rerun()
+                
+                if st.form_submit_button("REGISTRAR"):
+                    st.warning("⚠️ Nota: La escritura directa requiere configuración extra. Por ahora, use este módulo para visualizar sus datos de Excel en tiempo real.")
 
-            st.subheader("Registros Recientes")
-            st.dataframe(df_f.sort_index(ascending=False), use_container_width=True)
+            st.subheader("Registros en Google Sheets")
+            st.dataframe(df_f, use_container_width=True)
             
-            if not df_f.empty:
-                df_f["Monto"] = pd.to_numeric(df_f["Monto"])
-                st.markdown(f"<div class='balance-box'><h3>DISPONIBLE TOTAL</h3><h1 style='color:#2ecc71;'>RD$ {df_f['Monto'].sum():,.2f}</h1></div>", unsafe_allow_html=True)
-                
-                # Resumen Quincenal
-                st.divider()
-                st.subheader("📊 Resumen por Quincenas")
-                df_f['Fecha_dt'] = pd.to_datetime(df_f['Fecha'], format='%d/%m/%Y')
-                df_f['Quincena'] = df_f['Fecha_dt'].apply(lambda x: f"1ra Q ({x.strftime('%b')})" if x.day <= 15 else f"2da Q ({x.strftime('%b')})")
-                resumen_q = df_f.groupby(['Quincena', 'Tipo'])['Monto'].sum().unstack().fillna(0)
-                st.table(resumen_q.style.format("RD$ {:,.2f}"))
-                
+            if not df_f.empty and "Monto" in df_f.columns:
+                total = pd.to_numeric(df_f["Monto"]).sum()
+                st.markdown(f"<div class='balance-box'><h3>DISPONIBLE EN EXCEL</h3><h1 style='color:#2ecc71;'>RD$ {total:,.2f}</h1></div>", unsafe_allow_html=True)
+
         except Exception as e:
-            st.error(f"Error de conexión: Verifique que su hoja de Google tenga los títulos: Fecha, Mes, Tipo, Categoría, Detalle, Monto")
+            st.error(f"Error: Verifique que su Excel tenga los títulos: Fecha, Mes, Tipo, Categoria, Detalle, Monto")
 
     # --- 6. MÓDULO: SALUD ---
     elif menu == "🩺 SALUD":
@@ -138,22 +131,18 @@ if check_password():
             df_g = pd.read_sql_query("SELECT fecha, momento, valor, notas FROM glucosa ORDER BY id DESC", db)
             if not df_g.empty:
                 st.dataframe(df_g, use_container_width=True)
-                if st.button("🗑️ BORRAR ÚLTIMO"):
-                    db.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)"); db.commit(); st.rerun()
                 st.plotly_chart(px.line(df_g.iloc[::-1], x='fecha', y='valor', markers=True, template="plotly_dark"))
 
         with t2:
             st.subheader("💊 Medicinas")
             with st.form("f_med", clear_on_submit=True):
-                cn, cd, ch = st.columns([2,1,1.5])
-                n = cn.text_input("Nombre:").upper()
-                d = cd.text_input("Dosis:").upper()
-                h = ch.selectbox("Frecuencia:", ["UNA VEZ AL DÍA", "CADA 12 HORAS", "CADA 8 HORAS", "SI HAY DOLOR"])
+                n = st.text_input("Nombre:").upper()
+                d = st.text_input("Dosis:").upper()
+                h = st.selectbox("Frecuencia:", ["UNA VEZ AL DÍA", "CADA 12 HORAS", "CADA 8 HORAS"])
                 if st.form_submit_button("AÑADIR"):
                     db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h))
                     db.commit(); st.rerun()
-            df_m = pd.read_sql_query("SELECT nombre AS MEDICAMENTO, dosis AS DOSIS, horario AS HORARIO FROM medicamentos", db)
-            st.dataframe(df_m, use_container_width=True, hide_index=True)
+            st.dataframe(pd.read_sql_query("SELECT nombre, dosis, horario FROM medicamentos", db), use_container_width=True)
 
         with t3:
             st.subheader("📅 Citas Médicas")
@@ -167,12 +156,12 @@ if check_password():
     # --- 7. MÓDULO: BITÁCORA ---
     elif menu == "📝 BITÁCORA":
         st.title("📝 Notas Personales")
-        entrada = st.text_area("Escriba aquí:", height=150)
+        entrada = st.text_area("Escriba aquí:")
         if st.button("GUARDAR NOTA"):
             with open("nexus_notas.txt", "a", encoding="utf-8") as f:
                 f.write(f"[{f_str}]: {entrada}\n---\n")
-            st.rerun()
+            st.success("Nota guardada."); st.rerun()
         try:
             with open("nexus_notas.txt", "r", encoding="utf-8") as f:
-                st.text_area("Historial:", f.read(), height=400)
+                st.text_area("Historial:", f.read(), height=300)
         except: st.info("Sin notas.")
