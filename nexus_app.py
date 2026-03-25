@@ -6,7 +6,7 @@ import pytz
 import plotly.express as px
 import io
 
-# --- 1. CONFIGURACIÓN VISUAL ---
+# --- 1. CONFIGURACIÓN VISUAL (ESTILO NEXUS DARK) ---
 st.set_page_config(page_title="NEXUS QUEVEDO", layout="wide", page_icon="🌐")
 
 st.markdown("""
@@ -16,12 +16,10 @@ st.markdown("""
     .stForm { background-color: #161b22; border-radius: 15px; border: 1px solid #30363d; padding: 20px; }
     h1, h2, h3 { font-weight: 800; color: white; }
     .balance-box { background-color: #1f2937; padding: 25px; border-radius: 15px; text-align: center; border: 1px solid #30363d; margin: 20px 0; }
-    .tendencia-box { padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 20px; border: 1px solid #ffffff33; }
+    .semaforo-box { padding: 20px; border-radius: 15px; text-align: center; font-weight: bold; margin-bottom: 20px; font-size: 22px; border: 2px solid #ffffff22; }
     div.stButton > button { background-color: #1f2937; color: white; border: 1px solid #30363d; border-radius: 8px; width: 100%; font-weight: bold; height: 48px; }
-    /* Estilo para el botón de borrar (Rojo) */
-    .btn-borrar > div > button { background-color: #441111 !important; color: #ff9999 !important; border: 1px solid #662222 !important; height: 35px !important; font-size: 12px !important; }
-    /* Estilo para el botón de Excel (Verde) */
-    .stDownloadButton > button { background-color: #064e3b !important; color: #a7f3d0 !important; border: 1px solid #065f46 !important; height: 48px !important; }
+    .btn-borrar > div > button { background-color: #441111 !important; color: #ff9999 !important; border: 1px solid #662222 !important; height: 35px !important; }
+    .stDownloadButton > button { background-color: #064e3b !important; color: #a7f3d0 !important; border: 1px solid #065f46 !important; width: 100%; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -39,7 +37,7 @@ if "password_correct" not in st.session_state:
                 else: st.error("❌ Credenciales Incorrectas")
     st.stop()
 
-# --- 3. FUNCIONES DE TIEMPO Y DB ---
+# --- 3. FUNCIONES DE APOYO ---
 def obtener_tiempo_rd():
     zona = pytz.timezone('America/Santo_Domingo')
     ahora = datetime.now(zona)
@@ -56,10 +54,32 @@ def iniciar_db():
     conn.commit()
     return conn
 
+def calcular_semaforo(valor, momento):
+    # RANGOS EN AYUNAS (DEFINIDOS POR SR. QUEVEDO)
+    if momento == "Ayunas":
+        if 80 <= valor <= 120: return "🟢 NORMAL (Ayunas)", "#166534"
+        elif 121 <= valor <= 140: return "🟡 PRECAUCIÓN (Elevada)", "#854d0e"
+        elif valor > 140: return "🔴 ALTA (Alerta Roja)", "#991b1b"
+        else: return "🔵 BAJA (Revisar)", "#1e3a8a"
+
+    # RANGOS POST-COMIDA (DEFINIDOS POR SR. QUEVEDO)
+    elif "Post" in momento: 
+        if valor < 170: return "🟢 NORMAL (Post-comida)", "#166534"
+        elif 170 <= valor <= 180: return "🟡 LÍMITE (Cuidado)", "#854d0e"
+        else: return "🔴 ALTA (Exceso)", "#991b1b"
+
+    # RANGOS ANTES DE DORMIR
+    elif momento == "Antes de dormir":
+        if 100 <= valor <= 140: return "🟢 NORMAL (Descanso)", "#166534"
+        elif valor < 100: return "🟡 BAJA (Alerta nocturna)", "#854d0e"
+        else: return "🔴 ALTA (Revisar cena)", "#991b1b"
+            
+    return "⚪ Registro Guardado", "#1f2937"
+
 db = iniciar_db()
 f_str, h_str, mes_str, f_obj = obtener_tiempo_rd()
 
-# CARGA GLOBAL DE CONFIGURACIÓN
+# CARGA DE PRESUPUESTO GLOBAL
 res_conf = db.execute("SELECT valor FROM config WHERE param='presupuesto'").fetchone()
 presupuesto_mensual = res_conf[0] if res_conf else 20000.0
 
@@ -79,9 +99,10 @@ with st.sidebar:
     if st.button("CERRAR SESIÓN"):
         del st.session_state["password_correct"]; st.rerun()
 
-# --- 5. FINANZAS ---
+# --- 5. SECCIÓN FINANZAS ---
 if menu == "💰 FINANZAS":
     st.title("💰 Gestión Financiera")
+    
     with st.form("f_fin", clear_on_submit=True):
         c1, c2 = st.columns(2)
         tipo = c1.selectbox("TIPO", ["GASTO", "INGRESO"])
@@ -89,7 +110,7 @@ if menu == "💰 FINANZAS":
         cat = st.text_input("CATEGORÍA:").upper()
         det = st.text_input("DETALLE:").upper()
         monto = st.number_input("MONTO RD$:", min_value=0.0)
-        if st.form_submit_button("REGISTRAR"):
+        if st.form_submit_button("REGISTRAR MOVIMIENTO"):
             if monto > 0:
                 m_real = -abs(monto) if tipo == "GASTO" else abs(monto)
                 db.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)",
@@ -104,12 +125,12 @@ if menu == "💰 FINANZAS":
         
         col_m1.markdown(f"<div class='balance-box'><h3>DISPONIBLE</h3><h1 style='color:#2ecc71;'>RD$ {total_disp:,.2f}</h1></div>", unsafe_allow_html=True)
         
-        porc = min(gastos_mes / presupuesto_mensual, 1.0) if presupuesto_mensual > 0 else 0
-        col_m2.markdown(f"<h3>Presupuesto: {porc*100:.0f}%</h3>", unsafe_allow_html=True)
-        col_m2.progress(porc)
+        p = min(gastos_mes / presupuesto_mensual, 1.0) if presupuesto_mensual > 0 else 0
+        col_m2.markdown(f"<h3>Presupuesto: {p*100:.0f}%</h3>", unsafe_allow_html=True)
+        col_m2.progress(p)
         col_m2.write(f"Gastado este mes: RD$ {gastos_mes:,.2f}")
 
-        # BOTONES DE ACCIÓN
+        # ACCIONES: BORRAR Y EXCEL
         c_acc1, c_acc2 = st.columns(2)
         with c_acc1:
             st.markdown("<div class='btn-borrar'>", unsafe_allow_html=True)
@@ -119,98 +140,72 @@ if menu == "💰 FINANZAS":
         
         with c_acc2:
             output = io.BytesIO()
-            # Motor 'openpyxl' para máxima compatibilidad
-            try:
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    df_f.to_excel(writer, index=False, sheet_name='Finanzas')
-                st.download_button(
-                    label="📥 DESCARGAR EXCEL",
-                    data=output.getvalue(),
-                    file_name=f"Finanzas_Nexus_{mes_str}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            except:
-                st.error("Error al generar Excel. Asegúrese de tener 'openpyxl' instalado.")
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df_f.to_excel(writer, index=False, sheet_name='Finanzas')
+            st.download_button("📥 DESCARGAR EXCEL", output.getvalue(), f"Nexus_Finanzas_{mes_str}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
         df_gastos = df_f[df_f['tipo'] == 'GASTO']
         if not df_gastos.empty:
-            fig = px.pie(df_gastos, values=abs(df_gastos['monto']), names='categoria', hole=.4, template="plotly_dark", title="DISTRIBUCIÓN DE GASTOS")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(px.pie(df_gastos, values=abs(df_gastos['monto']), names='categoria', hole=.4, template="plotly_dark", title="DISTRIBUCIÓN DE GASTOS"), use_container_width=True)
 
-# --- 6. SALUD ---
+# --- 6. SECCIÓN SALUD (CON SEMÁFORO QUEVEDO) ---
 elif menu == "🩺 SALUD":
     st.title("🩺 Control de Salud")
     t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
 
     with t1:
         df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db)
-        if len(df_g) >= 2:
-            ultimo = df_g.iloc[0]['valor']
-            anterior = df_g.iloc[1:6]['valor'].mean()
-            if ultimo < anterior - 5: st.markdown("<div class='tendencia-box' style='background-color:#166534;'>🟢 TENDENCIA: MEJORANDO</div>", unsafe_allow_html=True)
-            elif ultimo > anterior + 5: st.markdown("<div class='tendencia-box' style='background-color:#991b1b;'>🔴 TENDENCIA: ALERTA (SUBIENDO)</div>", unsafe_allow_html=True)
-            else: st.markdown("<div class='tendencia-box' style='background-color:#854d0e;'>🟡 TENDENCIA: ESTABLE</div>", unsafe_allow_html=True)
+        
+        if not df_g.empty:
+            u_v, u_m = df_g.iloc[0]['valor'], df_g.iloc[0]['momento']
+            txt, col = calcular_semaforo(u_v, u_m)
+            st.markdown(f"<div class='semaforo-box' style='background-color:{col};'>ESTADO: {txt} ({u_v} mg/dL)</div>", unsafe_allow_html=True)
 
         with st.form("f_gluc", clear_on_submit=True):
             c1, c2 = st.columns(2)
             val = c1.number_input("Valor mg/dL:", min_value=0)
-            mom = c2.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Post-Cena"])
-            if st.form_submit_button("GUARDAR"):
+            mom = c2.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Post-Cena", "Antes de dormir"])
+            if st.form_submit_button("GUARDAR LECTURA"):
                 db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", (f_str, h_str, mom, val))
                 db.commit(); st.rerun()
         
         c_p1, c_p2 = st.columns([3,1])
-        if c_p1.button("📄 GENERAR TABLA PARA MÉDICO"):
-            st.table(df_g[['fecha', 'momento', 'valor']].head(15))
+        if c_p1.button("📄 VER TABLA HISTÓRICA"):
+            st.table(df_g[['fecha', 'momento', 'valor']].head(10))
         
         st.markdown("<div class='btn-borrar'>", unsafe_allow_html=True)
-        if c_p2.button("🗑️ BORRAR ÚLTIMA LECTURA"):
+        if c_p2.button("🗑️ BORRAR ÚLTIMA"):
             db.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)"); db.commit(); st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
         
         if not df_g.empty:
-            st.plotly_chart(px.line(df_g.sort_values('id'), x='fecha', y='valor', markers=True, template="plotly_dark", title="HISTÓRICO"))
+            st.plotly_chart(px.line(df_g.sort_values('id'), x='fecha', y='valor', markers=True, template="plotly_dark", title="TENDENCIA DE GLUCOSA"), use_container_width=True)
 
     with t2:
         with st.form("f_med", clear_on_submit=True):
             c1, c2, c3 = st.columns([2, 1, 1.5])
-            n = c1.text_input("MEDICINA:").upper()
-            d = c2.text_input("DOSIS:").upper()
-            h = c3.selectbox("HORARIO:", ["UNA VEZ AL DÍA", "CADA 8 HORAS", "CADA 12 HORAS", "CADA 24 HORAS", "SI HAY DOLOR"])
+            n, d, h = c1.text_input("MEDICINA").upper(), c2.text_input("DOSIS").upper(), c3.selectbox("HORARIO", ["DIARIO", "CADA 8H", "CADA 12H", "SI HAY DOLOR"])
             if st.form_submit_button("AÑADIR"):
-                if n:
-                    db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h))
-                    db.commit(); st.rerun()
-        
-        df_m = pd.read_sql_query("SELECT id, nombre, dosis, horario FROM medicamentos", db)
+                if n: db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h)); db.commit(); st.rerun()
+        df_m = pd.read_sql_query("SELECT * FROM medicamentos", db)
         for _, r in df_m.iterrows():
-            col_a, col_b = st.columns([5,1])
-            col_a.info(f"💊 {r['nombre']} - {r['dosis']} ({r['horario']})")
-            if col_b.button("Borrar", key=f"m_{r['id']}"):
-                db.execute("DELETE FROM medicamentos WHERE id=?", (r['id'],)); db.commit(); st.rerun()
+            ca, cb = st.columns([5,1]); ca.info(f"💊 {r['nombre']} - {r['dosis']} ({r['horario']})")
+            if cb.button("Borrar", key=f"m_{r['id']}"): db.execute("DELETE FROM medicamentos WHERE id=?", (r['id'],)); db.commit(); st.rerun()
 
     with t3:
-        st.subheader("🗓️ Agenda de Citas")
         with st.form("f_citas", clear_on_submit=True):
-            doc = st.text_input("DOCTOR / CLÍNICA:").upper()
-            fec = st.date_input("FECHA:")
-            mot = st.text_input("MOTIVO:").upper()
+            doc, fec, mot = st.text_input("DOCTOR").upper(), st.date_input("FECHA"), st.text_input("MOTIVO").upper()
             if st.form_submit_button("AGENDAR"):
-                db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(fec), mot))
-                db.commit(); st.rerun()
-        
-        df_c = pd.read_sql_query("SELECT id, doctor, fecha, motivo FROM citas ORDER BY fecha ASC", db)
+                db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(fec), mot)); db.commit(); st.rerun()
+        df_c = pd.read_sql_query("SELECT * FROM citas ORDER BY fecha ASC", db)
         for _, r in df_c.iterrows():
-            c1, c2 = st.columns([5,1])
-            c1.write(f"📅 **{r['fecha']}** | {r['doctor']} ({r['motivo']})")
-            if c2.button("Eliminar", key=f"c_{r['id']}"):
-                db.execute("DELETE FROM citas WHERE id=?", (r['id'],)); db.commit(); st.rerun()
+            st.write(f"📅 **{r['fecha']}** | {r['doctor']} - {r['motivo']}")
 
 # --- 7. BITÁCORA ---
 elif menu == "📝 BITÁCORA":
-    st.title("📝 Bitácora")
+    st.title("📝 Bitácora Personal")
     with st.form("f_nota", clear_on_submit=True):
-        entrada = st.text_area("Escriba aquí su anotación:", height=150)
+        entrada = st.text_area("Anotación del día:", height=150)
         if st.form_submit_button("GUARDAR NOTA"):
             if entrada.strip():
                 with open("nexus_notas.txt", "a", encoding="utf-8") as f:
@@ -219,12 +214,12 @@ elif menu == "📝 BITÁCORA":
     try:
         with open("nexus_notas.txt", "r", encoding="utf-8") as f:
             st.text_area("Historial:", f.read(), height=400)
-    except FileNotFoundError: st.info("Bitácora lista.")
+    except FileNotFoundError: st.info("Bitácora vacía.")
 
 # --- 8. CONFIGURACIÓN ---
 elif menu == "⚙️ CONFIG":
     st.title("⚙️ Ajustes")
-    nuevo_p = st.number_input("Establecer Presupuesto Mensual (RD$):", min_value=0.0, value=float(presupuesto_mensual))
-    if st.button("ACTUALIZAR CONFIGURACIÓN"):
-        db.execute("INSERT OR REPLACE INTO config (param, valor) VALUES ('presupuesto', ?)", (nuevo_p,))
-        db.commit(); st.success("Configuración actualizada correctamente.")
+    np = st.number_input("Presupuesto Mensual (RD$):", min_value=0.0, value=float(presupuesto_mensual))
+    if st.button("ACTUALIZAR AJUSTES"):
+        db.execute("INSERT OR REPLACE INTO config (param, valor) VALUES ('presupuesto', ?)", (np,))
+        db.commit(); st.success("Presupuesto actualizado correctamente.")
