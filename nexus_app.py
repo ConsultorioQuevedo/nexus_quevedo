@@ -17,7 +17,6 @@ st.markdown("""
     .balance-box { background-color: #1f2937; padding: 25px; border-radius: 15px; text-align: center; border: 1px solid #30363d; margin: 20px 0; }
     .tendencia-box { padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 20px; border: 1px solid #ffffff33; }
     div.stButton > button { background-color: #1f2937; color: white; border: 1px solid #30363d; border-radius: 8px; width: 100%; font-weight: bold; height: 48px; }
-    /* Botón de borrado en rojo oscuro */
     .btn-borrar > div > button { background-color: #441111 !important; color: #ff9999 !important; border: 1px solid #662222 !important; height: 35px !important; font-size: 12px !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -56,6 +55,10 @@ def iniciar_db():
 db = iniciar_db()
 f_str, h_str, mes_str, f_obj = obtener_tiempo_rd()
 
+# --- CARGA GLOBAL DE CONFIGURACIÓN (PARA EVITAR EL ERROR) ---
+res_conf = db.execute("SELECT valor FROM config WHERE param='presupuesto'").fetchone()
+presupuesto_mensual = res_conf[0] if res_conf else 20000.0
+
 # --- 4. BARRA LATERAL ---
 with st.sidebar:
     st.markdown("<h2 style='text-align: center;'>🌐 CONTROL</h2>", unsafe_allow_html=True)
@@ -75,9 +78,6 @@ with st.sidebar:
 # --- 5. FINANZAS ---
 if menu == "💰 FINANZAS":
     st.title("💰 Gestión Financiera")
-    res_conf = db.execute("SELECT valor FROM config WHERE param='presupuesto'").fetchone()
-    presupuesto_mensual = res_conf[0] if res_conf else 20000.0
-
     with st.form("f_fin", clear_on_submit=True):
         c1, c2 = st.columns(2)
         tipo = c1.selectbox("TIPO", ["GASTO", "INGRESO"])
@@ -100,8 +100,7 @@ if menu == "💰 FINANZAS":
         
         col_m1.markdown(f"<div class='balance-box'><h3>DISPONIBLE</h3><h1 style='color:#2ecc71;'>RD$ {total_disp:,.2f}</h1></div>", unsafe_allow_html=True)
         
-        # Termómetro de Presupuesto
-        porc = min(gastos_mes / presupuesto_mensual, 1.0)
+        porc = min(gastos_mes / presupuesto_mensual, 1.0) if presupuesto_mensual > 0 else 0
         col_m2.markdown(f"<h3>Presupuesto: {porc*100:.0f}%</h3>", unsafe_allow_html=True)
         col_m2.progress(porc)
         col_m2.write(f"Gastado este mes: RD$ {gastos_mes:,.2f}")
@@ -205,7 +204,8 @@ elif menu == "📝 BITÁCORA":
 elif menu == "⚙️ CONFIG":
     st.title("⚙️ Ajustes del Sistema")
     st.markdown("### 🎯 Meta Financiera")
-    nuevo_p = st.number_input("Establecer Presupuesto Mensual de Gastos (RD$):", min_value=0.0, value=presupuesto_mensual)
+    # Usamos el presupuesto cargado al inicio
+    nuevo_p = st.number_input("Establecer Presupuesto Mensual de Gastos (RD$):", min_value=0.0, value=float(presupuesto_mensual))
     if st.button("ACTUALIZAR CONFIGURACIÓN"):
         db.execute("INSERT OR REPLACE INTO config (param, valor) VALUES ('presupuesto', ?)", (nuevo_p,))
         db.commit(); st.success("Configuración actualizada correctamente.")
