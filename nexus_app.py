@@ -17,12 +17,18 @@ st.markdown("""
     .stForm { background-color: #161b22; border-radius: 15px; border: 1px solid #30363d; padding: 20px; }
     h1, h2, h3 { font-weight: 800; color: white; }
     .balance-box { background-color: #1f2937; padding: 25px; border-radius: 15px; text-align: center; border: 1px solid #30363d; margin: 20px 0; }
-    .info-box { background-color: #0c2d48; color: #5dade2; padding: 15px; border-radius: 10px; border-left: 5px solid #2e86c1; font-size: 14px; }
     .alert-box { background-color: #450a0a; color: #fecaca; padding: 15px; border-radius: 10px; border-left: 5px solid #ef4444; margin-bottom: 20px; }
     div.stButton > button { background-color: #1f2937; color: white; border: 1px solid #30363d; border-radius: 8px; width: 100%; font-weight: bold; height: 45px; }
     div.stButton > button:hover { border-color: #3b82f6; color: #3b82f6; }
-    /* Estilo para las etiquetas de las columnas de medicamentos */
-    .column-label { color: #8b949e; font-size: 12px; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; }
+    
+    /* Ajuste para que las filas de medicamentos se vean siempre horizontales */
+    .med-row { 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+        padding: 10px; 
+        border-bottom: 1px solid #30363d;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -87,7 +93,6 @@ if check_password():
         try:
             conn = st.connection("gsheets", type=GSheetsConnection)
             df_f = conn.read(ttl=0).dropna(how="all")
-            
             with st.form("f_fin", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 tipo = col1.selectbox("TIPO", ["GASTO", "INGRESO"])
@@ -95,28 +100,21 @@ if check_password():
                 cat_libre = st.text_input("CATEGORÍA:").upper()
                 det_libre = st.text_input("DETALLE:").upper()
                 monto = st.number_input("MONTO RD$", min_value=0.0, step=1.0, format="%f")
-                
                 if st.form_submit_button("REGISTRAR"):
                     if monto > 0 and cat_libre:
                         m_real = -abs(monto) if tipo == "GASTO" else abs(monto)
                         nueva = pd.DataFrame([{"Fecha": fecha_sel.strftime("%d/%m/%Y"), "Mes": mes_str, "Tipo": tipo, "Categoría": cat_libre, "Detalle": det_libre, "Monto": float(m_real)}])
                         conn.update(data=pd.concat([df_f, nueva], ignore_index=True))
                         st.success("Guardado correctamente"); st.rerun()
-
             st.dataframe(df_f.sort_index(ascending=False), use_container_width=True)
             if not df_f.empty:
                 df_f["Monto"] = pd.to_numeric(df_f["Monto"])
-                balance = df_f["Monto"].sum()
-                st.markdown(f"<div class='balance-box'><h3>DISPONIBLE</h3><h1 style='color:#e74c3c;'>RD$ {balance:,.2f}</h1></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='balance-box'><h3>DISPONIBLE</h3><h1 style='color:#e74c3c;'>RD$ {df_f['Monto'].sum():,.2f}</h1></div>", unsafe_allow_html=True)
         except Exception as e: st.error(f"Error: {e}")
 
     # --- MÓDULO 2: SALUD ---
     elif menu == "🩺 SALUD":
         st.title("🩺 Mi Salud")
-        prox_citas = pd.read_sql_query("SELECT doctor, fecha FROM citas", db)
-        if not prox_citas.empty:
-            st.markdown(f"<div class='alert-box'>🚨 Tienes {len(prox_citas)} cita(s) agendada(s).</div>", unsafe_allow_html=True)
-
         t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
 
         with t1:
@@ -128,86 +126,66 @@ if check_password():
                     if v > 0:
                         db.execute("INSERT INTO glucosa (fecha, hora, momento, valor, notas) VALUES (?,?,?,?,?)", (f_str, h_str, m, v, notas_g))
                         db.commit(); st.rerun()
-            
             df_g = pd.read_sql_query("SELECT id, fecha, momento, valor, notas FROM glucosa ORDER BY id DESC", db)
             if not df_g.empty:
                 st.dataframe(df_g.drop(columns=['id']).style.apply(aplicar_colores_salud, axis=1), use_container_width=True)
-                col_btn1, col_btn2 = st.columns(2)
-                if col_btn1.button("📄 GENERAR REPORTE"):
-                    st.table(df_g[['fecha', 'momento', 'valor', 'notas']].head(20))
-                if col_btn2.button("🗑️ BORRAR ÚLTIMO"):
-                    db.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)"); db.commit(); st.rerun()
-                st.plotly_chart(px.line(df_g.iloc[::-1], x='fecha', y='valor', markers=True, template="plotly_dark"), use_container_width=True)
 
         with t2:
             st.subheader("💊 Gestión de Medicamentos")
             with st.form("f_med", clear_on_submit=True):
-                n = st.text_input("Nombre del Medicamento:").upper()
-                d = st.text_input("Dosis (ej: 1 Tableta):").upper()
-                h = st.selectbox("Horario / Frecuencia:", [
-                    "CADA 4 HORAS", "CADA 6 HORAS", "CADA 8 HORAS", 
-                    "CADA 12 HORAS", "UNA VEZ AL DÍA", "SOLO SI HAY DOLOR", "ANTES DE DORMIR"
-                ])
+                c1, c2, c3 = st.columns([2,1,1.5])
+                n = c1.text_input("Nombre:").upper()
+                d = c2.text_input("Dosis:").upper()
+                h = c3.selectbox("Horario:", ["CADA 4 HORAS", "CADA 6 HORAS", "CADA 8 HORAS", "CADA 12 HORAS", "UNA VEZ AL DÍA", "SOLO SI HAY DOLOR"])
                 if st.form_submit_button("REGISTRAR MEDICINA"):
                     if n:
                         db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h))
                         db.commit(); st.rerun()
             
-            # --- VISUALIZACIÓN LIMPIA Y ORGANIZADA ---
+            # --- LISTADO TOTALMENTE HORIZONTAL ---
             df_meds = pd.read_sql_query("SELECT id, nombre, dosis, horario FROM medicamentos", db)
             if not df_meds.empty:
                 st.write("---")
-                # Encabezados de columna
-                h1, h2, h3, h4 = st.columns([2.5, 1.5, 2, 1])
-                h1.markdown("<div class='column-label'>Medicamento</div>", unsafe_allow_html=True)
-                h2.markdown("<div class='column-label'>Dosis</div>", unsafe_allow_html=True)
-                h3.markdown("<div class='column-label'>Horario</div>", unsafe_allow_html=True)
-                h4.markdown("<div class='column-label'>Acción</div>", unsafe_allow_html=True)
+                # Cabecera fija
+                head1, head2, head3, head4 = st.columns([2.5, 1.5, 2, 1])
+                head1.caption("NOMBRE")
+                head2.caption("DOSIS")
+                head3.caption("HORARIO")
+                head4.caption("ACCIÓN")
                 
-                for index, row in df_meds.iterrows():
-                    col_nom, col_dos, col_hor, col_del = st.columns([2.5, 1.5, 2, 1])
-                    
-                    # Mostrar datos limpios sin asteriscos ni paréntesis
-                    col_nom.write(row['nombre'])
-                    col_dos.write(row['dosis'])
-                    col_hor.write(row['horario'])
-                    
-                    if col_del.button("BORRAR", key=f"btn_{row['id']}"):
-                        db.execute("DELETE FROM medicamentos WHERE id = ?", (row['id'],))
+                for _, row in df_meds.iterrows():
+                    # Usamos st.columns dentro del loop para forzar la horizontalidad
+                    r1, r2, r3, r4 = st.columns([2.5, 1.5, 2, 1])
+                    r1.write(row['nombre'])
+                    r2.write(row['dosis'])
+                    r3.write(row['horario'])
+                    if r4.button("BORRAR", key=f"del_{row['id']}"):
+                        db.execute("DELETE FROM medicamentos WHERE id=?", (row['id'],))
                         db.commit(); st.rerun()
                 
                 st.write("---")
                 if st.button("🗑️ VACIAR TODA LA LISTA"):
                     db.execute("DELETE FROM medicamentos"); db.commit(); st.rerun()
-            else:
-                st.info("No hay medicamentos registrados actualmente.")
 
         with t3:
             with st.form("f_cit"):
-                doc = st.text_input("Doctor:").upper()
-                f_cit = st.date_input("Fecha")
-                mot = st.text_input("Motivo").upper()
+                doc = st.text_input("Doctor:").upper(); f_cit = st.date_input("Fecha"); mot = st.text_input("Motivo").upper()
                 if st.form_submit_button("AGENDAR CITA"):
                     if doc:
                         db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(f_cit), mot))
                         db.commit(); st.rerun()
-            df_citas = pd.read_sql_query("SELECT id, doctor, fecha, motivo FROM citas ORDER BY fecha ASC", db)
-            st.table(df_citas.drop(columns=['id']))
-            if st.button("LIMPIAR TODAS LAS CITAS"):
-                db.execute("DELETE FROM citas"); db.commit(); st.rerun()
+            df_citas = pd.read_sql_query("SELECT doctor, fecha, motivo FROM citas ORDER BY fecha ASC", db)
+            st.table(df_citas)
 
     # --- MÓDULO 3: BITÁCORA ---
     elif menu == "📝 BITÁCORA":
         st.title("📝 Mis Notas")
         with st.form("f_n", clear_on_submit=True):
-            txt = st.text_area("Escriba algo importante:", height=200)
-            if st.form_submit_button("GUARDAR EN BITÁCORA"):
+            txt = st.text_area("Nota:", height=200)
+            if st.form_submit_button("GUARDAR"):
                 if txt:
-                    with open("notas_nexus.txt", "a") as f:
-                        f.write(f"[{f_str} {h_str}]: {txt}\n---\n")
+                    with open("notas_nexus.txt", "a") as f: f.write(f"[{f_str}]: {txt}\n---\n")
                     st.rerun()
         try:
-            with open("notas_nexus.txt", "r") as f:
-                st.text_area("Historial de Notas:", f.read(), height=400)
-        except:
-            st.info("La bitácora está vacía.")
+            with open("notas_nexus.txt", "r") as f: st.text_area("Historial:", f.read(), height=400)
+        except: st.info("Vacío.")
