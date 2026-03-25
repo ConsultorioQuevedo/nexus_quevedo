@@ -79,7 +79,7 @@ if check_password():
             del st.session_state["password_correct"]
             st.rerun()
 
-    # --- MÓDULO 1: FINANZAS (TEXTO LIBRE EN MAYÚSCULAS) ---
+    # --- MÓDULO 1: FINANZAS ---
     if menu == "💰 FINANZAS":
         st.title("💰 Control Financiero")
         try:
@@ -90,10 +90,8 @@ if check_password():
                 col1, col2 = st.columns(2)
                 tipo = col1.selectbox("TIPO", ["GASTO", "INGRESO"])
                 fecha_sel = col2.date_input("FECHA", value=f_obj)
-                
                 cat_libre = st.text_input("CATEGORÍA:").upper()
                 det_libre = st.text_input("DETALLE:").upper()
-                
                 monto = st.number_input("MONTO RD$", min_value=0.0, step=1.0, format="%f")
                 
                 if st.form_submit_button("REGISTRAR"):
@@ -123,7 +121,7 @@ if check_password():
             with st.form("f_glu", clear_on_submit=True):
                 v = st.number_input("Valor mg/dL:", min_value=0, step=1, format="%d")
                 m = st.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Antes de Cena", "Post-Cena"])
-                notas_g = st.text_input("Notas:")
+                notas_g = st.text_input("Notas:").upper()
                 if st.form_submit_button("GUARDAR MEDICIÓN"):
                     if v > 0:
                         db.execute("INSERT INTO glucosa (fecha, hora, momento, valor, notas) VALUES (?,?,?,?,?)", (f_str, h_str, m, v, notas_g))
@@ -140,15 +138,36 @@ if check_password():
                 st.plotly_chart(px.line(df_g.iloc[::-1], x='fecha', y='valor', markers=True, template="plotly_dark"), use_container_width=True)
 
         with t2:
+            st.subheader("💊 Gestión de Medicamentos")
             with st.form("f_med", clear_on_submit=True):
                 n = st.text_input("Nombre del Medicamento:").upper()
-                d, h = st.text_input("Dosis:"), st.text_input("Horario:")
+                d = st.text_input("Dosis (ej: 1 Tableta):").upper()
+                # MEJORA: Formato de horario mediante selector
+                h = st.selectbox("Horario / Frecuencia:", [
+                    "CADA 4 HORAS", "CADA 6 HORAS", "CADA 8 HORAS", 
+                    "CADA 12 HORAS", "UNA VEZ AL DÍA", "SOLO SI HAY DOLOR", "ANTES DE DORMIR"
+                ])
                 if st.form_submit_button("REGISTRAR MEDICINA"):
                     if n:
                         db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h))
                         db.commit(); st.rerun()
-            df_meds = pd.read_sql_query("SELECT nombre, dosis, horario FROM medicamentos", db)
-            st.table(df_meds)
+            
+            # MEJORA: Lista con botones de borrado individual
+            df_meds = pd.read_sql_query("SELECT id, nombre, dosis, horario FROM medicamentos", db)
+            if not df_meds.empty:
+                st.write("---")
+                for index, row in df_meds.iterrows():
+                    col_text, col_del = st.columns([4, 1])
+                    col_text.markdown(f"**{row['nombre']}** - {row['dosis']} ({row['horario']})")
+                    if col_del.button("ELIMINAR", key=f"btn_{row['id']}"):
+                        db.execute("DELETE FROM medicamentos WHERE id = ?", (row['id'],))
+                        db.commit(); st.rerun()
+                
+                st.write("---")
+                if st.button("🗑️ VACIAR TODA LA LISTA"):
+                    db.execute("DELETE FROM medicamentos"); db.commit(); st.rerun()
+            else:
+                st.info("No hay medicamentos registrados actualmente.")
 
         with t3:
             with st.form("f_cit"):
@@ -162,8 +181,7 @@ if check_password():
             df_citas = pd.read_sql_query("SELECT id, doctor, fecha, motivo FROM citas ORDER BY fecha ASC", db)
             st.table(df_citas.drop(columns=['id']))
             if st.button("LIMPIAR TODAS LAS CITAS"):
-                db.execute("DELETE FROM citas")
-                db.commit(); st.rerun()
+                db.execute("DELETE FROM citas"); db.commit(); st.rerun()
 
     # --- MÓDULO 3: BITÁCORA ---
     elif menu == "📝 BITÁCORA":
