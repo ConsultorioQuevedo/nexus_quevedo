@@ -5,7 +5,7 @@ from datetime import datetime
 import pytz
 import plotly.express as px
 
-# --- 1. CONFIGURACIÓN VISUAL (ESTILO QUEVEDO) ---
+# --- 1. CONFIGURACIÓN VISUAL ---
 st.set_page_config(page_title="NEXUS QUEVEDO", layout="wide", page_icon="🌐")
 
 st.markdown("""
@@ -22,7 +22,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. SEGURIDAD DE ACCESO ---
+# --- 2. SEGURIDAD ---
 if "password_correct" not in st.session_state:
     st.markdown("<h1 style='text-align: center; margin-top: 50px;'>🌐 NEXUS QUEVEDO</h1>", unsafe_allow_html=True)
     _, col_b, _ = st.columns([1,2,1])
@@ -36,7 +36,7 @@ if "password_correct" not in st.session_state:
                 else: st.error("❌ Credenciales Incorrectas")
     st.stop()
 
-# --- 3. FUNCIONES DE BASE DE DATOS Y TIEMPO ---
+# --- 3. FUNCIONES DE TIEMPO Y DB ---
 def obtener_tiempo_rd():
     zona = pytz.timezone('America/Santo_Domingo')
     ahora = datetime.now(zona)
@@ -45,21 +45,19 @@ def obtener_tiempo_rd():
 def iniciar_db():
     conn = sqlite3.connect("nexus_pro_v3.db", check_same_thread=False)
     c = conn.cursor()
-    # Tablas de Salud
     c.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, fecha TEXT, hora TEXT, momento TEXT, valor INTEGER, notas TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS medicamentos (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT, horario TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS citas (id INTEGER PRIMARY KEY, doctor TEXT, fecha TEXT, motivo TEXT)')
-    # Nueva Tabla de Finanzas (Para no depender de Google)
     c.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, fecha TEXT, mes TEXT, tipo TEXT, categoria TEXT, detalle TEXT, monto REAL)')
     conn.commit()
     return conn
 
 def color_glucosa(row):
     v, m = row['valor'], row['momento']
-    color = "#166534" # Verde (Normal)
+    color = "#166534"
     if "Post" in m:
-        if v >= 200: color = "#991b1b" # Rojo
-        elif v >= 140: color = "#854d0e" # Naranja
+        if v >= 200: color = "#991b1b"
+        elif v >= 140: color = "#854d0e"
     else:
         if v > 125: color = "#991b1b"
         elif v >= 100: color = "#854d0e"
@@ -68,13 +66,13 @@ def color_glucosa(row):
 db = iniciar_db()
 f_str, h_str, mes_str, f_obj = obtener_tiempo_rd()
 
-# --- 4. BARRA LATERAL CON RECORDATORIO ---
+# --- 4. BARRA LATERAL ---
 with st.sidebar:
     st.markdown("<h2 style='text-align: center;'>🌐 CONTROL CENTRAL</h2>", unsafe_allow_html=True)
     st.info(f"📅 {f_str} | ⏰ {h_str}")
     
     st.markdown("### 🔔 PRÓXIMAS CITAS")
-    df_citas_aviso = pd.read_sql_query("SELECT doctor, fecha, motivo FROM citas ORDER BY fecha ASC LIMIT 3", db)
+    df_citas_aviso = pd.read_sql_query("SELECT doctor, fecha FROM citas ORDER BY fecha ASC LIMIT 3", db)
     for _, r in df_citas_aviso.iterrows():
         st.markdown(f"<div class='info-box'><b>{r['doctor']}</b><br>📅 {r['fecha']}</div>", unsafe_allow_html=True)
 
@@ -83,10 +81,9 @@ with st.sidebar:
     if st.button("CERRAR SESIÓN"):
         del st.session_state["password_correct"]; st.rerun()
 
-# --- 5. MÓDULO: FINANZAS (LOCAL - SIN GOOGLE) ---
+# --- 5. FINANZAS LOCALES ---
 if menu == "💰 FINANZAS":
-    st.title("💰 Gestión Financiera Local")
-    
+    st.title("💰 Gestión Financiera (Disco Duro)")
     with st.form("f_fin", clear_on_submit=True):
         c1, c2 = st.columns(2)
         tipo = c1.selectbox("MOVIMIENTO", ["GASTO", "INGRESO"])
@@ -101,10 +98,9 @@ if menu == "💰 FINANZAS":
             db.commit(); st.rerun()
 
     df_f = pd.read_sql_query("SELECT id, fecha, tipo, categoria, detalle, monto FROM finanzas ORDER BY id DESC", db)
-    
     if not df_f.empty:
         total = df_f["monto"].sum()
-        st.markdown(f"<div class='balance-box'><h3>DISPONIBLE TOTAL EN DISCO</h3><h1 style='color:#2ecc71;'>RD$ {total:,.2f}</h1></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='balance-box'><h3>DISPONIBLE TOTAL</h3><h1 style='color:#2ecc71;'>RD$ {total:,.2f}</h1></div>", unsafe_allow_html=True)
         
         st.subheader("📊 Resumen Quincenal")
         df_f['Fecha_dt'] = pd.to_datetime(df_f['fecha'], format='%d/%m/%Y')
@@ -112,12 +108,12 @@ if menu == "💰 FINANZAS":
         res_q = df_f.groupby(['Quincena', 'tipo'])['monto'].sum().unstack().fillna(0)
         st.table(res_q.style.format("RD$ {:,.2f}"))
 
-        st.subheader("📝 Historial (Guardado en Computadora)")
+        st.subheader("📝 Historial Local")
         st.dataframe(df_f.drop(columns=['id']), use_container_width=True)
         if st.button("🗑️ BORRAR ÚLTIMO MOVIMIENTO"):
             db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)"); db.commit(); st.rerun()
 
-# --- 6. MÓDULO: SALUD (RESTAURADO) ---
+# --- 6. SALUD (CON MENÚ DESPLEGABLE RESTAURADO) ---
 elif menu == "🩺 SALUD":
     st.title("🩺 Control de Salud NEXUS")
     t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
@@ -145,7 +141,11 @@ elif menu == "🩺 SALUD":
             c1, c2, c3 = st.columns([2, 1, 1.5])
             n = c1.text_input("Medicamento:").upper()
             d = c2.text_input("Dosis:").upper()
-            h = c3.text_input("Horario/Frecuencia:").upper()
+            # --- RESTAURACIÓN DEL MENÚ DESPLEGABLE ---
+            h = c3.selectbox("Horario/Frecuencia:", [
+                "CADA 4 HORAS", "CADA 8 HORAS", "CADA 12 HORAS", 
+                "UNA VEZ AL DÍA", "CADA 24 HORAS", "ANTES DE DORMIR", "SI HAY DOLOR"
+            ])
             if st.form_submit_button("AÑADIR"):
                 db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h))
                 db.commit(); st.rerun()
