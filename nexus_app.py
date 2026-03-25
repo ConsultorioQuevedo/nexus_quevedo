@@ -6,7 +6,7 @@ from datetime import datetime, date
 import pytz
 import plotly.express as px
 
-# --- CONFIGURACIÓN Y ESTILO NEXUS PROFESIONAL ---
+# --- CONFIGURACIÓN Y ESTILO NEXUS ---
 st.set_page_config(page_title="NEXUS QUEVEDO", layout="wide", page_icon="🌐")
 
 st.markdown("""
@@ -43,6 +43,7 @@ def check_password():
     return True
 
 if check_password():
+    # --- FUNCIONES NÚCLEO ---
     def obtener_tiempo_rd():
         zona = pytz.timezone('America/Santo_Domingo')
         ahora = datetime.now(zona)
@@ -68,6 +69,7 @@ if check_password():
     db = iniciar_db_salud()
     f_str, h_str, mes_str, f_obj = obtener_tiempo_rd()
 
+    # --- BARRA LATERAL ---
     with st.sidebar:
         st.markdown("<h2 style='text-align: center;'>🌐 NEXUS</h2>", unsafe_allow_html=True)
         st.write(f"📅 {f_str} | ⏰ {h_str}")
@@ -78,7 +80,7 @@ if check_password():
             del st.session_state["password_correct"]
             st.rerun()
 
-    # --- FINANZAS ---
+    # --- MÓDULO 1: FINANZAS (CON MENÚS DEPENDIENTES Y TECLADO NUMÉRICO) ---
     if menu == "💰 FINANZAS":
         st.title("💰 Control Financiero")
         try:
@@ -86,18 +88,31 @@ if check_password():
             df_f = conn.read(ttl=0).dropna(how="all")
             
             with st.form("f_fin", clear_on_submit=True):
-                c1, c2, c3 = st.columns([1,1,1])
+                c1, c2 = st.columns(2)
                 tipo = c1.selectbox("TIPO", ["GASTO", "INGRESO"])
-                # Sugerencias de categorías para mayor rapidez
-                cat = c2.selectbox("CATEGORÍA", ["ALIMENTACIÓN", "COMBUSTIBLE", "SERVICIOS", "SALUD", "HOGAR", "OTROS"])
-                fecha_sel = c3.date_input("FECHA", value=f_obj)
-                det = st.text_input("DETALLE (OPCIONAL)").upper()
-                mon = st.number_input("MONTO RD$", min_value=0.0, step=100.0)
+                fecha_sel = c2.date_input("FECHA", value=f_obj)
+                
+                cat = st.selectbox("CATEGORÍA (Grupo)", ["SERVICIOS", "SUPERMERCADO", "VEHÍCULO", "SALUD", "HOGAR", "OTROS"])
+                
+                # Lógica de Detalles dependientes
+                opciones_det = []
+                if cat == "SERVICIOS": opciones_det = ["LUZ", "AGUA", "INTERNET", "BASURA", "TELE CABLE", "TELÉFONO"]
+                elif cat == "SUPERMERCADO": opciones_det = ["COMPRA GENERAL", "ARROZ/HABICHUELAS", "CARNES", "VÍVERES", "LIMPIEZA"]
+                elif cat == "VEHÍCULO": opciones_det = ["GASOLINA", "GAS", "LAVADO", "MANTENIMIENTO", "REPUESTOS"]
+                elif cat == "SALUD": opciones_det = ["MEDICAMENTOS", "CONSULTA MÉDICA", "ANÁLISIS", "DENTAL"]
+                else: opciones_det = ["OTRO / ESPECIFICAR ABAJO"]
+
+                det_sugerido = st.selectbox("DETALLE (Seleccione):", opciones_det)
+                det_manual = st.text_input("O ESCRIBA DETALLE ESPECÍFICO:").upper()
+                detalle_final = det_manual if det_manual else det_sugerido
+                
+                # Optimizado para teclado numérico
+                mon = st.number_input("MONTO RD$", min_value=0.0, step=1.0, format="%f")
                 
                 if st.form_submit_button("REGISTRAR MOVIMIENTO"):
                     if mon > 0:
                         m_real = -abs(mon) if tipo == "GASTO" else abs(mon)
-                        nueva = pd.DataFrame([{"Fecha": fecha_sel.strftime("%d/%m/%Y"), "Mes": mes_str, "Tipo": tipo, "Categoría": cat, "Detalle": det, "Monto": float(m_real)}])
+                        nueva = pd.DataFrame([{"Fecha": fecha_sel.strftime("%d/%m/%Y"), "Mes": mes_str, "Tipo": tipo, "Categoría": cat, "Detalle": detalle_final, "Monto": float(m_real)}])
                         conn.update(data=pd.concat([df_f, nueva], ignore_index=True))
                         st.success("Sincronizado con la nube"); st.rerun()
 
@@ -105,26 +120,26 @@ if check_password():
 
             if not df_f.empty:
                 df_f["Monto"] = pd.to_numeric(df_f["Monto"])
-                ing, gas = df_f[df_f["Monto"] > 0]["Monto"].sum(), df_f[df_f["Monto"] < 0]["Monto"].abs().sum()
-                st.markdown(f"<div class='balance-box'><h3 style='margin:0; color:#e74c3c;'>DISPONIBLE</h3><h1 style='margin:0; font-size:50px; color:#e74c3c;'>RD$ {ing-gas:,.2f}</h1></div>", unsafe_allow_html=True)
+                balance = df_f["Monto"].sum()
+                color_b = "#22c55e" if balance >= 0 else "#ef4444"
+                st.markdown(f"<div class='balance-box'><h3 style='margin:0; color:{color_b};'>DISPONIBLE</h3><h1 style='margin:0; font-size:50px; color:{color_b};'>RD$ {balance:,.2f}</h1></div>", unsafe_allow_html=True)
         except Exception as e: st.error(f"Error: {e}")
 
-    # --- SALUD ---
+    # --- MÓDULO 2: SALUD (CON REPORTE Y TECLADO NUMÉRICO) ---
     elif menu == "🩺 SALUD":
         st.title("🩺 Mi Salud")
         
-        # Alerta Inteligente
         prox_citas = pd.read_sql_query("SELECT doctor, fecha FROM citas", db)
         if not prox_citas.empty:
-            st.markdown(f"<div class='alert-box'>🚨 <b>RECORDATORIO:</b> Tienes {len(prox_citas)} cita(s) en tu historial. Revisa la pestaña de Citas.</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='alert-box'>🚨 <b>RECORDATORIO:</b> Tienes {len(prox_citas)} cita(s) agendada(s).</div>", unsafe_allow_html=True)
 
         t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
 
         with t1:
             with st.form("f_glu", clear_on_submit=True):
-                col_g1, col_g2 = st.columns(2)
-                v = col_g1.number_input("Valor (mg/dL):", min_value=0)
-                m = col_g2.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Antes de Cena", "Post-Cena"])
+                # Optimizado para teclado numérico (step=1 y format=%d)
+                v = st.number_input("Valor mg/dL:", min_value=0, step=1, format="%d")
+                m = st.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Antes de Cena", "Post-Cena"])
                 nt = st.text_input("Notas rápidas:")
                 if st.form_submit_button("GUARDAR MEDICIÓN"):
                     if v > 0:
@@ -163,7 +178,7 @@ if check_password():
             if st.button("VACIAR TODAS LAS CITAS"):
                 db.execute("DELETE FROM citas"); db.commit(); st.rerun()
 
-    # --- BITÁCORA ---
+    # --- MÓDULO 3: BITÁCORA ---
     elif menu == "📝 BITÁCORA":
         st.title("📝 Mis Notas")
         with st.form("f_n", clear_on_submit=True):
