@@ -23,7 +23,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. SEGURIDAD RESTAURADA ---
+# --- 2. SEGURIDAD ---
 def check_password():
     if "password_correct" not in st.session_state:
         st.markdown("<h1 style='text-align: center; margin-top: 50px;'>🌐 NEXUS QUEVEDO</h1>", unsafe_allow_html=True)
@@ -40,7 +40,6 @@ def check_password():
     return True
 
 if check_password():
-    # --- 3. FUNCIONES CORE ---
     def obtener_tiempo_rd():
         zona = pytz.timezone('America/Santo_Domingo')
         ahora = datetime.now(zona)
@@ -58,35 +57,32 @@ if check_password():
     db = iniciar_db()
     f_str, h_str, mes_str, f_obj = obtener_tiempo_rd()
 
-    # --- 4. BARRA LATERAL CON ALERTAS ---
     with st.sidebar:
         st.markdown("<h2 style='text-align: center;'>🌐 NEXUS CONTROL</h2>", unsafe_allow_html=True)
         st.info(f"📅 {f_str} | ⏰ {h_str}")
-        
         st.markdown("### 🔔 PRÓXIMAS CITAS")
         df_citas_aviso = pd.read_sql_query("SELECT doctor, fecha FROM citas ORDER BY fecha ASC LIMIT 3", db)
         if not df_citas_aviso.empty:
             for _, r in df_citas_aviso.iterrows():
                 st.markdown(f"<div class='info-box'>📍 {r['doctor']}<br>📅 {r['fecha']}</div>", unsafe_allow_html=True)
-        else: st.write("Sin citas pendientes.")
-
         st.divider()
         menu = st.radio("MENÚ PRINCIPAL", ["💰 FINANZAS", "🩺 SALUD", "📝 BITÁCORA"])
         if st.button("CERRAR SESIÓN"):
             del st.session_state["password_correct"]; st.rerun()
 
-    # --- 5. MÓDULO: FINANZAS (CORREGIDO) ---
+    # --- 5. MÓDULO: FINANZAS ---
     if menu == "💰 FINANZAS":
         st.title("💰 Gestión Financiera")
         
-        # URL de su hoja (Asegúrese de que Categoria en Excel no tenga tilde)
-        URL_HOJA = "https://docs.google.com/spreadsheets/d/12jg8nHRUCJwwty0VcsbWFvTIpRcGLCITNKLevZ7Nwb8/edit?usp=sharing"
+        # LINK DIRECTO PARA EVITAR ERRORES DE SECRETS
+        URL_LINK = "https://docs.google.com/spreadsheets/d/12jg8nHRUCJwwty0VcsbWFvTIpRcGLCITNKLevZ7Nwb8/edit?usp=sharing"
         
         try:
-            # Conexión GSheets
+            # Intento de conexión
             conn_gs = st.connection("gsheets", type=GSheetsConnection)
-            df_f = conn_gs.read(spreadsheet=URL_HOJA, ttl=0).dropna(how="all")
+            df_f = conn_gs.read(spreadsheet=URL_LINK, ttl=0).dropna(how="all")
             
+            # Formulario de Registro
             with st.form("f_fin", clear_on_submit=True):
                 c1, c2 = st.columns(2)
                 tipo = c1.selectbox("MOVIMIENTO", ["GASTO", "INGRESO"])
@@ -98,20 +94,17 @@ if check_password():
                     if monto > 0:
                         m_real = -abs(monto) if tipo == "GASTO" else abs(monto)
                         nueva_fila = pd.DataFrame([{"Fecha": f_gasto.strftime("%d/%m/%Y"), "Mes": mes_str, "Tipo": tipo, "Categoria": cat, "Detalle": det, "Monto": float(m_real)}])
-                        # Actualización
-                        df_actualizado = pd.concat([df_f, nueva_fila], ignore_index=True)
-                        conn_gs.update(spreadsheet=URL_HOJA, data=df_actualizado)
-                        st.success("✅ Registro guardado en la nube"); st.rerun()
+                        df_updated = pd.concat([df_f, nueva_fila], ignore_index=True)
+                        conn_gs.update(spreadsheet=URL_LINK, data=df_updated)
+                        st.success("✅ Sincronizado correctamente"); st.rerun()
 
             st.subheader("Registros Recientes")
             if not df_f.empty:
                 st.dataframe(df_f.sort_index(ascending=False), use_container_width=True)
-                
-                # Cálculos de Balance
                 df_f["Monto"] = pd.to_numeric(df_f["Monto"])
                 st.markdown(f"<div class='balance-box'><h3>DISPONIBLE TOTAL</h3><h1 style='color:#2ecc71;'>RD$ {df_f['Monto'].sum():,.2f}</h1></div>", unsafe_allow_html=True)
                 
-                # Resumen Quincenal Restaurado
+                # Resumen Quincenal
                 st.divider()
                 st.subheader("📊 Resumen por Quincenas")
                 df_f['Fecha_dt'] = pd.to_datetime(df_f['Fecha'], format='%d/%m/%Y', errors='coerce')
@@ -119,17 +112,14 @@ if check_password():
                 df_f['Quincena'] = df_f['Fecha_dt'].apply(lambda x: f"1ra Q ({x.strftime('%b')})" if x.day <= 15 else f"2da Q ({x.strftime('%b')})")
                 resumen_q = df_f.groupby(['Quincena', 'Tipo'])['Monto'].sum().unstack().fillna(0)
                 st.table(resumen_q.style.format("RD$ {:,.2f}"))
-            else:
-                st.info("Aún no hay datos en su hoja de cálculo.")
-                
+
         except Exception as e:
-            st.error("Error de conexión. Verifique que el enlace en 'Secrets' sea correcto y que las columnas en su Excel sean: Fecha, Mes, Tipo, Categoria, Detalle, Monto")
+            st.error("Error de acceso. Por favor: 1. Verifique que en Google Sheets los títulos sean: Fecha, Mes, Tipo, Categoria, Detalle, Monto. 2. Asegúrese de que el enlace en 'Secrets' esté bien pegado.")
 
     # --- 6. MÓDULO: SALUD ---
     elif menu == "🩺 SALUD":
         st.title("🩺 Control de Salud")
         t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
-
         with t1:
             with st.form("f_gluc"):
                 c1, c2 = st.columns(2)
@@ -139,25 +129,20 @@ if check_password():
                 if st.form_submit_button("GUARDAR GLUCOSA"):
                     db.execute("INSERT INTO glucosa (fecha, hora, momento, valor, notas) VALUES (?,?,?,?,?)", (f_str, h_str, momento, valor, not_g))
                     db.commit(); st.rerun()
-            
             df_g = pd.read_sql_query("SELECT fecha, momento, valor, notas FROM glucosa ORDER BY id DESC", db)
             if not df_g.empty:
                 st.dataframe(df_g, use_container_width=True)
                 st.plotly_chart(px.line(df_g.iloc[::-1], x='fecha', y='valor', markers=True, template="plotly_dark"))
-
         with t2:
             st.subheader("💊 Medicinas")
             with st.form("f_med", clear_on_submit=True):
-                cn, cd, ch = st.columns([2,1,1.5])
-                n = cn.text_input("Nombre:").upper()
-                d = cd.text_input("Dosis:").upper()
-                h = ch.selectbox("Frecuencia:", ["UNA VEZ AL DÍA", "CADA 12 HORAS", "CADA 8 HORAS", "SI HAY DOLOR"])
+                n = st.text_input("Nombre:").upper()
+                d = st.text_input("Dosis:").upper()
+                h = st.selectbox("Frecuencia:", ["UNA VEZ AL DÍA", "CADA 12 HORAS", "CADA 8 HORAS"])
                 if st.form_submit_button("AÑADIR"):
                     db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h))
                     db.commit(); st.rerun()
-            df_m = pd.read_sql_query("SELECT nombre AS MEDICAMENTO, dosis AS DOSIS, horario AS HORARIO FROM medicamentos", db)
-            st.dataframe(df_m, use_container_width=True, hide_index=True)
-
+            st.dataframe(pd.read_sql_query("SELECT nombre, dosis, horario FROM medicamentos", db), use_container_width=True)
         with t3:
             st.subheader("📅 Citas Médicas")
             with st.form("f_cit"):
@@ -170,12 +155,12 @@ if check_password():
     # --- 7. MÓDULO: BITÁCORA ---
     elif menu == "📝 BITÁCORA":
         st.title("📝 Notas Personales")
-        entrada = st.text_area("Escriba aquí:", height=150)
+        entrada = st.text_area("Escriba aquí:")
         if st.button("GUARDAR NOTA"):
             with open("nexus_notas.txt", "a", encoding="utf-8") as f:
                 f.write(f"[{f_str}]: {entrada}\n---\n")
-            st.success("Nota guardada."); st.rerun()
+            st.rerun()
         try:
             with open("nexus_notas.txt", "r", encoding="utf-8") as f:
-                st.text_area("Historial:", f.read(), height=400)
-        except: st.info("Sin notas registradas.")
+                st.text_area("Historial:", f.read(), height=300)
+        except: st.info("Sin notas.")
