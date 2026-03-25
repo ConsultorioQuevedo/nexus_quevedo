@@ -49,23 +49,19 @@ with st.sidebar:
     st.write(f"📅 {f_str} | ⏰ {h_str}")
     menu = st.radio("MENÚ", ["💰 FINANZAS", "🩺 SALUD"])
 
-# --- FINANZAS (SOLUCIÓN DEFINITIVA DE COLUMNAS) ---
+# --- FINANZAS (CON RUTA DE EMERGENCIA) ---
 if menu == "💰 FINANZAS":
     st.title("💰 Gestión Financiera")
-    URL = "https://docs.google.com/spreadsheets/d/12jg8nHRUCJwwty0VcsbWFvTIpRcGLCITNKLevZ7Nwb8/export?format=csv"
+    # Enlace directo convertido a formato CSV para lectura directa
+    URL_DIRECTA = "https://docs.google.com/spreadsheets/d/12jg8nHRUCJwwty0VcsbWFvTIpRcGLCITNKLevZ7Nwb8/export?format=csv"
     
     try:
-        df = pd.read_csv(URL)
+        # Intenta leer directamente sin depender de la configuración externa
+        df = pd.read_csv(URL_DIRECTA)
+        df.columns = [c.strip().replace('Categoría', 'Categoria').capitalize() for c in df.columns]
         
-        # --- EL CAMBIO EN "OTRO LUGAR" ---
-        # Forzamos a que el código ignore tildes y mayúsculas en los títulos
-        df.columns = [c.strip().capitalize() for c in df.columns]
-        if 'Categoría' in df.columns or 'Categoria' in df.columns:
-            df.rename(columns={'Categoría': 'Categoria'}, inplace=True)
+        st.success("✅ Conectado a DB_NEXUS_FINANZAS")
         
-        st.success("✅ Conectado con éxito")
-        
-        # Balance
         if 'Monto' in df.columns:
             df["Monto"] = pd.to_numeric(df["Monto"], errors='coerce').fillna(0)
             st.markdown(f"<div class='balance-box'><h3>DISPONIBLE TOTAL</h3><h1 style='color:#2ecc71;'>RD$ {df['Monto'].sum():,.2f}</h1></div>", unsafe_allow_html=True)
@@ -73,14 +69,14 @@ if menu == "💰 FINANZAS":
         st.dataframe(df, use_container_width=True)
         
     except Exception as e:
-        st.error("Error al leer los datos. Verifique que el enlace en Secrets sea el correcto.")
+        st.error("Error al leer los datos. Verifique que su Google Sheets esté en 'Cualquier persona con el enlace puede VER'.")
 
-# --- SALUD (CON BOTONES DE BORRADO Y HORARIOS) ---
+# --- SALUD (RESTAURADO) ---
 elif menu == "🩺 SALUD":
     st.title("🩺 Control de Salud")
-    t1, t2 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS"])
+    tab1, tab2 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS"])
 
-    with t1:
+    with tab1:
         v = st.number_input("Nivel mg/dL:", min_value=0)
         if st.button("GUARDAR GLUCOSA"):
             db.execute("INSERT INTO glucosa (fecha, hora, valor) VALUES (?,?,?)", (f_str, h_str, v))
@@ -94,7 +90,7 @@ elif menu == "🩺 SALUD":
                 db.execute("DELETE FROM glucosa WHERE id=?", (r['id'],))
                 db.commit(); st.rerun()
 
-    with t2:
+    with tab2:
         st.subheader("💊 Medicinas con Horario")
         with st.form("f_med"):
             c1, c2, c3 = st.columns(3)
