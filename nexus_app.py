@@ -21,6 +21,8 @@ st.markdown("""
     .alert-box { background-color: #450a0a; color: #fecaca; padding: 15px; border-radius: 10px; border-left: 5px solid #ef4444; margin-bottom: 20px; }
     div.stButton > button { background-color: #1f2937; color: white; border: 1px solid #30363d; border-radius: 8px; width: 100%; font-weight: bold; height: 45px; }
     div.stButton > button:hover { border-color: #3b82f6; color: #3b82f6; }
+    /* Estilo para las etiquetas de las columnas de medicamentos */
+    .column-label { color: #8b949e; font-size: 12px; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -142,7 +144,6 @@ if check_password():
             with st.form("f_med", clear_on_submit=True):
                 n = st.text_input("Nombre del Medicamento:").upper()
                 d = st.text_input("Dosis (ej: 1 Tableta):").upper()
-                # MEJORA: Formato de horario mediante selector
                 h = st.selectbox("Horario / Frecuencia:", [
                     "CADA 4 HORAS", "CADA 6 HORAS", "CADA 8 HORAS", 
                     "CADA 12 HORAS", "UNA VEZ AL DÍA", "SOLO SI HAY DOLOR", "ANTES DE DORMIR"
@@ -152,14 +153,26 @@ if check_password():
                         db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h))
                         db.commit(); st.rerun()
             
-            # MEJORA: Lista con botones de borrado individual
+            # --- VISUALIZACIÓN LIMPIA Y ORGANIZADA ---
             df_meds = pd.read_sql_query("SELECT id, nombre, dosis, horario FROM medicamentos", db)
             if not df_meds.empty:
                 st.write("---")
+                # Encabezados de columna
+                h1, h2, h3, h4 = st.columns([2.5, 1.5, 2, 1])
+                h1.markdown("<div class='column-label'>Medicamento</div>", unsafe_allow_html=True)
+                h2.markdown("<div class='column-label'>Dosis</div>", unsafe_allow_html=True)
+                h3.markdown("<div class='column-label'>Horario</div>", unsafe_allow_html=True)
+                h4.markdown("<div class='column-label'>Acción</div>", unsafe_allow_html=True)
+                
                 for index, row in df_meds.iterrows():
-                    col_text, col_del = st.columns([4, 1])
-                    col_text.markdown(f"**{row['nombre']}** - {row['dosis']} ({row['horario']})")
-                    if col_del.button("ELIMINAR", key=f"btn_{row['id']}"):
+                    col_nom, col_dos, col_hor, col_del = st.columns([2.5, 1.5, 2, 1])
+                    
+                    # Mostrar datos limpios sin asteriscos ni paréntesis
+                    col_nom.write(row['nombre'])
+                    col_dos.write(row['dosis'])
+                    col_hor.write(row['horario'])
+                    
+                    if col_del.button("BORRAR", key=f"btn_{row['id']}"):
                         db.execute("DELETE FROM medicamentos WHERE id = ?", (row['id'],))
                         db.commit(); st.rerun()
                 
