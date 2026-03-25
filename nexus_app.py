@@ -91,11 +91,9 @@ if check_password():
                 tipo = col1.selectbox("TIPO", ["GASTO", "INGRESO"])
                 fecha_sel = col2.date_input("FECHA", value=f_obj)
                 
-                # CAMBIOS A TEXTO LIBRE
-                cat_libre = st.text_input("CATEGORÍA (Escriba lo que desee):").upper()
-                det_libre = st.text_input("DETALLE (Escriba lo que desee):").upper()
+                cat_libre = st.text_input("CATEGORÍA:").upper()
+                det_libre = st.text_input("DETALLE:").upper()
                 
-                # Optimizado para teclado numérico
                 monto = st.number_input("MONTO RD$", min_value=0.0, step=1.0, format="%f")
                 
                 if st.form_submit_button("REGISTRAR"):
@@ -146,17 +144,26 @@ if check_password():
                 n = st.text_input("Nombre del Medicamento:").upper()
                 d, h = st.text_input("Dosis:"), st.text_input("Horario:")
                 if st.form_submit_button("REGISTRAR MEDICINA"):
-                    if n: db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h)); db.commit(); st.rerun()
-            st.table(pd.read_sql_query("SELECT nombre, dosis, horario FROM medicamentos", db))
+                    if n:
+                        db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h))
+                        db.commit(); st.rerun()
+            df_meds = pd.read_sql_query("SELECT nombre, dosis, horario FROM medicamentos", db)
+            st.table(df_meds)
 
         with t3:
             with st.form("f_cit"):
-                doc = st.text_input("Doctor:").upper(); f_cit = st.date_input("Fecha"); mot = st.text_input("Motivo")
+                doc = st.text_input("Doctor:").upper()
+                f_cit = st.date_input("Fecha")
+                mot = st.text_input("Motivo").upper()
                 if st.form_submit_button("AGENDAR CITA"):
-                    db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(f_cit), mot.upper())); db.commit(); st.rerun()
-            st.table(pd.read_sql_query("SELECT doctor, fecha, motivo FROM citas", db))
+                    if doc:
+                        db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(f_cit), mot))
+                        db.commit(); st.rerun()
+            df_citas = pd.read_sql_query("SELECT id, doctor, fecha, motivo FROM citas ORDER BY fecha ASC", db)
+            st.table(df_citas.drop(columns=['id']))
             if st.button("LIMPIAR TODAS LAS CITAS"):
-                db.execute("DELETE FROM citas"); db.commit(); st.rerun()
+                db.execute("DELETE FROM citas")
+                db.commit(); st.rerun()
 
     # --- MÓDULO 3: BITÁCORA ---
     elif menu == "📝 BITÁCORA":
@@ -165,8 +172,11 @@ if check_password():
             txt = st.text_area("Escriba algo importante:", height=200)
             if st.form_submit_button("GUARDAR EN BITÁCORA"):
                 if txt:
-                    with open("notas_nexus.txt", "a") as f: f.write(f"[{f_str} {h_str}]: {txt}\n---\n")
+                    with open("notas_nexus.txt", "a") as f:
+                        f.write(f"[{f_str} {h_str}]: {txt}\n---\n")
                     st.rerun()
         try:
-            with open("notas_nexus.txt", "r") as f: st.text_area("Historial de Notas:", f.read(), height=400)
-        except: st.info("La bitácora está vacía.")
+            with open("notas_nexus.txt", "r") as f:
+                st.text_area("Historial de Notas:", f.read(), height=400)
+        except:
+            st.info("La bitácora está vacía.")
