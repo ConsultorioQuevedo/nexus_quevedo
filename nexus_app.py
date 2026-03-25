@@ -81,9 +81,10 @@ with st.sidebar:
     if st.button("CERRAR SESIÓN"):
         del st.session_state["password_correct"]; st.rerun()
 
-# --- 5. FINANZAS LOCALES ---
+# --- 5. FINANZAS LOCALES (CON LIMPIEZA) ---
 if menu == "💰 FINANZAS":
-    st.title("💰 Gestión Financiera (Disco Duro)")
+    st.title("💰 Gestión Financiera")
+    # Formulario con clear_on_submit=True para limpiar automáticamente
     with st.form("f_fin", clear_on_submit=True):
         c1, c2 = st.columns(2)
         tipo = c1.selectbox("MOVIMIENTO", ["GASTO", "INGRESO"])
@@ -92,10 +93,13 @@ if menu == "💰 FINANZAS":
         det = st.text_input("DETALLE:").upper()
         monto = st.number_input("VALOR RD$:", min_value=0.0)
         if st.form_submit_button("REGISTRAR MOVIMIENTO"):
-            m_real = -abs(monto) if tipo == "GASTO" else abs(monto)
-            db.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)",
-                       (f_mov.strftime("%d/%m/%Y"), mes_str, tipo, cat, det, m_real))
-            db.commit(); st.rerun()
+            if monto > 0:
+                m_real = -abs(monto) if tipo == "GASTO" else abs(monto)
+                db.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)",
+                           (f_mov.strftime("%d/%m/%Y"), mes_str, tipo, cat, det, m_real))
+                db.commit()
+                st.success("¡Registrado y Limpio!")
+                st.rerun()
 
     df_f = pd.read_sql_query("SELECT id, fecha, tipo, categoria, detalle, monto FROM finanzas ORDER BY id DESC", db)
     if not df_f.empty:
@@ -113,20 +117,21 @@ if menu == "💰 FINANZAS":
         if st.button("🗑️ BORRAR ÚLTIMO MOVIMIENTO"):
             db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)"); db.commit(); st.rerun()
 
-# --- 6. SALUD (CON MENÚ DESPLEGABLE RESTAURADO) ---
+# --- 6. SALUD (CON LIMPIEZA) ---
 elif menu == "🩺 SALUD":
     st.title("🩺 Control de Salud NEXUS")
     t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
 
     with t1:
-        with st.form("f_gluc"):
+        with st.form("f_gluc", clear_on_submit=True):
             c1, c2 = st.columns(2)
             valor = c1.number_input("Nivel mg/dL:", min_value=0)
             momento = c2.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Post-Cena"])
             notas_glu = st.text_input("Observaciones:").upper()
             if st.form_submit_button("GUARDAR LECTURA"):
                 db.execute("INSERT INTO glucosa (fecha, hora, momento, valor, notas) VALUES (?,?,?,?,?)", (f_str, h_str, momento, valor, notas_glu))
-                db.commit(); st.rerun()
+                db.commit()
+                st.rerun()
         
         df_g = pd.read_sql_query("SELECT id, fecha, hora, momento, valor, notas FROM glucosa ORDER BY id DESC", db)
         if not df_g.empty:
@@ -137,18 +142,18 @@ elif menu == "🩺 SALUD":
 
     with t2:
         st.subheader("💊 Medicinas Actuales")
-        with st.form("f_med"):
+        with st.form("f_med", clear_on_submit=True):
             c1, c2, c3 = st.columns([2, 1, 1.5])
             n = c1.text_input("Medicamento:").upper()
             d = c2.text_input("Dosis:").upper()
-            # --- RESTAURACIÓN DEL MENÚ DESPLEGABLE ---
             h = c3.selectbox("Horario/Frecuencia:", [
                 "CADA 4 HORAS", "CADA 8 HORAS", "CADA 12 HORAS", 
                 "UNA VEZ AL DÍA", "CADA 24 HORAS", "ANTES DE DORMIR", "SI HAY DOLOR"
             ])
             if st.form_submit_button("AÑADIR"):
-                db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h))
-                db.commit(); st.rerun()
+                if n:
+                    db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h))
+                    db.commit(); st.rerun()
         
         df_meds = pd.read_sql_query("SELECT id, nombre, dosis, horario FROM medicamentos", db)
         for _, r in df_meds.iterrows():
@@ -159,7 +164,7 @@ elif menu == "🩺 SALUD":
 
     with t3:
         st.subheader("📅 Agenda Médica")
-        with st.form("f_citas"):
+        with st.form("f_citas", clear_on_submit=True):
             doc = st.text_input("Doctor:").upper()
             fec = st.date_input("Fecha")
             if st.form_submit_button("AGENDAR"):
@@ -173,14 +178,16 @@ elif menu == "🩺 SALUD":
             if c2.button("Borrar", key=f"c_{r['id']}"):
                 db.execute("DELETE FROM citas WHERE id=?", (r['id'],)); db.commit(); st.rerun()
 
-# --- 7. BITÁCORA ---
+# --- 7. BITÁCORA (CON LIMPIEZA) ---
 elif menu == "📝 BITÁCORA":
     st.title("📝 Bitácora")
-    entrada = st.text_area("Nueva anotación:", height=150)
-    if st.button("GUARDAR NOTA"):
-        with open("nexus_notas.txt", "a", encoding="utf-8") as f:
-            f.write(f"[{f_str}]: {entrada}\n\n")
-        st.success("Nota guardada"); st.rerun()
+    with st.form("f_nota", clear_on_submit=True):
+        entrada = st.text_area("Nueva anotación:", height=150)
+        if st.form_submit_button("GUARDAR NOTA"):
+            if entrada:
+                with open("nexus_notas.txt", "a", encoding="utf-8") as f:
+                    f.write(f"[{f_str}]: {entrada}\n\n")
+                st.rerun()
     
     try:
         with open("nexus_notas.txt", "r", encoding="utf-8") as f:
