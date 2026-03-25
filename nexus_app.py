@@ -28,7 +28,7 @@ if "password_correct" not in st.session_state:
                 st.rerun()
     st.stop()
 
-# --- BASES DE DATOS LOCALES ---
+# --- BASES DE DATOS ---
 def iniciar_db():
     conn = sqlite3.connect("nexus_quevedo_core.db", check_same_thread=False)
     c = conn.cursor()
@@ -39,9 +39,8 @@ def iniciar_db():
 
 db = iniciar_db()
 zona = pytz.timezone('America/Santo_Domingo')
-ahora = datetime.now(zona)
-f_str = ahora.strftime("%d/%m/%Y")
-h_str = ahora.strftime("%I:%M %p")
+f_str = datetime.now(zona).strftime("%d/%m/%Y")
+h_str = datetime.now(zona).strftime("%I:%M %p")
 
 # --- MENÚ ---
 with st.sidebar:
@@ -49,34 +48,37 @@ with st.sidebar:
     st.write(f"📅 {f_str} | ⏰ {h_str}")
     menu = st.radio("MENÚ", ["💰 FINANZAS", "🩺 SALUD"])
 
-# --- FINANZAS (CON RUTA DE EMERGENCIA) ---
+# --- FINANZAS (CONEXIÓN DIRECTA) ---
 if menu == "💰 FINANZAS":
     st.title("💰 Gestión Financiera")
-    # Enlace directo convertido a formato CSV para lectura directa
-    URL_DIRECTA = "https://docs.google.com/spreadsheets/d/12jg8nHRUCJwwty0VcsbWFvTIpRcGLCITNKLevZ7Nwb8/export?format=csv"
+    
+    # Esta es la dirección que fuerza a Google a soltar los datos sin errores
+    URL_EXPORT = "https://docs.google.com/spreadsheets/d/12jg8nHRUCJwwty0VcsbWFvTIpRcGLCITNKLevZ7Nwb8/export?format=csv&gid=0"
     
     try:
-        # Intenta leer directamente sin depender de la configuración externa
-        df = pd.read_csv(URL_DIRECTA)
-        df.columns = [c.strip().replace('Categoría', 'Categoria').capitalize() for c in df.columns]
+        df = pd.read_csv(URL_EXPORT)
+        # Limpiamos los nombres de las columnas para evitar problemas de tildes
+        df.columns = [c.strip().replace('Categoría', 'Categoria').replace('Categoría', 'Categoria').capitalize() for c in df.columns]
         
-        st.success("✅ Conectado a DB_NEXUS_FINANZAS")
+        st.success("✅ Conexión Exitosa con DB_NEXUS_FINANZAS")
         
         if 'Monto' in df.columns:
             df["Monto"] = pd.to_numeric(df["Monto"], errors='coerce').fillna(0)
-            st.markdown(f"<div class='balance-box'><h3>DISPONIBLE TOTAL</h3><h1 style='color:#2ecc71;'>RD$ {df['Monto'].sum():,.2f}</h1></div>", unsafe_allow_html=True)
+            total = df["Monto"].sum()
+            st.markdown(f"<div class='balance-box'><h3>DISPONIBLE TOTAL</h3><h1 style='color:#2ecc71;'>RD$ {total:,.2f}</h1></div>", unsafe_allow_html=True)
         
+        st.subheader("Historial de Movimientos")
         st.dataframe(df, use_container_width=True)
         
     except Exception as e:
-        st.error("Error al leer los datos. Verifique que su Google Sheets esté en 'Cualquier persona con el enlace puede VER'.")
+        st.error(f"Error de acceso. Por favor, asegúrese de que el archivo esté compartido como 'Cualquier persona con el enlace puede editar'")
 
-# --- SALUD (RESTAURADO) ---
+# --- SALUD (RESTAURADO COMPLETO) ---
 elif menu == "🩺 SALUD":
     st.title("🩺 Control de Salud")
-    tab1, tab2 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS"])
+    t1, t2 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS"])
 
-    with tab1:
+    with t1:
         v = st.number_input("Nivel mg/dL:", min_value=0)
         if st.button("GUARDAR GLUCOSA"):
             db.execute("INSERT INTO glucosa (fecha, hora, valor) VALUES (?,?,?)", (f_str, h_str, v))
@@ -84,27 +86,27 @@ elif menu == "🩺 SALUD":
         
         df_g = pd.read_sql_query("SELECT id, fecha, hora, valor FROM glucosa ORDER BY id DESC", db)
         for i, r in df_g.iterrows():
-            c1, c2 = st.columns([4, 1])
-            c1.write(f"🩸 {r['fecha']} - {r['hora']}: **{r['valor']} mg/dL**")
+            c1, c2 = st.columns([5, 1])
+            c1.info(f"🩸 {r['fecha']} | {r['hora']} -> {r['valor']} mg/dL")
             if c2.button("Borrar", key=f"g_{r['id']}"):
                 db.execute("DELETE FROM glucosa WHERE id=?", (r['id'],))
                 db.commit(); st.rerun()
 
-    with tab2:
-        st.subheader("💊 Medicinas con Horario")
+    with t2:
+        st.subheader("💊 Registro de Medicamentos")
         with st.form("f_med"):
             c1, c2, c3 = st.columns(3)
             n = c1.text_input("Nombre:")
             d = c2.text_input("Dosis:")
             h = c3.text_input("Horario:")
-            if st.form_submit_button("AÑADIR"):
+            if st.form_submit_button("AGREGAR"):
                 db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n.upper(), d.upper(), h.upper()))
                 db.commit(); st.rerun()
         
         df_m = pd.read_sql_query("SELECT id, nombre, dosis, horario FROM medicamentos", db)
         for i, r in df_m.iterrows():
-            col1, col2 = st.columns([4, 1])
-            col1.write(f"💊 **{r['nombre']}** - {r['dosis']} ({r['horario']})")
+            col1, col2 = st.columns([5, 1])
+            col1.warning(f"💊 **{r['nombre']}** | {r['dosis']} | ⏰ {r['horario']}")
             if col2.button("Borrar", key=f"m_{r['id']}"):
                 db.execute("DELETE FROM medicamentos WHERE id=?", (r['id'],))
                 db.commit(); st.rerun()
