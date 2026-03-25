@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime
 import pytz
 import plotly.express as px
-import io  # <-- Nueva herramienta para la descarga mágica
+import io
 
 # --- 1. CONFIGURACIÓN VISUAL ---
 st.set_page_config(page_title="NEXUS QUEVEDO", layout="wide", page_icon="🌐")
@@ -18,8 +18,10 @@ st.markdown("""
     .balance-box { background-color: #1f2937; padding: 25px; border-radius: 15px; text-align: center; border: 1px solid #30363d; margin: 20px 0; }
     .tendencia-box { padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 20px; border: 1px solid #ffffff33; }
     div.stButton > button { background-color: #1f2937; color: white; border: 1px solid #30363d; border-radius: 8px; width: 100%; font-weight: bold; height: 48px; }
+    /* Estilo para el botón de borrar (Rojo) */
     .btn-borrar > div > button { background-color: #441111 !important; color: #ff9999 !important; border: 1px solid #662222 !important; height: 35px !important; font-size: 12px !important; }
-    .stDownloadButton > button { background-color: #064e3b !important; color: #a7f3d0 !important; border: 1px solid #065f46 !important; }
+    /* Estilo para el botón de Excel (Verde) */
+    .stDownloadButton > button { background-color: #064e3b !important; color: #a7f3d0 !important; border: 1px solid #065f46 !important; height: 48px !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -57,7 +59,7 @@ def iniciar_db():
 db = iniciar_db()
 f_str, h_str, mes_str, f_obj = obtener_tiempo_rd()
 
-# CARGA DE CONFIGURACIÓN
+# CARGA GLOBAL DE CONFIGURACIÓN
 res_conf = db.execute("SELECT valor FROM config WHERE param='presupuesto'").fetchone()
 presupuesto_mensual = res_conf[0] if res_conf else 20000.0
 
@@ -77,10 +79,9 @@ with st.sidebar:
     if st.button("CERRAR SESIÓN"):
         del st.session_state["password_correct"]; st.rerun()
 
-# --- 5. FINANZAS (CON EXCEL) ---
+# --- 5. FINANZAS ---
 if menu == "💰 FINANZAS":
     st.title("💰 Gestión Financiera")
-    
     with st.form("f_fin", clear_on_submit=True):
         c1, c2 = st.columns(2)
         tipo = c1.selectbox("TIPO", ["GASTO", "INGRESO"])
@@ -108,7 +109,7 @@ if menu == "💰 FINANZAS":
         col_m2.progress(porc)
         col_m2.write(f"Gastado este mes: RD$ {gastos_mes:,.2f}")
 
-        # SECCIÓN DE ACCIONES (BORRAR Y EXCEL)
+        # BOTONES DE ACCIÓN
         c_acc1, c_acc2 = st.columns(2)
         with c_acc1:
             st.markdown("<div class='btn-borrar'>", unsafe_allow_html=True)
@@ -117,22 +118,25 @@ if menu == "💰 FINANZAS":
             st.markdown("</div>", unsafe_allow_html=True)
         
         with c_acc2:
-            # BOTÓN DE EXCEL SIN COMPLICACIONES
             output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                df_f.to_excel(writer, index=False, sheet_name='Finanzas')
-            st.download_button(
-                label="📥 DESCARGAR EXCEL",
-                data=output.getvalue(),
-                file_name=f"Finanzas_Nexus_{mes_str}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            # Motor 'openpyxl' para máxima compatibilidad
+            try:
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df_f.to_excel(writer, index=False, sheet_name='Finanzas')
+                st.download_button(
+                    label="📥 DESCARGAR EXCEL",
+                    data=output.getvalue(),
+                    file_name=f"Finanzas_Nexus_{mes_str}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            except:
+                st.error("Error al generar Excel. Asegúrese de tener 'openpyxl' instalado.")
 
         df_gastos = df_f[df_f['tipo'] == 'GASTO']
         if not df_gastos.empty:
-            st.plotly_chart(px.pie(df_gastos, values=abs(df_gastos['monto']), names='categoria', hole=.4, template="plotly_dark"), use_container_width=True)
+            fig = px.pie(df_gastos, values=abs(df_gastos['monto']), names='categoria', hole=.4, template="plotly_dark", title="DISTRIBUCIÓN DE GASTOS")
+            st.plotly_chart(fig, use_container_width=True)
 
-# [El resto de las secciones Salud, Bitácora y Config se mantienen igual que la versión anterior]
 # --- 6. SALUD ---
 elif menu == "🩺 SALUD":
     st.title("🩺 Control de Salud")
@@ -165,7 +169,7 @@ elif menu == "🩺 SALUD":
         st.markdown("</div>", unsafe_allow_html=True)
         
         if not df_g.empty:
-            st.plotly_chart(px.line(df_g.sort_values('id'), x='fecha', y='valor', markers=True, template="plotly_dark", title="HISTÓRICO"), use_container_width=True)
+            st.plotly_chart(px.line(df_g.sort_values('id'), x='fecha', y='valor', markers=True, template="plotly_dark", title="HISTÓRICO"))
 
     with t2:
         with st.form("f_med", clear_on_submit=True):
@@ -202,6 +206,7 @@ elif menu == "🩺 SALUD":
             if c2.button("Eliminar", key=f"c_{r['id']}"):
                 db.execute("DELETE FROM citas WHERE id=?", (r['id'],)); db.commit(); st.rerun()
 
+# --- 7. BITÁCORA ---
 elif menu == "📝 BITÁCORA":
     st.title("📝 Bitácora")
     with st.form("f_nota", clear_on_submit=True):
@@ -216,9 +221,10 @@ elif menu == "📝 BITÁCORA":
             st.text_area("Historial:", f.read(), height=400)
     except FileNotFoundError: st.info("Bitácora lista.")
 
+# --- 8. CONFIGURACIÓN ---
 elif menu == "⚙️ CONFIG":
     st.title("⚙️ Ajustes")
-    nuevo_p = st.number_input("Presupuesto Mensual (RD$):", min_value=0.0, value=float(presupuesto_mensual))
-    if st.button("ACTUALIZAR"):
+    nuevo_p = st.number_input("Establecer Presupuesto Mensual (RD$):", min_value=0.0, value=float(presupuesto_mensual))
+    if st.button("ACTUALIZAR CONFIGURACIÓN"):
         db.execute("INSERT OR REPLACE INTO config (param, valor) VALUES ('presupuesto', ?)", (nuevo_p,))
-        db.commit(); st.success("Actualizado.")
+        db.commit(); st.success("Configuración actualizada correctamente.")
