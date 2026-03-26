@@ -33,12 +33,19 @@ st.markdown("""
         border-radius: 8px; width: 100%; font-weight: bold; height: 55px; transition: 0.3s;
     }
     
+    /* Botón Rojo para Borrar */
+    .btn-borrar button {
+        background-color: #441111 !important;
+        color: #ff9999 !important;
+        border: 1px solid #662222 !important;
+        height: 35px !important;
+        font-size: 12px !important;
+    }
+
     /* Color específico para PDF */
     div.stDownloadButton > button { background-color: #1e3a8a !important; border: 1px solid #3b82f6 !important; }
     div.stDownloadButton > button:hover { background-color: #2563eb !important; transform: scale(1.02); }
 
-    .btn-borrar-rojo > div > button { background-color: #441111 !important; color: #ff9999 !important; border: 1px solid #662222 !important; height: 40px; }
-    
     /* Botón WhatsApp Link */
     a[data-testid="stLinkButton"] {
         background-color: #25D366 !important; color: white !important; 
@@ -47,7 +54,6 @@ st.markdown("""
         font-weight: bold !important; text-decoration: none !important; border: 1px solid #128C7E !important;
         transition: 0.3s;
     }
-    a[data-testid="stLinkButton"]:hover { background-color: #128C7E !important; transform: scale(1.02); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -84,19 +90,17 @@ def iniciar_db():
     return conn
 
 def color_glucosa(valor, momento):
-    # Lógica de colores según tus rangos exactos
     if momento == "Ayunas":
-        if 70 <= valor <= 100: return "background-color: #1b5e20; color: white;" # Verde
-        elif 101 <= valor <= 125: return "background-color: #fbc02d; color: black;" # Amarillo
-        else: return "background-color: #b71c1c; color: white;" # Rojo
+        if 70 <= valor <= 100: return "background-color: #1b5e20; color: white;"
+        elif 101 <= valor <= 125: return "background-color: #fbc02d; color: black;"
+        else: return "background-color: #b71c1c; color: white;"
     elif momento == "Post-Desayuno (2h)":
-        if valor < 140: return "background-color: #1b5e20; color: white;" # Verde
-        elif 140 <= valor <= 199: return "background-color: #fbc02d; color: black;" # Amarillo
-        else: return "background-color: #b71c1c; color: white;" # Rojo
+        if valor < 140: return "background-color: #1b5e20; color: white;"
+        elif 140 <= valor <= 199: return "background-color: #fbc02d; color: black;"
+        else: return "background-color: #b71c1c; color: white;"
     elif momento == "Antes de dormir":
-        if 100 <= valor <= 140: return "background-color: #1b5e20; color: white;" # Verde
-        elif 141 <= valor <= 160: return "background-color: #fbc02d; color: black;" # Amarillo
-        else: return ""
+        if 100 <= valor <= 140: return "background-color: #1b5e20; color: white;"
+        elif 141 <= valor <= 160: return "background-color: #fbc02d; color: black;"
     return ""
 
 def generar_pdf_salud(df):
@@ -141,13 +145,10 @@ if menu == "💰 FINANZAS":
     disponible = df_f['monto'].sum() if not df_f.empty else 0.0
     gastos_mes = abs(df_f[(df_f['tipo'] == 'GASTO') & (df_f['mes'] == mes_str)]['monto'].sum()) if not df_f.empty else 0.0
     
-    # --- INDICADOR DE PRESUPUESTO ---
     if presupuesto_mensual > 0:
         porc = (gastos_mes / presupuesto_mensual)
         st.write(f"📊 **Uso del Presupuesto: {porc:.1%}**")
         st.progress(min(porc, 1.0))
-        if gastos_mes > presupuesto_mensual:
-            st.error(f"⚠️ EXCEDIDO POR RD$ {gastos_mes - presupuesto_mensual:,.2f}")
 
     c1, c2 = st.columns(2)
     with c1: st.markdown(f"<div class='balance-box'><h3>DISPONIBLE</h3><h1 style='color:#2ecc71;'>RD$ {disponible:,.2f}</h1></div>", unsafe_allow_html=True)
@@ -165,9 +166,15 @@ if menu == "💰 FINANZAS":
             db.commit(); st.rerun()
     
     if not df_f.empty:
-        st.dataframe(df_f[['fecha', 'tipo', 'categoria', 'detalle', 'monto']], use_container_width=True)
-        if st.button("🗑️ BORRAR ÚLTIMO"):
-            db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)"); db.commit(); st.rerun()
+        st.write("### Últimos Movimientos")
+        for idx, row in df_f.head(10).iterrows():
+            c_txt, c_del = st.columns([9, 1])
+            c_txt.write(f"**{row['fecha']}** | {row['tipo']} | {row['detalle']} | **RD$ {row['monto']:,.2f}**")
+            with c_del:
+                st.markdown('<div class="btn-borrar">', unsafe_allow_html=True)
+                if st.button("🗑️", key=f"del_f_{row['id']}"):
+                    db.execute("DELETE FROM finanzas WHERE id = ?", (row['id'],)); db.commit(); st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
 
 # --- 6. SALUD ---
 elif menu == "🩺 SALUD":
@@ -188,10 +195,13 @@ elif menu == "🩺 SALUD":
             
             st.plotly_chart(px.line(df_g.iloc[::-1], x='hora', y='valor', markers=True, title="TENDENCIA", template="plotly_dark"), use_container_width=True)
             
-            # Aplicar colores a la tabla
             def estilar_celdas(row):
                 return [color_glucosa(row['valor'], row['momento'])] * len(row)
             st.dataframe(df_g[['fecha', 'hora', 'momento', 'valor']].style.apply(estilar_celdas, axis=1), use_container_width=True)
+            
+            # Borrar última lectura de glucosa
+            if st.button("🗑️ BORRAR ÚLTIMA LECTURA"):
+                db.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)"); db.commit(); st.rerun()
 
         with st.form("f_gluc", clear_on_submit=True):
             col_g1, col_g2 = st.columns(2)
@@ -207,8 +217,7 @@ elif menu == "🩺 SALUD":
         
         if not df_meds.empty:
             for _, m in df_meds.iterrows():
-                # Alineación: Texto izquierda, Check derecha
-                c_txt, c_chk = st.columns([5, 1])
+                c_txt, c_chk, c_del = st.columns([5, 1, 1])
                 c_txt.write(f"**{m['nombre']}** - {m['dosis']} ({m['horario']})")
                 presionado = c_chk.checkbox("", key=f"chk_{m['id']}", value=(m['id'] in tomas_hoy))
                 
@@ -216,6 +225,12 @@ elif menu == "🩺 SALUD":
                     db.execute("INSERT INTO tomas_diarias (fecha, medicina_id) VALUES (?,?)", (f_str, m['id'])); db.commit()
                 elif not presionado and m['id'] in tomas_hoy:
                     db.execute("DELETE FROM tomas_diarias WHERE fecha = ? AND medicina_id = ?", (f_str, m['id'])); db.commit()
+                
+                with c_del:
+                    st.markdown('<div class="btn-borrar">', unsafe_allow_html=True)
+                    if st.button("🗑️", key=f"del_m_{m['id']}"):
+                        db.execute("DELETE FROM medicamentos WHERE id = ?", (m['id'],)); db.commit(); st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
                 st.divider()
 
         with st.form("f_med", clear_on_submit=True):
@@ -226,11 +241,20 @@ elif menu == "🩺 SALUD":
 
     with t3:
         st.markdown("### 📅 Próximas Citas")
+        df_citas = pd.read_sql_query("SELECT * FROM citas ORDER BY fecha ASC", db)
+        for _, c in df_citas.iterrows():
+            c_inf, c_del = st.columns([9, 1])
+            c_inf.write(f"📅 **{c['fecha']}** | {c['doctor']} | {c['motivo']}")
+            with c_del:
+                st.markdown('<div class="btn-borrar">', unsafe_allow_html=True)
+                if st.button("🗑️", key=f"del_c_{c['id']}"):
+                    db.execute("DELETE FROM citas WHERE id = ?", (c['id'],)); db.commit(); st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+
         with st.form("f_citas", clear_on_submit=True):
             doc, fec, mot = st.text_input("DOCTOR").upper(), st.date_input("FECHA"), st.text_input("MOTIVO").upper()
             if st.form_submit_button("AGENDAR"):
                 db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(fec), mot)); db.commit(); st.rerun()
-        st.dataframe(pd.read_sql_query("SELECT doctor, fecha, motivo FROM citas ORDER BY fecha ASC", db), use_container_width=True)
 
 # --- 7. BITÁCORA ---
 elif menu == "📝 BITÁCORA":
