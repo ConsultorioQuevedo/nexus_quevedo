@@ -16,70 +16,76 @@ class PDF(FPDF):
         self.set_text_color(100)
         self.cell(0, 10, 'Luis Rafael Quevedo', 0, 0, 'C')
 
-# --- 1. CONFIGURACIÓN VISUAL PRO (MODERNA) ---
+# --- 1. CONFIGURACIÓN VISUAL PRO (FORZADA) ---
 st.set_page_config(page_title="NEXUS QUEVEDO", layout="wide", page_icon="🌐")
 
 st.markdown("""
     <style>
-    /* Importar fuente moderna */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap');
     
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+    /* Reset General y Tipografía */
+    * { font-family: 'Inter', sans-serif !important; }
+    .stApp { background-color: #0d1117 !important; }
 
-    .main { background-color: #0d1117; color: #e6edf3; }
-    [data-testid="stSidebar"] { background-color: #161b22; border-right: 1px solid #30363d; }
-    
-    /* Tarjetas con Efecto de Profundidad (Cards) */
-    .stForm, .balance-box { 
-        background-color: #161b22; 
-        border-radius: 20px !important; 
+    /* Tarjetas Modernas (Cards) con bordes redondeados Pro */
+    div[data-testid="stForm"], .balance-box { 
+        background-color: #161b22 !important; 
+        border-radius: 25px !important; 
         border: 1px solid #30363d !important; 
         padding: 30px !important;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        margin-bottom: 20px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.4) !important;
+        margin-bottom: 25px !important;
     }
     
-    .balance-box h3 { color: #8b949e; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+    .balance-box h3 { 
+        color: #8b949e !important; 
+        font-size: 13px !important; 
+        text-transform: uppercase !important; 
+        letter-spacing: 2px !important;
+        margin-bottom: 10px !important;
+    }
 
-    /* Botones Estilo Premium con Degradado */
-    div.stButton > button { 
-        background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
-        color: #f0f6fc; border: 1px solid #30363d; 
-        border-radius: 12px; font-weight: 700; height: 50px; transition: 0.4s;
+    /* Botones Premium con Efecto Elevación */
+    div.stButton > button, div.stDownloadButton > button { 
+        background: linear-gradient(135deg, #1f2937 0%, #111827 100%) !important;
+        color: #f0f6fc !important; 
+        border: 1px solid #30363d !important; 
+        border-radius: 15px !important; 
+        font-weight: 700 !important; 
+        height: 50px !important; 
+        width: 100% !important;
+        transition: 0.3s all ease !important;
     }
-    div.stButton > button:hover { border-color: #58a6ff; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.4); }
+    div.stButton > button:hover { 
+        border-color: #58a6ff !important; 
+        transform: translateY(-3px) !important; 
+        box-shadow: 0 5px 15px rgba(88, 166, 255, 0.2) !important; 
+    }
     
-    /* Botón PDF (Azul Zafiro Neón) */
+    /* Botón de Descarga / PDF (Verde Neón Mate) */
     div.stDownloadButton > button { 
-        background: linear-gradient(135deg, #238636 0%, #2ea043 100%) !important; /* Verde éxito para PDF */
-        border: none !important; border-radius: 12px !important;
+        background: linear-gradient(135deg, #238636 0%, #2ea043 100%) !important; 
+        border: none !important;
     }
     
-    /* Inputs Estilizados */
-    .stTextInput>div>div>input, .stNumberInput>div>div>input {
-        background-color: #0d1117 !important; border-radius: 10px !important; border: 1px solid #30363d !important;
+    /* Campos de Entrada (Inputs) */
+    input, select, textarea, [data-baseweb="select"] {
+        background-color: #0d1117 !important; 
+        border-radius: 12px !important; 
+        border: 1px solid #30363d !important;
+        color: white !important;
     }
 
-    /* Línea divisoria elegante */
-    hr { border: 0; height: 1px; background-image: linear-gradient(to right, rgba(48, 54, 61, 0), rgba(48, 54, 61, 0.75), rgba(48, 54, 61, 0)); margin: 20px 0; }
+    /* Clases para Colores Neón en Texto */
+    .neon-verde { color: #40E0D0 !important; font-weight: 800 !important; font-size: 2.5rem !important; }
+    .neon-rojo { color: #FF7F50 !important; font-weight: 800 !important; font-size: 2.5rem !important; }
+
+    /* Línea Divisoria Estilizada */
+    hr { border: 0; height: 1px; background-image: linear-gradient(to right, rgba(48, 54, 61, 0), rgba(48, 54, 61, 0.7), rgba(48, 54, 61, 0)); margin: 25px 0; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. SEGURIDAD ---
-if "password_correct" not in st.session_state:
-    st.markdown("<h1 style='text-align: center; margin-top: 50px; font-weight:800;'>🌐 NEXUS QUEVEDO</h1>", unsafe_allow_html=True)
-    _, col_b, _ = st.columns([1,2,1])
-    with col_b:
-        with st.form("login"):
-            pwd = st.text_input("Contraseña Maestra:", type="password")
-            if st.form_submit_button("ACCEDER"):
-                if pwd == "admin123":
-                    st.session_state["password_correct"] = True
-                    st.rerun()
-                else: st.error("❌ Credenciales Incorrectas")
-    st.stop()
-
-# --- 3. FUNCIONES CORE ---
+# --- 2. FUNCIONES CORE ---
 def obtener_tiempo_rd():
     zona = pytz.timezone('America/Santo_Domingo')
     ahora = datetime.now(zona)
@@ -97,20 +103,11 @@ def iniciar_db():
     conn.commit()
     return conn
 
-# COLORES NEÓN MATE (PRO)
 def color_glucosa_pro(valor, momento):
     if momento == "Ayunas":
-        if 70 <= valor <= 100: return "background-color: rgba(63, 195, 128, 0.2); color: #40E0D0; font-weight: bold;" # Neón Menta
-        elif 101 <= valor <= 125: return "background-color: rgba(255, 191, 0, 0.2); color: #FFBF00; font-weight: bold;" # Ámbar
-        else: return "background-color: rgba(255, 127, 80, 0.2); color: #FF7F50; font-weight: bold;" # Coral
-    elif momento == "Post-Desayuno (2h)":
-        if valor < 140: return "background-color: rgba(63, 195, 128, 0.2); color: #40E0D0;"
-        elif 140 <= valor <= 199: return "background-color: rgba(255, 191, 0, 0.2); color: #FFBF00;"
-        else: return "background-color: rgba(255, 127, 80, 0.2); color: #FF7F50;"
-    elif momento == "Antes de dormir":
-        if 100 <= valor <= 140: return "background-color: rgba(63, 195, 128, 0.2); color: #40E0D0;"
-        elif 141 <= valor <= 160: return "background-color: rgba(255, 191, 0, 0.2); color: #FFBF00;"
-        else: return "background-color: rgba(255, 127, 80, 0.2); color: #FF7F50;"
+        if 70 <= valor <= 100: return "background-color: rgba(64, 224, 208, 0.1); color: #40E0D0; font-weight: bold; border-left: 4px solid #40E0D0;"
+        elif 101 <= valor <= 125: return "background-color: rgba(255, 191, 0, 0.1); color: #FFBF00; font-weight: bold; border-left: 4px solid #FFBF00;"
+        else: return "background-color: rgba(255, 127, 80, 0.1); color: #FF7F50; font-weight: bold; border-left: 4px solid #FF7F50;"
     return ""
 
 def generar_pdf_salud(df):
@@ -135,44 +132,52 @@ def generar_pdf_salud(df):
 db = iniciar_db()
 f_str, h_str, mes_str, f_obj = obtener_tiempo_rd()
 
-# Presupuesto
+# Cargar configuración de presupuesto
 res_conf = db.execute("SELECT valor FROM config WHERE param='presupuesto'").fetchone()
 presupuesto_mensual = res_conf[0] if res_conf else 0.0
 
+# --- 3. SEGURIDAD ---
+if "password_correct" not in st.session_state:
+    st.markdown("<h1 style='text-align: center; margin-top: 50px; font-weight:800; color:white;'>🌐 NEXUS QUEVEDO</h1>", unsafe_allow_html=True)
+    _, col_b, _ = st.columns([1,1.5,1])
+    with col_b:
+        with st.form("login"):
+            pwd = st.text_input("Contraseña Maestra:", type="password")
+            if st.form_submit_button("ACCEDER AL PANEL"):
+                if pwd == "admin123":
+                    st.session_state["password_correct"] = True
+                    st.rerun()
+                else: st.error("❌ Acceso Denegado")
+    st.stop()
+
 # --- 4. NAVEGACIÓN ---
 with st.sidebar:
-    st.markdown("<h1 style='text-align: center; color: #58a6ff;'>🌐 CONTROL</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #58a6ff;'>🌐 NEXUS</h1>", unsafe_allow_html=True)
     st.markdown("---")
     menu = st.radio("MENÚ PRINCIPAL", ["💰 FINANZAS", "🩺 SALUD", "📝 BITÁCORA", "⚙️ CONFIG"])
     st.markdown("---")
     if st.button("CERRAR SESIÓN"):
         del st.session_state["password_correct"]; st.rerun()
 
-# --- 5. FINANZAS ---
+# --- 5. LÓGICA DE MÓDULOS ---
+
 if menu == "💰 FINANZAS":
     st.title("💰 Gestión de Capital")
     df_f = pd.read_sql_query("SELECT * FROM finanzas ORDER BY id DESC", db)
     disponible = df_f['monto'].sum() if not df_f.empty else 0.0
     gastos_mes = abs(df_f[(df_f['tipo'] == 'GASTO') & (df_f['mes'] == mes_str)]['monto'].sum()) if not df_f.empty else 0.0
     
-    # Barra de presupuesto PRO
-    if presupuesto_mensual > 0:
-        porc = (gastos_mes / presupuesto_mensual)
-        color_p = "#40E0D0" if porc < 0.8 else "#FFBF00" if porc <= 1.0 else "#FF7F50"
-        st.markdown(f"**Uso Presupuestario: {porc:.1%}**")
-        st.progress(min(porc, 1.0))
-        if gastos_mes > presupuesto_mensual:
-            st.warning(f"⚠️ Alerta: Presupuesto excedido por RD$ {gastos_mes - presupuesto_mensual:,.2f}")
-
     c1, c2 = st.columns(2)
-    with c1: st.markdown(f"<div class='balance-box'><h3>Disponible Total</h3><h1 style='color:#40E0D0; font-weight:800;'>RD$ {disponible:,.2f}</h1></div>", unsafe_allow_html=True)
-    with c2: st.markdown(f"<div class='balance-box'><h3>Gastos del Mes</h3><h1 style='color:#FF7F50; font-weight:800;'>RD$ {gastos_mes:,.2f}</h1></div>", unsafe_allow_html=True)
+    with c1:
+        st.markdown(f"<div class='balance-box'><h3>Disponible Total</h3><div class='neon-verde'>RD$ {disponible:,.2f}</div></div>", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"<div class='balance-box'><h3>Gastos del Mes</h3><div class='neon-rojo'>RD$ {gastos_mes:,.2f}</div></div>", unsafe_allow_html=True)
     
     with st.form("f_fin", clear_on_submit=True):
         col1, col2 = st.columns(2)
         tipo = col1.selectbox("TIPO", ["GASTO", "INGRESO"])
         f_mov = col2.date_input("FECHA", value=f_obj)
-        cat = st.text_input("CATEGORÍA (EJ: COMIDA, CASA)").upper()
+        cat = st.text_input("CATEGORÍA (COMIDA, CASA, SALUD...)").upper()
         det = st.text_input("DETALLE DEL MOVIMIENTO").upper()
         monto = st.number_input("MONTO RD$:", min_value=0.0, format="%.2f")
         if st.form_submit_button("REGISTRAR EN LIBRO"):
@@ -181,11 +186,9 @@ if menu == "💰 FINANZAS":
             db.commit(); st.rerun()
     
     if not df_f.empty:
+        st.write("### Historial de Transacciones")
         st.dataframe(df_f[['fecha', 'tipo', 'categoria', 'detalle', 'monto']], use_container_width=True)
-        if st.button("🗑️ ELIMINAR ÚLTIMA ENTRADA"):
-            db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)"); db.commit(); st.rerun()
 
-# --- 6. SALUD ---
 elif menu == "🩺 SALUD":
     st.title("🩺 Panel de Salud - Quevedo")
     t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
@@ -196,78 +199,84 @@ elif menu == "🩺 SALUD":
             c_p, c_w = st.columns(2)
             with c_p:
                 pdf_data = generar_pdf_salud(df_g)
-                st.download_button("📥 DESCARGAR REPORTE PDF", pdf_data, f"Salud_{f_str}.pdf", "application/pdf", use_container_width=True)
+                st.download_button("📥 DESCARGAR REPORTE PDF", pdf_data, f"Salud_{f_str}.pdf", "application/pdf")
             with c_w:
                 u = df_g.iloc[0]
                 t_w = f"🩺 *REPORTE LUIS R. QUEVEDO*\n📅 {f_str} | ⌚ {u['hora']}\n📍 Glucosa: {u['valor']} mg/dL\n📝 {u['momento']}"
-                st.link_button("📲 ENVIAR A WHATSAPP", f"https://wa.me/?text={urllib.parse.quote(t_w)}", use_container_width=True)
+                st.link_button("📲 ENVIAR A WHATSAPP", f"https://wa.me/?text={urllib.parse.quote(t_w)}")
             
-            # Gráfica Neón
             fig = px.line(df_g.iloc[::-1], x='hora', y='valor', markers=True, template="plotly_dark")
-            fig.update_traces(line_color='#58a6ff', marker=dict(size=10, color='#40E0D0'))
+            fig.update_traces(line_color='#58a6ff', marker=dict(size=12, color='#40E0D0'))
             fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig, use_container_width=True)
             
-            # Tabla Estilizada
-            st.write("### Registro Histórico")
+            st.write("### Registro Histórico de Niveles")
             st.dataframe(df_g[['fecha', 'hora', 'momento', 'valor']].style.apply(lambda r: [color_glucosa_pro(r['valor'], r['momento'])] * len(r), axis=1), use_container_width=True)
 
         with st.form("f_gluc", clear_on_submit=True):
             cg1, cg2 = st.columns(2)
-            v = cg1.number_input("Valor (mg/dL):", min_value=0)
+            v = cg1.number_input("Valor de Glucosa (mg/dL):", min_value=0)
             m = cg2.selectbox("Momento de la toma:", ["Ayunas", "Post-Desayuno (2h)", "Post-Almuerzo", "Post-Cena", "Antes de dormir"])
             if st.form_submit_button("GUARDAR EN EXPEDIENTE"):
                 db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", (f_str, h_str, m, v)); db.commit(); st.rerun()
 
     with t2:
-        st.markdown(f"### 💊 Registro de Medicación - {f_str}")
+        st.markdown(f"### 💊 Control de Medicación - {f_str}")
         df_meds = pd.read_sql_query("SELECT * FROM medicamentos", db)
         tomas_hoy = pd.read_sql_query("SELECT medicina_id FROM tomas_diarias WHERE fecha = ?", db, params=(f_str,))['medicina_id'].tolist()
         
-        if not df_meds.empty:
-            for _, m in df_meds.iterrows():
-                # Tarjetas individuales de medicina
-                with st.container():
-                    c_txt, c_chk = st.columns([5, 1])
-                    c_txt.markdown(f"**{m['nombre']}**  \n<small style='color:#8b949e;'>{m['dosis']} — {m['horario']}</small>", unsafe_allow_html=True)
-                    presionado = c_chk.checkbox("", key=f"chk_{m['id']}", value=(m['id'] in tomas_hoy))
-                    
-                    if presionado and m['id'] not in tomas_hoy:
-                        db.execute("INSERT INTO tomas_diarias (fecha, medicina_id) VALUES (?,?)", (f_str, m['id'])); db.commit()
-                    elif not presionado and m['id'] in tomas_hoy:
-                        db.execute("DELETE FROM tomas_diarias WHERE fecha = ? AND medicina_id = ?", (f_str, m['id'])); db.commit()
-                    st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
-
-        with st.form("f_med", clear_on_submit=True):
-            st.write("Añadir Medicamento Nuevo:")
+        for _, m in df_meds.iterrows():
+            with st.container():
+                c_txt, c_chk = st.columns([5, 1])
+                c_txt.markdown(f"**{m['nombre']}**  \n<small style='color:#8b949e;'>{m['dosis']} — {m['horario']}</small>", unsafe_allow_html=True)
+                check = c_chk.checkbox("", key=f"med_{m['id']}", value=(m['id'] in tomas_hoy))
+                if check and m['id'] not in tomas_hoy:
+                    db.execute("INSERT INTO tomas_diarias (fecha, medicina_id) VALUES (?,?)", (f_str, m['id'])); db.commit(); st.rerun()
+                elif not check and m['id'] in tomas_hoy:
+                    db.execute("DELETE FROM tomas_diarias WHERE fecha = ? AND medicina_id = ?", (f_str, m['id'])); db.commit(); st.rerun()
+                st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
+        
+        with st.form("add_med", clear_on_submit=True):
+            st.write("Añadir Nuevo Medicamento:")
             n, d, h = st.text_input("NOMBRE").upper(), st.text_input("DOSIS").upper(), st.text_input("HORARIO").upper()
-            if st.form_submit_button("AÑADIR A LISTA"):
+            if st.form_submit_button("AÑADIR A MI LISTA"):
                 db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h)); db.commit(); st.rerun()
 
     with t3:
-        st.markdown("### 📅 Agenda de Citas Médicas")
+        st.markdown("### 📅 Próximas Citas Médicas")
         with st.form("f_citas", clear_on_submit=True):
-            doc, fec, mot = st.text_input("DOCTOR / ESPECIALISTA").upper(), st.date_input("FECHA"), st.text_input("MOTIVO").upper()
+            doc, fec, mot = st.text_input("DOCTOR / ESPECIALISTA").upper(), st.date_input("FECHA"), st.text_input("MOTIVO / CONSULTA").upper()
             if st.form_submit_button("AGENDAR CITA"):
                 db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(fec), mot)); db.commit(); st.rerun()
         st.dataframe(pd.read_sql_query("SELECT doctor, fecha, motivo FROM citas ORDER BY fecha ASC", db), use_container_width=True)
 
-# --- 7. BITÁCORA ---
 elif menu == "📝 BITÁCORA":
     st.title("📝 Bitácora Personal")
-    nota = st.text_area("¿Qué tienes en mente hoy?", height=150, placeholder="Escribe aquí tus notas...")
+    nota = st.text_area("¿Qué quieres recordar hoy?", height=200, placeholder="Escribe tus notas, síntomas o recordatorios aquí...")
     if st.button("GUARDAR NOTA"):
         if nota.strip():
-            with open("nexus_notas.txt", "a", encoding="utf-8") as f: f.write(f"[{f_str} {h_str}]: {nota}\n\n")
-            st.success("Nota almacenada con éxito.")
+            with open("nexus_notas.txt", "a", encoding="utf-8") as f: 
+                f.write(f"--- FECHA: {f_str} {h_str} ---\n{nota}\n\n")
+            st.success("Nota guardada correctamente en la memoria.")
+    
+    st.markdown("---")
     try:
-        with open("nexus_notas.txt", "r", encoding="utf-8") as f: st.text_area("Historial de Notas:", f.read(), height=400)
-    except: st.info("La bitácora está vacía por ahora.")
+        with open("nexus_notas.txt", "r", encoding="utf-8") as f:
+            st.text_area("Historial de Notas:", f.read(), height=350)
+    except FileNotFoundError:
+        st.info("Aún no tienes notas guardadas en tu bitácora.")
 
-# --- 8. CONFIGURACIÓN ---
 elif menu == "⚙️ CONFIG":
-    st.title("⚙️ Ajustes del Sistema")
+    st.title("⚙️ Ajustes de Nexus")
+    st.markdown("<div class='balance-box'>", unsafe_allow_html=True)
     new_p = st.number_input("Establecer Presupuesto Mensual (RD$):", min_value=0.0, value=float(presupuesto_mensual))
     if st.button("GUARDAR PREFERENCIAS"):
         db.execute("INSERT OR REPLACE INTO config (param, valor) VALUES ('presupuesto', ?)", (new_p,))
-        db.commit(); st.success("Ajustes actualizados"); st.rerun()
+        db.commit()
+        st.success("Configuración actualizada.")
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    if st.button("🗑️ LIMPIAR HISTORIAL DE FINANZAS"):
+        db.execute("DELETE FROM finanzas")
+        db.commit(); st.warning("Historial de finanzas borrado."); st.rerun()
