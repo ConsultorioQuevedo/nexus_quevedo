@@ -23,11 +23,11 @@ st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap');
     
-    /* Reset General y Tipografía */
+    /* Reset General */
     * { font-family: 'Inter', sans-serif !important; }
     .stApp { background-color: #0d1117 !important; }
 
-    /* Tarjetas Modernas (Cards) con bordes redondeados Pro */
+    /* Tarjetas Modernas (Cards) */
     div[data-testid="stForm"], .balance-box { 
         background-color: #161b22 !important; 
         border-radius: 25px !important; 
@@ -45,7 +45,7 @@ st.markdown("""
         margin-bottom: 10px !important;
     }
 
-    /* Botones Premium con Efecto Elevación */
+    /* Botones Premium con Elevación */
     div.stButton > button, div.stDownloadButton > button { 
         background: linear-gradient(135deg, #1f2937 0%, #111827 100%) !important;
         color: #f0f6fc !important; 
@@ -62,25 +62,25 @@ st.markdown("""
         box-shadow: 0 5px 15px rgba(88, 166, 255, 0.2) !important; 
     }
     
-    /* Botón de Descarga / PDF (Verde Neón Mate) */
+    /* Botón PDF (Verde Éxito) */
     div.stDownloadButton > button { 
         background: linear-gradient(135deg, #238636 0%, #2ea043 100%) !important; 
         border: none !important;
     }
     
-    /* Campos de Entrada (Inputs) */
-    input, select, textarea, [data-baseweb="select"] {
+    /* Inputs y Selectores */
+    input, select, textarea {
         background-color: #0d1117 !important; 
         border-radius: 12px !important; 
         border: 1px solid #30363d !important;
         color: white !important;
     }
 
-    /* Clases para Colores Neón en Texto */
-    .neon-verde { color: #40E0D0 !important; font-weight: 800 !important; font-size: 2.5rem !important; }
-    .neon-rojo { color: #FF7F50 !important; font-weight: 800 !important; font-size: 2.5rem !important; }
+    /* Colores Neón Personalizados */
+    .neon-verde { color: #40E0D0 !important; font-weight: 800 !important; font-size: 2.2rem !important; }
+    .neon-rojo { color: #FF7F50 !important; font-weight: 800 !important; font-size: 2.2rem !important; }
 
-    /* Línea Divisoria Estilizada */
+    /* Línea divisoria sutil */
     hr { border: 0; height: 1px; background-image: linear-gradient(to right, rgba(48, 54, 61, 0), rgba(48, 54, 61, 0.7), rgba(48, 54, 61, 0)); margin: 25px 0; }
     </style>
     """, unsafe_allow_html=True)
@@ -105,9 +105,9 @@ def iniciar_db():
 
 def color_glucosa_pro(valor, momento):
     if momento == "Ayunas":
-        if 70 <= valor <= 100: return "background-color: rgba(64, 224, 208, 0.1); color: #40E0D0; font-weight: bold; border-left: 4px solid #40E0D0;"
-        elif 101 <= valor <= 125: return "background-color: rgba(255, 191, 0, 0.1); color: #FFBF00; font-weight: bold; border-left: 4px solid #FFBF00;"
-        else: return "background-color: rgba(255, 127, 80, 0.1); color: #FF7F50; font-weight: bold; border-left: 4px solid #FF7F50;"
+        if 70 <= valor <= 100: return "background-color: rgba(64, 224, 208, 0.15); color: #40E0D0; font-weight: bold; border-left: 5px solid #40E0D0;"
+        elif 101 <= valor <= 125: return "background-color: rgba(255, 191, 0, 0.15); color: #FFBF00; font-weight: bold; border-left: 5px solid #FFBF00;"
+        else: return "background-color: rgba(255, 127, 80, 0.15); color: #FF7F50; font-weight: bold; border-left: 5px solid #FF7F50;"
     return ""
 
 def generar_pdf_salud(df):
@@ -132,7 +132,7 @@ def generar_pdf_salud(df):
 db = iniciar_db()
 f_str, h_str, mes_str, f_obj = obtener_tiempo_rd()
 
-# Cargar configuración de presupuesto
+# Presupuesto
 res_conf = db.execute("SELECT valor FROM config WHERE param='presupuesto'").fetchone()
 presupuesto_mensual = res_conf[0] if res_conf else 0.0
 
@@ -160,7 +160,6 @@ with st.sidebar:
         del st.session_state["password_correct"]; st.rerun()
 
 # --- 5. LÓGICA DE MÓDULOS ---
-
 if menu == "💰 FINANZAS":
     st.title("💰 Gestión de Capital")
     df_f = pd.read_sql_query("SELECT * FROM finanzas ORDER BY id DESC", db)
@@ -177,20 +176,19 @@ if menu == "💰 FINANZAS":
         col1, col2 = st.columns(2)
         tipo = col1.selectbox("TIPO", ["GASTO", "INGRESO"])
         f_mov = col2.date_input("FECHA", value=f_obj)
-        cat = st.text_input("CATEGORÍA (COMIDA, CASA, SALUD...)").upper()
-        det = st.text_input("DETALLE DEL MOVIMIENTO").upper()
+        cat = st.text_input("CATEGORÍA").upper()
+        det = st.text_input("DETALLE").upper()
         monto = st.number_input("MONTO RD$:", min_value=0.0, format="%.2f")
-        if st.form_submit_button("REGISTRAR EN LIBRO"):
+        if st.form_submit_button("REGISTRAR MOVIMIENTO"):
             m_real = -abs(monto) if tipo == "GASTO" else abs(monto)
             db.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)", (f_mov.strftime("%d/%m/%Y"), mes_str, tipo, cat, det, m_real))
             db.commit(); st.rerun()
     
     if not df_f.empty:
-        st.write("### Historial de Transacciones")
         st.dataframe(df_f[['fecha', 'tipo', 'categoria', 'detalle', 'monto']], use_container_width=True)
 
 elif menu == "🩺 SALUD":
-    st.title("🩺 Panel de Salud - Quevedo")
+    st.title("🩺 Panel de Salud")
     t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
 
     with t1:
@@ -202,81 +200,60 @@ elif menu == "🩺 SALUD":
                 st.download_button("📥 DESCARGAR REPORTE PDF", pdf_data, f"Salud_{f_str}.pdf", "application/pdf")
             with c_w:
                 u = df_g.iloc[0]
-                t_w = f"🩺 *REPORTE LUIS R. QUEVEDO*\n📅 {f_str} | ⌚ {u['hora']}\n📍 Glucosa: {u['valor']} mg/dL\n📝 {u['momento']}"
-                st.link_button("📲 ENVIAR A WHATSAPP", f"https://wa.me/?text={urllib.parse.quote(t_w)}")
+                t_w = f"🩺 *REPORTE QUEVEDO*\n📅 {f_str}\n📍 Glucosa: {u['valor']} mg/dL\n📝 {u['momento']}"
+                st.link_button("📲 WHATSAPP", f"https://wa.me/?text={urllib.parse.quote(t_w)}")
             
             fig = px.line(df_g.iloc[::-1], x='hora', y='valor', markers=True, template="plotly_dark")
             fig.update_traces(line_color='#58a6ff', marker=dict(size=12, color='#40E0D0'))
             fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig, use_container_width=True)
             
-            st.write("### Registro Histórico de Niveles")
+            st.write("### Historial")
             st.dataframe(df_g[['fecha', 'hora', 'momento', 'valor']].style.apply(lambda r: [color_glucosa_pro(r['valor'], r['momento'])] * len(r), axis=1), use_container_width=True)
 
         with st.form("f_gluc", clear_on_submit=True):
             cg1, cg2 = st.columns(2)
-            v = cg1.number_input("Valor de Glucosa (mg/dL):", min_value=0)
-            m = cg2.selectbox("Momento de la toma:", ["Ayunas", "Post-Desayuno (2h)", "Post-Almuerzo", "Post-Cena", "Antes de dormir"])
-            if st.form_submit_button("GUARDAR EN EXPEDIENTE"):
+            v = cg1.number_input("Valor (mg/dL):", min_value=0)
+            m = cg2.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Antes de dormir"])
+            if st.form_submit_button("GUARDAR TOMA"):
                 db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", (f_str, h_str, m, v)); db.commit(); st.rerun()
 
     with t2:
-        st.markdown(f"### 💊 Control de Medicación - {f_str}")
+        st.markdown(f"### 💊 Medicación - {f_str}")
         df_meds = pd.read_sql_query("SELECT * FROM medicamentos", db)
         tomas_hoy = pd.read_sql_query("SELECT medicina_id FROM tomas_diarias WHERE fecha = ?", db, params=(f_str,))['medicina_id'].tolist()
-        
         for _, m in df_meds.iterrows():
             with st.container():
                 c_txt, c_chk = st.columns([5, 1])
-                c_txt.markdown(f"**{m['nombre']}**  \n<small style='color:#8b949e;'>{m['dosis']} — {m['horario']}</small>", unsafe_allow_html=True)
-                check = c_chk.checkbox("", key=f"med_{m['id']}", value=(m['id'] in tomas_hoy))
-                if check and m['id'] not in tomas_hoy:
-                    db.execute("INSERT INTO tomas_diarias (fecha, medicina_id) VALUES (?,?)", (f_str, m['id'])); db.commit(); st.rerun()
-                elif not check and m['id'] in tomas_hoy:
-                    db.execute("DELETE FROM tomas_diarias WHERE fecha = ? AND medicina_id = ?", (f_str, m['id'])); db.commit(); st.rerun()
+                c_txt.markdown(f"**{m['nombre']}** — <small>{m['dosis']} ({m['horario']})</small>", unsafe_allow_html=True)
+                if c_chk.checkbox("", key=f"med_{m['id']}", value=(m['id'] in tomas_hoy)):
+                    if m['id'] not in tomas_hoy:
+                        db.execute("INSERT INTO tomas_diarias (fecha, medicina_id) VALUES (?,?)", (f_str, m['id'])); db.commit()
                 st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
         
         with st.form("add_med", clear_on_submit=True):
-            st.write("Añadir Nuevo Medicamento:")
             n, d, h = st.text_input("NOMBRE").upper(), st.text_input("DOSIS").upper(), st.text_input("HORARIO").upper()
-            if st.form_submit_button("AÑADIR A MI LISTA"):
+            if st.form_submit_button("AÑADIR MEDICAMENTO"):
                 db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h)); db.commit(); st.rerun()
 
     with t3:
-        st.markdown("### 📅 Próximas Citas Médicas")
+        st.markdown("### 📅 Agenda")
         with st.form("f_citas", clear_on_submit=True):
-            doc, fec, mot = st.text_input("DOCTOR / ESPECIALISTA").upper(), st.date_input("FECHA"), st.text_input("MOTIVO / CONSULTA").upper()
-            if st.form_submit_button("AGENDAR CITA"):
+            doc, fec, mot = st.text_input("DOCTOR").upper(), st.date_input("FECHA"), st.text_input("MOTIVO").upper()
+            if st.form_submit_button("AGENDAR"):
                 db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(fec), mot)); db.commit(); st.rerun()
-        st.dataframe(pd.read_sql_query("SELECT doctor, fecha, motivo FROM citas ORDER BY fecha ASC", db), use_container_width=True)
+        st.dataframe(pd.read_sql_query("SELECT doctor, fecha, motivo FROM citas", db), use_container_width=True)
 
 elif menu == "📝 BITÁCORA":
-    st.title("📝 Bitácora Personal")
-    nota = st.text_area("¿Qué quieres recordar hoy?", height=200, placeholder="Escribe tus notas, síntomas o recordatorios aquí...")
+    st.title("📝 Bitácora")
+    nota = st.text_area("Nota del día:", height=150)
     if st.button("GUARDAR NOTA"):
-        if nota.strip():
-            with open("nexus_notas.txt", "a", encoding="utf-8") as f: 
-                f.write(f"--- FECHA: {f_str} {h_str} ---\n{nota}\n\n")
-            st.success("Nota guardada correctamente en la memoria.")
-    
-    st.markdown("---")
-    try:
-        with open("nexus_notas.txt", "r", encoding="utf-8") as f:
-            st.text_area("Historial de Notas:", f.read(), height=350)
-    except FileNotFoundError:
-        st.info("Aún no tienes notas guardadas en tu bitácora.")
+        with open("nexus_notas.txt", "a", encoding="utf-8") as f: f.write(f"[{f_str}]: {nota}\n\n")
+        st.success("Guardado")
 
 elif menu == "⚙️ CONFIG":
-    st.title("⚙️ Ajustes de Nexus")
-    st.markdown("<div class='balance-box'>", unsafe_allow_html=True)
-    new_p = st.number_input("Establecer Presupuesto Mensual (RD$):", min_value=0.0, value=float(presupuesto_mensual))
-    if st.button("GUARDAR PREFERENCIAS"):
+    st.title("⚙️ Configuración")
+    new_p = st.number_input("Presupuesto Mensual (RD$):", min_value=0.0, value=float(presupuesto_mensual))
+    if st.button("GUARDAR AJUSTES"):
         db.execute("INSERT OR REPLACE INTO config (param, valor) VALUES ('presupuesto', ?)", (new_p,))
-        db.commit()
-        st.success("Configuración actualizada.")
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-    
-    if st.button("🗑️ LIMPIAR HISTORIAL DE FINANZAS"):
-        db.execute("DELETE FROM finanzas")
-        db.commit(); st.warning("Historial de finanzas borrado."); st.rerun()
+        db.commit(); st.rerun()
