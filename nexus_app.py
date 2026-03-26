@@ -12,7 +12,7 @@ from fpdf import FPDF
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 15)
-        self.cell(0, 10, 'NEXUS - REPORTE DE SALUD', 0, 1, 'C')
+        self.cell(0, 10, 'NEXUS - REPORTE GENERAL', 0, 1, 'C')
         self.ln(5)
     def footer(self):
         self.set_y(-15)
@@ -36,7 +36,9 @@ st.markdown("""
     .balance-box { background-color: #1f2937; padding: 25px; border-radius: 15px; text-align: center; border: 1px solid #30363d; margin: 10px 0; }
     .alerta-card { padding: 15px; border-radius: 10px; border-left: 5px solid; margin-bottom: 15px; background-color: #1c2128; border: 1px solid #30363d; }
     div.stButton > button, div.stDownloadButton > button { background-color: #1f2937; color: white; border: 1px solid #30363d; border-radius: 8px; width: 100%; font-weight: bold; height: 50px; }
+    div.stDownloadButton > button { background-color: #1e3a8a !important; border: 1px solid #3b82f6 !important; }
     .btn-borrar-rojo > div > button { background-color: #441111 !important; color: #ff9999 !important; border: 1px solid #662222 !important; height: 40px !important; }
+    a[data-testid="stLinkButton"] { background-color: #25D366 !important; color: white !important; height: 50px !important; border-radius: 8px !important; display: flex !important; align-items: center; justify-content: center; font-weight: bold !important; text-decoration: none !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -89,6 +91,18 @@ def generar_pdf_salud(df):
         pdf.dibujar_semaforo(x + 3, y + 2.5, c_slug)
     return pdf.output(dest='S').encode('latin-1', errors='replace')
 
+def generar_pdf_bitacora(contenido):
+    pdf = PDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(0, 10, "HISTORIAL DE BITÁCORA - NOTAS", 0, 1, 'L')
+    pdf.ln(5)
+    pdf.set_font("Arial", '', 11)
+    # Reemplazar caracteres que fpdf no maneja bien
+    texto_limpio = contenido.replace('–', '-').replace('—', '-')
+    pdf.multi_cell(0, 8, texto_limpio)
+    return pdf.output(dest='S').encode('latin-1', errors='replace')
+
 # --- 4. PANEL DE ALERTAS ---
 def mostrar_panel_alertas(db, f_obj, pres_mensual):
     st.markdown("### 🔔 PANEL DE CONTROL")
@@ -119,7 +133,6 @@ def mostrar_panel_alertas(db, f_obj, pres_mensual):
         if pres_mensual > 0:
             porc = (gastos_val / pres_mensual)
             c_f = "#27ae60" if porc < 0.8 else "#e74c3c"
-            # LÍNEA CORREGIDA PARA EVITAR ERROR DE CARÁCTER:
             st.markdown(f"<div class='alerta-card' style='border-left: 5px solid {c_f};'><strong>MONTO GASTADO</strong><br>{(porc*100):.1f}% usado<br>Resta: RD$ {max(0, pres_mensual-gastos_val):,.2f}</div>", unsafe_allow_html=True)
 
 # --- 5. LÓGICA DE NAVEGACIÓN ---
@@ -158,6 +171,7 @@ elif menu == "💰 FINANZAS":
     df_f = pd.read_sql_query("SELECT * FROM finanzas ORDER BY id DESC", db)
     total = df_f['monto'].sum() if not df_f.empty else 0.0
     st.markdown(f"<div class='balance-box'><h3>DISPONIBLE TOTAL</h3><h1>RD$ {total:,.2f}</h1></div>", unsafe_allow_html=True)
+    
     with st.form("f_mov", clear_on_submit=True):
         c1, c2, c3 = st.columns([1,1,2])
         tipo = c1.selectbox("Tipo", ["GASTO", "INGRESO"])
@@ -169,7 +183,13 @@ elif menu == "💰 FINANZAS":
             m_f = -mon if tipo == "GASTO" else mon
             db.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)", (fec.strftime("%d/%m/%Y"), fec.strftime("%m-%Y"), tipo, cat, det, m_f))
             db.commit(); st.rerun()
-    if not df_f.empty: st.dataframe(df_f[['fecha', 'tipo', 'categoria', 'detalle', 'monto']], use_container_width=True)
+    
+    if not df_f.empty:
+        st.dataframe(df_f[['fecha', 'tipo', 'categoria', 'detalle', 'monto']], use_container_width=True)
+        st.markdown('<div class="btn-borrar-rojo">', unsafe_allow_html=True)
+        if st.button("🗑️ BORRAR ÚLTIMA TRANSACCIÓN"):
+            db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)"); db.commit(); st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
 elif menu == "🩺 SALUD":
     st.title("🩺 Control Médico")
@@ -177,26 +197,42 @@ elif menu == "🩺 SALUD":
     with t1:
         df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db)
         if not df_g.empty:
-            st.download_button("📥 DESCARGAR REPORTE PDF", generar_pdf_salud(df_g), f"Salud_{f_str}.pdf")
+            col_pdf, col_wa = st.columns(2)
+            col_pdf.download_button("📥 DESCARGAR REPORTE PDF", generar_pdf_salud(df_g), f"Salud_{f_str}.pdf")
+            u = df_g.iloc[0]
+            msg_wa = f"🩸 *REPORTE GLUCOSA*\nPaciente: Luis Rafael Quevedo\nValor: {u['valor']} mg/dL\nMomento: {u['momento']}"
+            col_wa.link_button("📲 ENVIAR POR WHATSAPP", f"https://wa.me/?text={urllib.parse.quote(msg_wa)}")
             st.plotly_chart(px.line(df_g.iloc[::-1], x='hora', y='valor', markers=True, template="plotly_dark"), use_container_width=True)
             st.dataframe(df_g[['fecha', 'hora', 'momento', 'valor']].style.apply(lambda r: [interpretar_salud(r['valor'], r['momento'])[2]]*4, axis=1), use_container_width=True)
+            st.markdown('<div class="btn-borrar-rojo">', unsafe_allow_html=True)
+            if st.button("🗑️ ELIMINAR ÚLTIMA LECTURA"):
+                db.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)"); db.commit(); st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+
         with st.form("f_glu", clear_on_submit=True):
             v = st.number_input("Valor", min_value=0)
             m = st.selectbox("Momento", ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Post-Cena", "Antes de dormir"])
             if st.form_submit_button("GUARDAR MEDICIÓN"):
                 db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", (f_str, h_str, m, v)); db.commit(); st.rerun()
+
     with t2:
         df_m = pd.read_sql_query("SELECT * FROM medicamentos", db)
-        for _, r in df_m.iterrows(): st.info(f"💊 {r['nombre']} - {r['dosis']} ({r['horario']})")
+        for _, r in df_m.iterrows():
+            col_med, col_del = st.columns([5,1])
+            col_med.info(f"💊 {r['nombre']} - {r['dosis']} ({r['horario']})")
+            if col_del.button("🗑️", key=f"del_med_{r['id']}"):
+                db.execute("DELETE FROM medicamentos WHERE id=?", (r['id'],)); db.commit(); st.rerun()
         with st.form("f_meds"):
-            n = st.text_input("Medicina").upper()
-            d = st.text_input("Dosis").upper()
-            h = st.text_input("Horario").upper()
+            n = st.text_input("Medicina").upper(); d = st.text_input("Dosis").upper(); h = st.text_input("Horario").upper()
             if st.form_submit_button("AÑADIR"):
                 db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h)); db.commit(); st.rerun()
     with t3:
         df_c = pd.read_sql_query("SELECT * FROM citas ORDER BY fecha ASC", db)
-        st.table(df_c[['doctor', 'fecha', 'motivo']])
+        for _, r in df_c.iterrows():
+            col_cit, col_del_c = st.columns([5,1])
+            col_cit.warning(f"📅 {r['fecha']} | {r['doctor']} | {r['motivo']}")
+            if col_del_c.button("🗑️", key=f"del_cit_{r['id']}"):
+                db.execute("DELETE FROM citas WHERE id=?", (r['id'],)); db.commit(); st.rerun()
         with st.form("f_citas"):
             doc = st.text_input("Doctor").upper(); fec_c = st.date_input("Fecha"); mot = st.text_input("Motivo").upper()
             if st.form_submit_button("AGENDAR"):
@@ -204,12 +240,20 @@ elif menu == "🩺 SALUD":
 
 elif menu == "📝 BITÁCORA":
     st.title("📝 Notas Personales")
-    n = st.text_area("Nota:", height=150)
-    if st.button("💾 GUARDAR"):
+    if st.button("🗑️ LIMPIAR HISTORIAL DE NOTAS"):
+        if os.path.exists("nexus_notas.txt"): os.remove("nexus_notas.txt")
+        st.rerun()
+    
+    n = st.text_area("Escribir nota:", height=150)
+    if st.button("💾 GUARDAR NOTA"):
         with open("nexus_notas.txt", "a", encoding="utf-8") as f: f.write(f"[{f_str}]: {n}\n\n")
         st.rerun()
+    
     if os.path.exists("nexus_notas.txt"):
-        st.text_area("Historial:", open("nexus_notas.txt", "r", encoding="utf-8").read(), height=300)
+        historial = open("nexus_notas.txt", "r", encoding="utf-8").read()
+        st.text_area("Historial visual:", historial, height=300)
+        # BOTÓN DE PDF PARA BITÁCORA
+        st.download_button("📥 DESCARGAR BITÁCORA EN PDF", generar_pdf_bitacora(historial), f"Bitacora_{f_str}.pdf")
 
 elif menu == "⚙️ CONFIG":
     st.title("⚙️ Ajustes")
