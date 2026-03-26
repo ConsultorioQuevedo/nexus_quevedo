@@ -8,7 +8,17 @@ import io
 import urllib.parse
 from fpdf import FPDF
 
-# --- 1. CONFIGURACIÓN VISUAL (ESTILO NEXUS DARK PROFESIONAL) ---
+# --- CLASE ESPECIAL PARA EL PDF CON SU NOMBRE AL PIE ---
+class PDF(FPDF):
+    def footer(self):
+        # Posición a 1.5 cm del final
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 10)
+        self.set_text_color(100)
+        # Solo su nombre completo en el pie de página
+        self.cell(0, 10, 'Luis Rafael Quevedo', 0, 0, 'C')
+
+# --- 1. CONFIGURACIÓN VISUAL (ESTILO NEXUS DARK) ---
 st.set_page_config(page_title="NEXUS QUEVEDO", layout="wide", page_icon="🌐")
 
 st.markdown("""
@@ -60,54 +70,47 @@ def iniciar_db():
     conn.commit()
     return conn
 
-def calcular_semaforo(valor, momento):
-    if momento == "Ayunas":
-        if 80 <= valor <= 120: return "🟢 NORMAL", "#166534"
-        elif 121 <= valor <= 140: return "🟡 PRECAUCIÓN", "#854d0e"
-        elif valor > 140: return "🔴 ALTA", "#991b1b"
-        else: return "🔵 BAJA", "#1e3a8a"
-    return "🟢 REGISTRADO", "#1f2937"
-
 def generar_pdf_salud(df):
-    pdf = FPDF()
+    pdf = PDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(190, 15, "REPORTE HISTÓRICO DE GLUCOSA", ln=True, align='C')
-    pdf.set_font("Arial", '', 12)
-    pdf.cell(190, 8, f"PACIENTE: SR. QUEVEDO", ln=True, align='C')
-    pdf.cell(190, 8, f"FECHA DE REPORTE: {datetime.now().strftime('%d/%m/%Y %I:%M %p')}", ln=True, align='C')
+    pdf.cell(190, 10, "REPORTE HISTÓRICO DE GLUCOSA", ln=True, align='C')
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(190, 8, "PACIENTE: LUIS RAFAEL QUEVEDO", ln=True, align='C')
     pdf.ln(10)
+    # Encabezado Tabla
     pdf.set_fill_color(30, 41, 59)
     pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Arial", 'B', 11)
     pdf.cell(40, 10, " FECHA", 1, 0, 'C', True)
     pdf.cell(40, 10, " HORA", 1, 0, 'C', True)
     pdf.cell(70, 10, " MOMENTO", 1, 0, 'C', True)
     pdf.cell(40, 10, " VALOR", 1, 1, 'C', True)
+    # Datos
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", '', 10)
     for _, row in df.iterrows():
         pdf.cell(40, 9, f" {row['fecha']}", 1)
         pdf.cell(40, 9, f" {row['hora']}", 1)
         pdf.cell(70, 9, f" {row['momento']}", 1)
-        pdf.cell(40, 9, f" {row['valor']} mg/dL", 1, 1, 'C')
+        if row['valor'] > 140:
+            pdf.set_text_color(200, 0, 0); pdf.set_font("Arial", 'B', 10)
+            pdf.cell(40, 9, f" {row['valor']} mg/dL *", 1, 1, 'C')
+            pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", '', 10)
+        else:
+            pdf.cell(40, 9, f" {row['valor']} mg/dL", 1, 1, 'C')
     return pdf.output(dest='S').encode('latin-1')
 
 db = iniciar_db()
 f_str, h_str, mes_str, f_obj = obtener_tiempo_rd()
-res_conf = db.execute("SELECT valor FROM config WHERE param='presupuesto'").fetchone()
-presupuesto_mensual = res_conf[0] if res_conf else 20000.0
 
-# --- 4. BARRA LATERAL ---
+# --- 4. NAVEGACIÓN ---
 with st.sidebar:
     st.markdown("<h2 style='text-align: center;'>🌐 CONTROL</h2>", unsafe_allow_html=True)
-    st.info(f"📅 {f_str} | ⏰ {h_str}")
     menu = st.radio("MENÚ PRINCIPAL", ["💰 FINANZAS", "🩺 SALUD", "📝 BITÁCORA", "⚙️ CONFIG"])
-    st.divider()
     if st.button("CERRAR SESIÓN"):
         del st.session_state["password_correct"]; st.rerun()
 
-# --- 5. FINANZAS ---
+# --- 5. FINANZAS (COMPLETO) ---
 if menu == "💰 FINANZAS":
     st.title("💰 Gestión Financiera")
     with st.form("f_fin", clear_on_submit=True):
@@ -115,88 +118,63 @@ if menu == "💰 FINANZAS":
         tipo, f_mov = c1.selectbox("TIPO", ["GASTO", "INGRESO"]), c2.date_input("FECHA", value=f_obj)
         cat, det = st.text_input("CATEGORÍA").upper(), st.text_input("DETALLE").upper()
         monto = st.number_input("MONTO RD$:", min_value=0.0)
-        if st.form_submit_button("REGISTRAR"):
+        if st.form_submit_button("REGISTRAR MOVIMIENTO"):
             m_real = -abs(monto) if tipo == "GASTO" else abs(monto)
             db.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)", (f_mov.strftime("%d/%m/%Y"), mes_str, tipo, cat, det, m_real))
             db.commit(); st.rerun()
     
     df_f = pd.read_sql_query("SELECT * FROM finanzas ORDER BY id DESC", db)
     if not df_f.empty:
-        total_disp = df_f["monto"].sum()
-        st.markdown(f"<div class='balance-box'><h3>DISPONIBLE ACTUAL</h3><h1 style='color:#2ecc71;'>RD$ {total_disp:,.2f}</h1></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='balance-box'><h3>DISPONIBLE</h3><h1 style='color:#2ecc71;'>RD$ {df_f['monto'].sum():,.2f}</h1></div>", unsafe_allow_html=True)
         st.dataframe(df_f[['fecha', 'tipo', 'categoria', 'detalle', 'monto']], use_container_width=True)
         if st.button("🗑️ BORRAR ÚLTIMO MOVIMIENTO"):
             db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)"); db.commit(); st.rerun()
 
-# --- 6. SALUD (SISTEMA DUAL: PDF + WHATSAPP TEXTO) ---
+# --- 6. SALUD (CON TODAS LAS MEDIDAS VISIBLES) ---
 elif menu == "🩺 SALUD":
-    st.title("🩺 Control de Salud")
-    t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
-
-    with t1:
-        df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db)
-        if not df_g.empty:
+    st.title("🩺 Salud - Luis Rafael Quevedo")
+    df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db)
+    
+    if not df_g.empty:
+        # BOTONES DE REPORTE
+        c_a, c_b = st.columns(2)
+        with c_a:
+            pdf_data = generar_pdf_salud(df_g)
+            st.markdown("<div class='btn-pdf'>", unsafe_allow_html=True)
+            st.download_button(label="📥 GENERAR PDF (REPORTE MÉDICO)", data=pdf_data, file_name=f"Reporte_Quevedo_{f_str}.pdf", mime="application/pdf")
+            st.markdown("</div>", unsafe_allow_html=True)
+        with c_b:
             u = df_g.iloc[0]
-            promedio = df_g['valor'].mean()
-            txt_sem, col_sem = calcular_semaforo(u['valor'], u['momento'])
-            st.markdown(f"<div class='semaforo-box' style='background-color:{col_sem};'>ESTADO: {txt_sem} ({u['valor']} mg/dL)</div>", unsafe_allow_html=True)
+            texto_w = f"🩸 *REPORTE LUIS RAFAEL QUEVEDO*\n📅 {f_str}\n📍 Última: {u['valor']} mg/dL"
+            st.markdown(f"<div class='btn-whatsapp-rapido'><a href='https://wa.me/?text={urllib.parse.quote(texto_w)}' target='_blank'>ENVIAR TEXTO RÁPIDO</a></div>", unsafe_allow_html=True)
 
-            col_btn1, col_btn2 = st.columns(2)
-            with col_btn1:
-                st.markdown("### 📄 Reporte Formal")
-                pdf_data = generar_pdf_salud(df_g)
-                st.markdown("<div class='btn-pdf'>", unsafe_allow_html=True)
-                st.download_button(label="📥 GENERAR PDF (TODOS LOS DATOS)", data=pdf_data, file_name=f"Reporte_Salud_Quevedo.pdf", mime="application/pdf")
-                st.markdown("</div>", unsafe_allow_html=True)
-            
-            with col_btn2:
-                st.markdown("### 📲 Aviso Rápido")
-                texto_w = f"🩸 *REPORTE SALUD QUEVEDO*\n📅 {f_str}\n📍 Última: {u['valor']} mg/dL\n📊 Promedio: {promedio:.1f} mg/dL"
-                msg_url = urllib.parse.quote(texto_w)
-                st.markdown(f"<div class='btn-whatsapp-rapido'><a href='https://wa.me/?text={msg_url}' target='_blank'>ENVIAR TEXTO POR WHATSAPP</a></div>", unsafe_allow_html=True)
+        fig = px.line(df_g.iloc[::-1], x='hora', y='valor', markers=True, title="TENDENCIA")
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # AQUÍ ESTÁN TODAS LAS MEDIDAS VISIBLES
+        st.markdown("### 📊 Historial Completo de Medidas")
+        st.dataframe(df_g[['fecha', 'hora', 'momento', 'valor']], use_container_width=True)
 
-            fig = px.line(df_g.iloc[::-1], x='hora', y='valor', color='momento', markers=True)
-            fig.update_layout(template="plotly_dark")
-            st.plotly_chart(fig, use_container_width=True)
+    with st.form("f_gluc", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        v, m = c1.number_input("Valor mg/dL:", min_value=0), c2.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Post-Cena", "Antes de dormir"])
+        if st.form_submit_button("GUARDAR LECTURA"):
+            db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", (f_str, h_str, m, v))
+            db.commit(); st.rerun()
 
-        with st.form("f_gluc", clear_on_submit=True):
-            v, m = st.number_input("Valor mg/dL:", min_value=0), st.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Post-Cena", "Antes de dormir"])
-            if st.form_submit_button("GUARDAR LECTURA"):
-                db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", (f_str, h_str, m, v))
-                db.commit(); st.rerun()
-
-    with t2:
-        with st.form("f_med", clear_on_submit=True):
-            n, d, h = st.text_input("MEDICINA").upper(), st.text_input("DOSIS").upper(), st.selectbox("HORARIO", ["DIARIO", "CADA 8H", "CADA 12H", "SI HAY DOLOR"])
-            if st.form_submit_button("AÑADIR"):
-                db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h)); db.commit(); st.rerun()
-        df_m = pd.read_sql_query("SELECT * FROM medicamentos", db)
-        for _, r in df_m.iterrows(): st.info(f"💊 {r['nombre']} - {r['dosis']} ({r['horario']})")
-
-    with t3:
-        with st.form("f_citas", clear_on_submit=True):
-            doc, fec, mot = st.text_input("DOCTOR").upper(), st.date_input("FECHA"), st.text_input("MOTIVO").upper()
-            if st.form_submit_button("AGENDAR"):
-                db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(fec), mot)); db.commit(); st.rerun()
-        df_c = pd.read_sql_query("SELECT * FROM citas ORDER BY fecha ASC", db)
-        for _, r in df_c.iterrows(): st.write(f"📅 **{r['fecha']}** | {r['doctor']} - {r['motivo']}"); st.divider()
-
-# --- 7. BITÁCORA ---
+# --- 7. BITÁCORA (INTEGRA) ---
 elif menu == "📝 BITÁCORA":
     st.title("📝 Bitácora")
-    entrada = st.text_area("Nota:", height=150)
-    if st.button("GUARDAR"):
-        if entrada.strip():
-            with open("nexus_notas.txt", "a", encoding="utf-8") as f: f.write(f"[{f_str} {h_str}]: {entrada}\n\n")
+    nota = st.text_area("Escriba aquí sus notas:", height=150)
+    if st.button("GUARDAR NOTA"):
+        if nota.strip():
+            with open("nexus_notas.txt", "a", encoding="utf-8") as f: f.write(f"[{f_str} {h_str}]: {nota}\n\n")
             st.success("Nota guardada.")
     try:
-        with open("nexus_notas.txt", "r", encoding="utf-8") as f: st.text_area("Historial:", f.read(), height=400)
-    except FileNotFoundError: st.info("Sin notas.")
+        with open("nexus_notas.txt", "r", encoding="utf-8") as f: st.text_area("Historial de Notas:", f.read(), height=400)
+    except FileNotFoundError: st.info("Sin notas registradas.")
 
 # --- 8. CONFIGURACIÓN ---
 elif menu == "⚙️ CONFIG":
     st.title("⚙️ Ajustes")
-    np = st.number_input("Presupuesto:", min_value=0.0, value=float(presupuesto_mensual))
-    if st.button("ACTUALIZAR"):
-        db.execute("INSERT OR REPLACE INTO config (param, valor) VALUES ('presupuesto', ?)", (np,))
-        db.commit(); st.success("Actualizado.")
+    st.write("Configuraciones generales del sistema Nexus.")
