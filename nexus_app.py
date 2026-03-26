@@ -4,7 +4,6 @@ import sqlite3
 from datetime import datetime
 import pytz
 import plotly.express as px
-import io
 
 # --- 1. CONFIGURACIÓN VISUAL (ESTILO NEXUS DARK) ---
 st.set_page_config(page_title="NEXUS QUEVEDO", layout="wide", page_icon="🌐")
@@ -23,7 +22,6 @@ st.markdown("""
         color: #ff9999 !important; 
         border: 1px solid #662222 !important; 
     }
-    .stDownloadButton > button { background-color: #064e3b !important; color: #a7f3d0 !important; border: 1px solid #065f46 !important; width: 100%; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -41,7 +39,7 @@ if "password_correct" not in st.session_state:
                 else: st.error("❌ Credenciales Incorrectas")
     st.stop()
 
-# --- 3. FUNCIONES DE APOYO ---
+# --- 3. FUNCIONES Y DB ---
 def obtener_tiempo_rd():
     zona = pytz.timezone('America/Santo_Domingo')
     ahora = datetime.now(zona)
@@ -50,7 +48,7 @@ def obtener_tiempo_rd():
 def iniciar_db():
     conn = sqlite3.connect("nexus_pro_v3.db", check_same_thread=False)
     c = conn.cursor()
-    c.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, fecha TEXT, hora TEXT, momento TEXT, valor INTEGER, notas TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, fecha TEXT, hora TEXT, momento TEXT, valor INTEGER)')
     c.execute('CREATE TABLE IF NOT EXISTS medicamentos (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT, horario TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS citas (id INTEGER PRIMARY KEY, doctor TEXT, fecha TEXT, motivo TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, fecha TEXT, mes TEXT, tipo TEXT, categoria TEXT, detalle TEXT, monto REAL)')
@@ -121,17 +119,27 @@ if menu == "💰 FINANZAS":
             db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)"); db.commit(); st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-# --- 6. SALUD (UNIFICADO) ---
+# --- 6. SALUD (CON GRÁFICO REINTEGRADO) ---
 elif menu == "🩺 SALUD":
     st.title("🩺 Control de Salud")
     t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
 
     with t1:
-        df_g = pd.read_sql_query("SELECT fecha, hora, momento, valor FROM glucosa ORDER BY id DESC", db)
+        df_g = pd.read_sql_query("SELECT id, fecha, hora, momento, valor FROM glucosa ORDER BY id DESC", db)
+        
         if not df_g.empty:
+            # Semáforo de estado actual
             u_v, u_m = df_g.iloc[0]['valor'], df_g.iloc[0]['momento']
             txt, col = calcular_semaforo(u_v, u_m)
             st.markdown(f"<div class='semaforo-box' style='background-color:{col};'>ESTADO ACTUAL: {txt} ({u_v} mg/dL)</div>", unsafe_allow_html=True)
+            
+            # --- REINTEGRACIÓN DEL GRÁFICO ---
+            df_plot = df_g.iloc[::-1].copy() # Invertir para orden cronológico
+            fig = px.line(df_plot, x='hora', y='valor', color='momento', title="Tendencia de Glucosa (Tiempo Real)", markers=True)
+            fig.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig, use_container_width=True)
+            # --------------------------------
+
         with st.form("f_gluc", clear_on_submit=True):
             c1, c2 = st.columns(2)
             val = c1.number_input("Valor mg/dL:", min_value=0)
@@ -139,8 +147,9 @@ elif menu == "🩺 SALUD":
             if st.form_submit_button("GUARDAR LECTURA"):
                 db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", (f_str, h_str, mom, val))
                 db.commit(); st.rerun()
+        
         if not df_g.empty:
-            st.dataframe(df_g.style.apply(estilar_tabla_glucosa, axis=1), use_container_width=True)
+            st.dataframe(df_g[['fecha', 'hora', 'momento', 'valor']].style.apply(estilar_tabla_glucosa, axis=1), use_container_width=True)
             st.markdown("<div class='btn-borrar-rojo'>", unsafe_allow_html=True)
             if st.button("🗑️ BORRAR ÚLTIMA LECTURA"):
                 db.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)"); db.commit(); st.rerun()
