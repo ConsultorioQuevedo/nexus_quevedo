@@ -8,16 +8,15 @@ import io
 import urllib.parse
 from fpdf import FPDF
 
-# --- CLASE ESPECIAL PARA EL PDF CON SU NOMBRE AL PIE ---
+# --- CLASE ESPECIAL PARA EL PDF ---
 class PDF(FPDF):
     def footer(self):
         self.set_y(-15)
         self.set_font('Arial', 'I', 10)
         self.set_text_color(100)
-        # Nombre completo en el pie de página según su instrucción
         self.cell(0, 10, 'Luis Rafael Quevedo', 0, 0, 'C')
 
-# --- 1. CONFIGURACIÓN VISUAL (ESTILO NEXUS DARK) ---
+# --- 1. CONFIGURACIÓN VISUAL ---
 st.set_page_config(page_title="NEXUS QUEVEDO", layout="wide", page_icon="🌐")
 
 st.markdown("""
@@ -50,7 +49,7 @@ if "password_correct" not in st.session_state:
                 else: st.error("❌ Credenciales Incorrectas")
     st.stop()
 
-# --- 3. FUNCIONES CORE Y BASE DE DATOS ---
+# --- 3. FUNCIONES CORE ---
 def obtener_tiempo_rd():
     zona = pytz.timezone('America/Santo_Domingo')
     ahora = datetime.now(zona)
@@ -96,6 +95,10 @@ def generar_pdf_salud(df):
 db = iniciar_db()
 f_str, h_str, mes_str, f_obj = obtener_tiempo_rd()
 
+# Cargar Presupuesto de la DB
+res_conf = db.execute("SELECT valor FROM config WHERE param='presupuesto'").fetchone()
+presupuesto_mensual = res_conf[0] if res_conf else 0.0
+
 # --- 4. NAVEGACIÓN ---
 with st.sidebar:
     st.markdown("<h2 style='text-align: center;'>🌐 CONTROL</h2>", unsafe_allow_html=True)
@@ -103,26 +106,40 @@ with st.sidebar:
     if st.button("CERRAR SESIÓN"):
         del st.session_state["password_correct"]; st.rerun()
 
-# --- 5. FINANZAS ---
+# --- 5. FINANZAS (CON PRESUPUESTO) ---
 if menu == "💰 FINANZAS":
     st.title("💰 Gestión Financiera")
+    
+    df_f = pd.read_sql_query("SELECT * FROM finanzas ORDER BY id DESC", db)
+    
+    # Cálculos de Presupuesto
+    gastos_mes = abs(df_f[df_f['tipo'] == 'GASTO']['monto'].sum())
+    disponible = df_f['monto'].sum()
+    
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        st.markdown(f"<div class='balance-box'><h3>DISPONIBLE ACTUAL</h3><h1 style='color:#2ecc71;'>RD$ {disponible:,.2f}</h1></div>", unsafe_allow_html=True)
+    with col_f2:
+        st.markdown(f"<div class='balance-box'><h3>GASTOS DEL MES</h3><h1 style='color:#e74c3c;'>RD$ {gastos_mes:,.2f}</h1></div>", unsafe_allow_html=True)
+
+    if presupuesto_mensual > 0:
+        progreso = min(gastos_mes / presupuesto_mensual, 1.0)
+        st.write(f"**Uso del Presupuesto Mensual (RD$ {presupuesto_mensual:,.2f}):**")
+        st.progress(progreso)
+        if gastos_mes > presupuesto_mensual:
+            st.warning(f"⚠️ ¡Ha superado su presupuesto por RD$ {gastos_mes - presupuesto_mensual:,.2f}!")
+
     with st.form("f_fin", clear_on_submit=True):
         c1, c2 = st.columns(2)
-        tipo = c1.selectbox("TIPO", ["GASTO", "INGRESO"])
-        f_mov = c2.date_input("FECHA", value=f_obj)
-        cat = st.text_input("CATEGORÍA").upper()
-        det = st.text_input("DETALLE").upper()
+        tipo, f_mov = c1.selectbox("TIPO", ["GASTO", "INGRESO"]), c2.date_input("FECHA", value=f_obj)
+        cat, det = st.text_input("CATEGORÍA").upper(), st.text_input("DETALLE").upper()
         monto = st.number_input("MONTO RD$:", min_value=0.0)
         if st.form_submit_button("REGISTRAR"):
             m_real = -abs(monto) if tipo == "GASTO" else abs(monto)
             db.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)", (f_mov.strftime("%d/%m/%Y"), mes_str, tipo, cat, det, m_real))
             db.commit(); st.rerun()
-    df_f = pd.read_sql_query("SELECT * FROM finanzas ORDER BY id DESC", db)
-    if not df_f.empty:
-        st.markdown(f"<div class='balance-box'><h3>DISPONIBLE</h3><h1 style='color:#2ecc71;'>RD$ {df_f['monto'].sum():,.2f}</h1></div>", unsafe_allow_html=True)
-        st.dataframe(df_f[['fecha', 'tipo', 'categoria', 'detalle', 'monto']], use_container_width=True)
 
-# --- 6. SALUD (RESTAURADO CON TODAS LAS PESTAÑAS) ---
+# --- 6. SALUD (MÓDULOS COMPLETOS) ---
 elif menu == "🩺 SALUD":
     st.title("🩺 Salud - Luis Rafael Quevedo")
     t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
@@ -139,34 +156,28 @@ elif menu == "🩺 SALUD":
             with c_b:
                 u = df_g.iloc[0]
                 texto_w = f"🩸 *REPORTE LUIS RAFAEL QUEVEDO*\n📅 {f_str}\n📍 Última: {u['valor']} mg/dL"
-                st.markdown(f"<div class='btn-whatsapp-rapido'><a href='https://wa.me/?text={urllib.parse.quote(texto_w)}' target='_blank'>AVISO RÁPIDO WHATSAPP</a></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='btn-whatsapp-rapido'><a href='https://wa.me/?text={urllib.parse.quote(texto_w)}' target='_blank'>AVISO WHATSAPP</a></div>", unsafe_allow_html=True)
             st.plotly_chart(px.line(df_g.iloc[::-1], x='hora', y='valor', markers=True), use_container_width=True)
-            st.markdown("### 📊 Historial Completo")
             st.dataframe(df_g[['fecha', 'hora', 'momento', 'valor']], use_container_width=True)
 
         with st.form("f_gluc", clear_on_submit=True):
-            c1, c2 = st.columns(2)
-            v, m = c1.number_input("Valor:", min_value=0), c2.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Post-Cena", "Antes de dormir"])
+            v, m = st.number_input("Valor:", min_value=0), st.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Post-Cena", "Antes de dormir"])
             if st.form_submit_button("GUARDAR"):
                 db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", (f_str, h_str, m, v)); db.commit(); st.rerun()
 
     with t2:
-        st.markdown("### 💊 Registro de Medicamentos")
         with st.form("f_med", clear_on_submit=True):
-            n, d, h = st.text_input("MEDICINA").upper(), st.text_input("DOSIS").upper(), st.text_input("HORARIO/FRECUENCIA").upper()
-            if st.form_submit_button("AÑADIR MEDICINA"):
+            n, d, h = st.text_input("MEDICINA").upper(), st.text_input("DOSIS").upper(), st.text_input("HORARIO").upper()
+            if st.form_submit_button("AÑADIR"):
                 db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h)); db.commit(); st.rerun()
-        df_m = pd.read_sql_query("SELECT * FROM medicamentos", db)
-        st.dataframe(df_m[['nombre', 'dosis', 'horario']], use_container_width=True)
+        st.dataframe(pd.read_sql_query("SELECT nombre, dosis, horario FROM medicamentos", db), use_container_width=True)
 
     with t3:
-        st.markdown("### 📅 Citas Médicas")
         with st.form("f_citas", clear_on_submit=True):
             doc, fec, mot = st.text_input("DOCTOR").upper(), st.date_input("FECHA"), st.text_input("MOTIVO").upper()
-            if st.form_submit_button("AGENDAR CITA"):
+            if st.form_submit_button("AGENDAR"):
                 db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(fec), mot)); db.commit(); st.rerun()
-        df_c = pd.read_sql_query("SELECT * FROM citas ORDER BY fecha ASC", db)
-        st.dataframe(df_c[['doctor', 'fecha', 'motivo']], use_container_width=True)
+        st.dataframe(pd.read_sql_query("SELECT doctor, fecha, motivo FROM citas ORDER BY fecha ASC", db), use_container_width=True)
 
 # --- 7. BITÁCORA ---
 elif menu == "📝 BITÁCORA":
@@ -179,7 +190,13 @@ elif menu == "📝 BITÁCORA":
         with open("nexus_notas.txt", "r", encoding="utf-8") as f: st.text_area("Historial:", f.read(), height=400)
     except: st.info("Sin notas.")
 
-# --- 8. CONFIGURACIÓN ---
+# --- 8. CONFIGURACIÓN (PARA EL PRESUPUESTO) ---
 elif menu == "⚙️ CONFIG":
-    st.title("⚙️ Ajustes")
-    st.write("Sistema Nexus V3 - Luis Rafael Quevedo")
+    st.title("⚙️ Configuración")
+    st.write("Ajustes del Sistema Nexus")
+    nuevo_presupuesto = st.number_input("Establecer Presupuesto Mensual (RD$):", min_value=0.0, value=float(presupuesto_mensual))
+    if st.button("GUARDAR CONFIGURACIÓN"):
+        db.execute("INSERT OR REPLACE INTO config (param, valor) VALUES ('presupuesto', ?)", (nuevo_presupuesto,))
+        db.commit()
+        st.success("¡Presupuesto actualizado!")
+        st.rerun()
