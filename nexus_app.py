@@ -27,36 +27,27 @@ st.markdown("""
     h1, h2, h3 { font-weight: 800; color: white; }
     .balance-box { background-color: #1f2937; padding: 25px; border-radius: 15px; text-align: center; border: 1px solid #30363d; margin: 20px 0; }
     
-    /* FUERZA COLUMNAS LADO A LADO EN MÓVIL */
-    [data-testid="stHorizontalBlock"] {
-        flex-direction: row !important;
-        display: flex !important;
-        flex-wrap: nowrap !important;
-        gap: 10px !important;
-    }
-    [data-testid="column"] {
-        width: 50% !important;
-        flex: 1 1 auto !important;
-        min-width: 0px !important;
-    }
-
     /* Botones Estilizados */
     div.stButton > button, div.stDownloadButton > button { 
         background-color: #1f2937; color: white; border: 1px solid #30363d; 
-        border-radius: 10px; width: 100%; font-weight: bold; height: 55px; font-size: 14px;
+        border-radius: 8px; width: 100%; font-weight: bold; height: 55px; transition: 0.3s;
     }
     
-    /* PDF Color */
+    /* Color específico para PDF */
     div.stDownloadButton > button { background-color: #1e3a8a !important; border: 1px solid #3b82f6 !important; }
+    div.stDownloadButton > button:hover { background-color: #2563eb !important; transform: scale(1.02); }
 
-    /* WhatsApp Link Estilo */
+    .btn-borrar-rojo > div > button { background-color: #441111 !important; color: #ff9999 !important; border: 1px solid #662222 !important; height: 40px; }
+    
+    /* Botón WhatsApp Link */
     a[data-testid="stLinkButton"] {
         background-color: #25D366 !important; color: white !important; 
-        height: 55px !important; border-radius: 10px !important; 
+        height: 55px !important; border-radius: 8px !important; 
         display: flex !important; align-items: center; justify-content: center;
-        font-weight: bold !important; text-decoration: none !important; 
-        border: 1px solid #128C7E !important; font-size: 14px;
+        font-weight: bold !important; text-decoration: none !important; border: 1px solid #128C7E !important;
+        transition: 0.3s;
     }
+    a[data-testid="stLinkButton"]:hover { background-color: #128C7E !important; transform: scale(1.02); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -66,12 +57,12 @@ if "password_correct" not in st.session_state:
     _, col_b, _ = st.columns([1,2,1])
     with col_b:
         with st.form("login"):
-            pwd = st.text_input("Contraseña:", type="password")
+            pwd = st.text_input("Contraseña Maestra:", type="password")
             if st.form_submit_button("ACCEDER"):
                 if pwd == "admin123":
                     st.session_state["password_correct"] = True
                     st.rerun()
-                else: st.error("❌ Incorrecto")
+                else: st.error("❌ Credenciales Incorrectas")
     st.stop()
 
 # --- 3. FUNCIONES CORE ---
@@ -95,7 +86,7 @@ def generar_pdf_salud(df):
     pdf = PDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(190, 10, "REPORTE DE GLUCOSA", ln=True, align='C')
+    pdf.cell(190, 10, "REPORTE HISTORICO DE GLUCOSA", ln=True, align='C')
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(190, 8, "PACIENTE: LUIS RAFAEL QUEVEDO", ln=True, align='C')
     pdf.ln(10)
@@ -133,9 +124,9 @@ if menu == "💰 FINANZAS":
     disponible = df_f['monto'].sum() if not df_f.empty else 0.0
     gastos_mes = abs(df_f[(df_f['tipo'] == 'GASTO') & (df_f['mes'] == mes_str)]['monto'].sum()) if not df_f.empty else 0.0
     
-    c_f1, c_f2 = st.columns(2)
-    with c_f1: st.markdown(f"<div class='balance-box'><h3>DISPONIBLE</h3><h1 style='color:#2ecc71;'>RD$ {disponible:,.2f}</h1></div>", unsafe_allow_html=True)
-    with c_f2: st.markdown(f"<div class='balance-box'><h3>GASTOS MES</h3><h1 style='color:#e74c3c;'>RD$ {gastos_mes:,.2f}</h1></div>", unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1: st.markdown(f"<div class='balance-box'><h3>DISPONIBLE</h3><h1 style='color:#2ecc71;'>RD$ {disponible:,.2f}</h1></div>", unsafe_allow_html=True)
+    with c2: st.markdown(f"<div class='balance-box'><h3>GASTOS MES</h3><h1 style='color:#e74c3c;'>RD$ {gastos_mes:,.2f}</h1></div>", unsafe_allow_html=True)
     
     with st.form("f_fin", clear_on_submit=True):
         col1, col2 = st.columns(2)
@@ -150,8 +141,10 @@ if menu == "💰 FINANZAS":
     
     if not df_f.empty:
         st.dataframe(df_f[['fecha', 'tipo', 'categoria', 'detalle', 'monto']], use_container_width=True)
+        if st.button("🗑️ BORRAR ÚLTIMO"):
+            db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)"); db.commit(); st.rerun()
 
-# --- 6. SALUD (DISEÑO FORZADO LADO A LADO) ---
+# --- 6. SALUD (BOTONES ALINEADOS AQUÍ) ---
 elif menu == "🩺 SALUD":
     st.title("🩺 Salud - Luis Rafael Quevedo")
     t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
@@ -159,14 +152,14 @@ elif menu == "🩺 SALUD":
     with t1:
         df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db)
         
+        # --- SECCIÓN DE BOTONES ALINEADOS ---
         if not df_g.empty:
-            # FILA DE BOTONES FORZADA (LADO A LADO SIEMPRE)
             col_pdf, col_wa = st.columns(2)
             
             with col_pdf:
                 pdf_data = generar_pdf_salud(df_g)
                 st.download_button(
-                    label="📥 PDF", 
+                    label="📥 GENERAR PDF", 
                     data=pdf_data, 
                     file_name=f"Reporte_Quevedo_{f_str}.pdf", 
                     mime="application/pdf",
@@ -175,55 +168,55 @@ elif menu == "🩺 SALUD":
             
             with col_wa:
                 u = df_g.iloc[0]
-                texto_w = f"🩸 *REPORTE LUIS RAFAEL QUEVEDO*\n📅 {f_str} ({u['hora']})\n📍 Glucosa: {u['valor']} mg/dL"
+                texto_w = f"🩸 *REPORTE LUIS RAFAEL QUEVEDO*\n📅 {f_str} ({u['hora']})\n📍 Glucosa: {u['valor']} mg/dL\n📝 Momento: {u['momento']}"
                 st.link_button(
-                    "📲 WHATSAPP", 
+                    "📲 WHATSAPP RÁPIDO", 
                     f"https://wa.me/?text={urllib.parse.quote(texto_w)}",
                     use_container_width=True
                 )
             
-            st.plotly_chart(px.line(df_g.iloc[::-1], x='hora', y='valor', markers=True, title="TENDENCIA", template="plotly_dark"), use_container_width=True)
+            st.plotly_chart(px.line(df_g.iloc[::-1], x='hora', y='valor', markers=True, title="TENDENCIA DE GLUCOSA", template="plotly_dark"), use_container_width=True)
             st.dataframe(df_g[['fecha', 'hora', 'momento', 'valor']], use_container_width=True)
 
         with st.form("f_gluc", clear_on_submit=True):
-            cg1, cg2 = st.columns(2)
-            v = cg1.number_input("Valor mg/dL:", min_value=0)
-            m = cg2.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Post-Cena", "Antes de dormir"])
+            col_g1, col_g2 = st.columns(2)
+            v = col_g1.number_input("Valor mg/dL:", min_value=0)
+            m = col_g2.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Post-Cena", "Antes de dormir"])
             if st.form_submit_button("GUARDAR LECTURA"):
                 db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", (f_str, h_str, m, v)); db.commit(); st.rerun()
 
     with t2:
-        st.markdown("### 💊 Medicamentos")
+        st.markdown("### 💊 Control de Medicamentos")
         with st.form("f_med", clear_on_submit=True):
             n, d, h = st.text_input("MEDICINA").upper(), st.text_input("DOSIS").upper(), st.text_input("HORARIO").upper()
-            if st.form_submit_button("AGREGAR"):
+            if st.form_submit_button("AGREGAR MEDICAMENTO"):
                 db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h)); db.commit(); st.rerun()
         st.dataframe(pd.read_sql_query("SELECT nombre, dosis, horario FROM medicamentos", db), use_container_width=True)
 
     with t3:
-        st.markdown("### 📅 Citas Médicas")
+        st.markdown("### 📅 Próximas Citas")
         with st.form("f_citas", clear_on_submit=True):
             doc, fec, mot = st.text_input("DOCTOR").upper(), st.date_input("FECHA"), st.text_input("MOTIVO").upper()
-            if st.form_submit_button("AGENDAR"):
+            if st.form_submit_button("AGENDAR CITA"):
                 db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(fec), mot)); db.commit(); st.rerun()
         st.dataframe(pd.read_sql_query("SELECT doctor, fecha, motivo FROM citas ORDER BY fecha ASC", db), use_container_width=True)
 
 # --- 7. BITÁCORA ---
 elif menu == "📝 BITÁCORA":
-    st.title("📝 Bitácora")
-    nota = st.text_area("Nueva nota:", height=150)
+    st.title("📝 Bitácora de Notas")
+    nota = st.text_area("Nueva nota personalizada:", height=150)
     if st.button("GUARDAR NOTA"):
         if nota.strip():
             with open("nexus_notas.txt", "a", encoding="utf-8") as f: f.write(f"[{f_str} {h_str}]: {nota}\n\n")
-            st.success("Guardado")
+            st.success("Nota guardada.")
     try:
         with open("nexus_notas.txt", "r", encoding="utf-8") as f: st.text_area("Historial:", f.read(), height=400)
     except: st.info("Sin notas.")
 
 # --- 8. CONFIGURACIÓN ---
 elif menu == "⚙️ CONFIG":
-    st.title("⚙️ Ajustes")
+    st.title("⚙️ Configuración")
     new_p = st.number_input("Presupuesto Mensual (RD$):", min_value=0.0, value=float(presupuesto_mensual))
-    if st.button("GUARDAR"):
+    if st.button("GUARDAR AJUSTES"):
         db.execute("INSERT OR REPLACE INTO config (param, valor) VALUES ('presupuesto', ?)", (new_p,))
-        db.commit(); st.success("Actualizado"); st.rerun()
+        db.commit(); st.success("Guardado"); st.rerun()
