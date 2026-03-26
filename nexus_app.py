@@ -17,8 +17,15 @@ st.markdown("""
     h1, h2, h3 { font-weight: 800; color: white; }
     .balance-box { background-color: #1f2937; padding: 25px; border-radius: 15px; text-align: center; border: 1px solid #30363d; margin: 20px 0; }
     .semaforo-box { padding: 20px; border-radius: 15px; text-align: center; font-weight: bold; margin-bottom: 20px; font-size: 22px; border: 2px solid #ffffff22; }
-    div.stButton > button { background-color: #1f2937; color: white; border: 1px solid #30363d; border-radius: 8px; width: 100%; font-weight: bold; height: 48px; }
-    .btn-borrar-red > div > button { background-color: #441111 !important; color: #ff9999 !important; border: 1px solid #662222 !important; height: 38px !important; margin-top: 5px; }
+    div.stButton > button { background-color: #1f2937; color: white; border: 1px solid #30363d; border-radius: 8px; width: 100%; font-weight: bold; height: 45px; }
+    /* Estilo para el botón X de borrado */
+    .btn-borrar-red > div > button { 
+        background-color: #441111 !important; 
+        color: #ff9999 !important; 
+        border: 1px solid #662222 !important; 
+        height: 35px !important; 
+        margin-top: 5px; 
+    }
     .stDownloadButton > button { background-color: #064e3b !important; color: #a7f3d0 !important; border: 1px solid #065f46 !important; width: 100%; }
     </style>
     """, unsafe_allow_html=True)
@@ -115,7 +122,7 @@ if menu == "💰 FINANZAS":
         if st.button("🗑️ BORRAR ÚLTIMO GASTO"):
             db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)"); db.commit(); st.rerun()
 
-# --- 6. SALUD (CAMBIOS PEDIDOS AQUÍ) ---
+# --- 6. SALUD ---
 elif menu == "🩺 SALUD":
     st.title("🩺 Control de Salud")
     t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
@@ -143,10 +150,10 @@ elif menu == "🩺 SALUD":
             if st.form_submit_button("AÑADIR"):
                 if n: db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h)); db.commit(); st.rerun()
         
-        # CAMBIO 1: MEDICINAS CON X AL LADO
+        # MEDICINAS CON X A LA DERECHA (RELACIÓN 9:1)
         df_m = pd.read_sql_query("SELECT * FROM medicamentos", db)
         for _, r in df_m.iterrows():
-            col_info, col_btn = st.columns([0.85, 0.15])
+            col_info, col_btn = st.columns([0.9, 0.1])
             col_info.info(f"💊 {r['nombre']} - {r['dosis']} ({r['horario']})")
             with col_btn:
                 st.markdown("<div class='btn-borrar-red'>", unsafe_allow_html=True)
@@ -160,10 +167,10 @@ elif menu == "🩺 SALUD":
             if st.form_submit_button("AGENDAR"):
                 db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(fec), mot)); db.commit(); st.rerun()
         
-        # CAMBIO 2: CITAS CON X AL LADO
+        # CITAS CON X A LA DERECHA (RELACIÓN 9:1)
         df_c = pd.read_sql_query("SELECT * FROM citas ORDER BY fecha ASC", db)
         for _, r in df_c.iterrows():
-            col_txt, col_bx = st.columns([0.85, 0.15])
+            col_txt, col_bx = st.columns([0.9, 0.1])
             col_txt.write(f"📅 **{r['fecha']}** | {r['doctor']} - {r['motivo']}")
             with col_bx:
                 st.markdown("<div class='btn-borrar-red'>", unsafe_allow_html=True)
