@@ -6,7 +6,7 @@ import pytz
 import plotly.express as px
 import io
 
-# --- 1. CONFIGURACIÓN VISUAL (ESTILO NEXUS DARK) ---
+# --- 1. CONFIGURACIÓN VISUAL ---
 st.set_page_config(page_title="NEXUS QUEVEDO", layout="wide", page_icon="🌐")
 
 st.markdown("""
@@ -18,8 +18,10 @@ st.markdown("""
     .balance-box { background-color: #1f2937; padding: 25px; border-radius: 15px; text-align: center; border: 1px solid #30363d; margin: 20px 0; }
     .semaforo-box { padding: 20px; border-radius: 15px; text-align: center; font-weight: bold; margin-bottom: 20px; font-size: 22px; border: 2px solid #ffffff22; }
     div.stButton > button { background-color: #1f2937; color: white; border: 1px solid #30363d; border-radius: 8px; width: 100%; font-weight: bold; height: 48px; }
-    .btn-borrar > div > button { background-color: #441111 !important; color: #ff9999 !important; border: 1px solid #662222 !important; height: 35px !important; }
+    .btn-borrar-red > div > button { background-color: #441111 !important; color: #ff9999 !important; border: 1px solid #662222 !important; height: 35px !important; margin-top: 5px; }
     .stDownloadButton > button { background-color: #064e3b !important; color: #a7f3d0 !important; border: 1px solid #065f46 !important; width: 100%; }
+    /* Estilo para que el botón de borrar quede alineado con el texto */
+    .row-widget.stButton { text-align: right; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -37,7 +39,7 @@ if "password_correct" not in st.session_state:
                 else: st.error("❌ Credenciales Incorrectas")
     st.stop()
 
-# --- 3. FUNCIONES DE APOYO Y LÓGICA MÉDICA ---
+# --- 3. FUNCIONES Y DB ---
 def obtener_tiempo_rd():
     zona = pytz.timezone('America/Santo_Domingo')
     ahora = datetime.now(zona)
@@ -55,18 +57,15 @@ def iniciar_db():
     return conn
 
 def calcular_semaforo(valor, momento):
-    # RANGOS EN AYUNAS (AJUSTE SR. QUEVEDO)
     if momento == "Ayunas":
         if 80 <= valor <= 120: return "🟢 NORMAL", "#166534"
         elif 121 <= valor <= 140: return "🟡 PRECAUCIÓN", "#854d0e"
         elif valor > 140: return "🔴 ALTA", "#991b1b"
         else: return "🔵 BAJA", "#1e3a8a"
-    # RANGOS POST-COMIDA (AJUSTE SR. QUEVEDO)
     elif "Post" in momento: 
         if valor < 170: return "🟢 NORMAL", "#166534"
         elif 170 <= valor <= 180: return "🟡 LÍMITE", "#854d0e"
         else: return "🔴 ALTA", "#991b1b"
-    # RANGOS ANTES DE DORMIR
     elif momento == "Antes de dormir":
         if 100 <= valor <= 140: return "🟢 NORMAL", "#166534"
         elif valor < 100: return "🟡 BAJA", "#854d0e"
@@ -80,7 +79,6 @@ def estilar_tabla_glucosa(row):
 db = iniciar_db()
 f_str, h_str, mes_str, f_obj = obtener_tiempo_rd()
 
-# CARGA DE PRESUPUESTO GLOBAL
 res_conf = db.execute("SELECT valor FROM config WHERE param='presupuesto'").fetchone()
 presupuesto_mensual = res_conf[0] if res_conf else 20000.0
 
@@ -88,17 +86,11 @@ presupuesto_mensual = res_conf[0] if res_conf else 20000.0
 with st.sidebar:
     st.markdown("<h2 style='text-align: center;'>🌐 CONTROL</h2>", unsafe_allow_html=True)
     st.info(f"📅 {f_str} | ⏰ {h_str}")
-    df_citas_side = pd.read_sql_query("SELECT doctor, fecha FROM citas WHERE fecha >= date('now') ORDER BY fecha ASC LIMIT 2", db)
-    if not df_citas_side.empty:
-        st.markdown("📅 **PRÓXIMAS CITAS:**")
-        for _, r in df_citas_side.iterrows():
-            st.caption(f"🩺 {r['doctor']} - {r['fecha']}")
     menu = st.radio("MENÚ PRINCIPAL", ["💰 FINANZAS", "🩺 SALUD", "📝 BITÁCORA", "⚙️ CONFIG"])
-    st.divider()
     if st.button("CERRAR SESIÓN"):
         del st.session_state["password_correct"]; st.rerun()
 
-# --- 5. SECCIÓN FINANZAS ---
+# --- 5. FINANZAS ---
 if menu == "💰 FINANZAS":
     st.title("💰 Gestión Financiera")
     with st.form("f_fin", clear_on_submit=True):
@@ -111,6 +103,7 @@ if menu == "💰 FINANZAS":
             m_real = -abs(monto) if tipo == "GASTO" else abs(monto)
             db.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)", (f_mov.strftime("%d/%m/%Y"), mes_str, tipo, cat, det, m_real))
             db.commit(); st.rerun()
+    
     df_f = pd.read_sql_query("SELECT * FROM finanzas ORDER BY id DESC", db)
     if not df_f.empty:
         col_m1, col_m2 = st.columns(2)
@@ -120,23 +113,14 @@ if menu == "💰 FINANZAS":
         p = min(gastos_mes / presupuesto_mensual, 1.0) if presupuesto_mensual > 0 else 0
         col_m2.markdown(f"<h3>Presupuesto: {p*100:.0f}%</h3>", unsafe_allow_html=True)
         col_m2.progress(p)
-        c_acc1, c_acc2 = st.columns(2)
-        with c_acc1:
-            st.markdown("<div class='btn-borrar'>", unsafe_allow_html=True)
-            if st.button("🗑️ BORRAR ÚLTIMO"):
-                db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)"); db.commit(); st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-        with c_acc2:
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df_f.to_excel(writer, index=False)
-            st.download_button("📥 DESCARGAR EXCEL", output.getvalue(), "Finanzas_Nexus.xlsx")
-        st.plotly_chart(px.pie(df_f[df_f['tipo'] == 'GASTO'], values='monto', names='categoria', hole=.4, template="plotly_dark"), use_container_width=True)
+        if st.button("🗑️ BORRAR ÚLTIMO"):
+            db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)"); db.commit(); st.rerun()
 
-# --- 6. SECCIÓN SALUD ---
+# --- 6. SALUD (CORREGIDO) ---
 elif menu == "🩺 SALUD":
     st.title("🩺 Control de Salud")
     t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
+
     with t1:
         df_g = pd.read_sql_query("SELECT fecha, hora, momento, valor FROM glucosa ORDER BY id DESC", db)
         if not df_g.empty:
@@ -150,36 +134,49 @@ elif menu == "🩺 SALUD":
             if st.form_submit_button("GUARDAR LECTURA"):
                 db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", (f_str, h_str, mom, val))
                 db.commit(); st.rerun()
-        st.subheader("📋 Historial Visual")
-        if not df_g.empty:
-            st.dataframe(df_g.style.apply(estilar_tabla_glucosa, axis=1), use_container_width=True)
-            st.markdown("<div class='btn-borrar'>", unsafe_allow_html=True)
-            if st.button("🗑️ BORRAR ÚLTIMA LECTURA"):
-                db.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)"); db.commit(); st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-            st.plotly_chart(px.line(df_g.sort_values('fecha'), x='fecha', y='valor', markers=True, template="plotly_dark"), use_container_width=True)
+        st.dataframe(df_g.style.apply(estilar_tabla_glucosa, axis=1), use_container_width=True)
+
     with t2:
+        st.subheader("💊 Registro de Medicamentos")
         with st.form("f_med", clear_on_submit=True):
             c1, c2, c3 = st.columns([2, 1, 1.5])
             n, d, h = c1.text_input("MEDICINA").upper(), c2.text_input("DOSIS").upper(), c3.selectbox("HORARIO", ["DIARIO", "CADA 8H", "CADA 12H", "SI HAY DOLOR"])
             if st.form_submit_button("AÑADIR"):
                 if n: db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h)); db.commit(); st.rerun()
+        
+        # MEDICAMENTOS CON BORRADO AL LADO (MEJORADO)
         df_m = pd.read_sql_query("SELECT * FROM medicamentos", db)
         for _, r in df_m.iterrows():
-            ca, cb = st.columns([5,1]); ca.info(f"💊 {r['nombre']} - {r['dosis']} ({r['horario']})")
-            if cb.button("X", key=f"m_{r['id']}"): db.execute("DELETE FROM medicamentos WHERE id=?", (r['id'],)); db.commit(); st.rerun()
+            col_info, col_btn = st.columns([0.85, 0.15])
+            col_info.info(f"💊 {r['nombre']} - {r['dosis']} ({r['horario']})")
+            with col_btn:
+                st.markdown("<div class='btn-borrar-red'>", unsafe_allow_html=True)
+                if st.button("X", key=f"med_{r['id']}"):
+                    db.execute("DELETE FROM medicamentos WHERE id=?", (r['id'],)); db.commit(); st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
     with t3:
+        st.subheader("📅 Gestión de Citas")
         with st.form("f_citas", clear_on_submit=True):
             doc, fec, mot = st.text_input("DOCTOR").upper(), st.date_input("FECHA"), st.text_input("MOTIVO").upper()
-            if st.form_submit_button("AGENDAR"):
+            if st.form_submit_button("AGENDAR CITA"):
                 db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(fec), mot)); db.commit(); st.rerun()
+        
+        # CITAS CON BOTÓN DE ELIMINACIÓN INTEGRADO
         df_c = pd.read_sql_query("SELECT * FROM citas ORDER BY fecha ASC", db)
         for _, r in df_c.iterrows():
-            st.write(f"📅 **{r['fecha']}** | {r['doctor']} - {r['motivo']}")
+            col_cita, col_btn_c = st.columns([0.85, 0.15])
+            col_cita.write(f"📅 **{r['fecha']}** | {r['doctor']} - {r['motivo']}")
+            with col_btn_c:
+                st.markdown("<div class='btn-borrar-red'>", unsafe_allow_html=True)
+                if st.button("X", key=f"cita_{r['id']}"):
+                    db.execute("DELETE FROM citas WHERE id=?", (r['id'],)); db.commit(); st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+            st.divider()
 
 # --- 7. BITÁCORA ---
 elif menu == "📝 BITÁCORA":
-    st.title("📝 Bitácora Personal")
+    st.title("📝 Bitácora")
     entrada = st.text_area("Nota del día:", height=150)
     if st.button("GUARDAR NOTA"):
         if entrada.strip():
@@ -191,7 +188,7 @@ elif menu == "📝 BITÁCORA":
             st.text_area("Historial:", f.read(), height=400)
     except FileNotFoundError: st.info("Sin notas.")
 
-# --- 8. CONFIGURACIÓN ---
+# --- 8. CONFIG ---
 elif menu == "⚙️ CONFIG":
     st.title("⚙️ Ajustes")
     np = st.number_input("Presupuesto Mensual (RD$):", min_value=0.0, value=float(presupuesto_mensual))
