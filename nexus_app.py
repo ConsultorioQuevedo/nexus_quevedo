@@ -84,18 +84,19 @@ def iniciar_db():
     return conn
 
 def color_glucosa(valor, momento):
+    # Lógica de colores según tus rangos exactos
     if momento == "Ayunas":
         if 70 <= valor <= 100: return "background-color: #1b5e20; color: white;" # Verde
         elif 101 <= valor <= 125: return "background-color: #fbc02d; color: black;" # Amarillo
         else: return "background-color: #b71c1c; color: white;" # Rojo
     elif momento == "Post-Desayuno (2h)":
-        if valor < 140: return "background-color: #1b5e20; color: white;"
-        elif 140 <= valor <= 199: return "background-color: #fbc02d; color: black;"
-        else: return "background-color: #b71c1c; color: white;"
+        if valor < 140: return "background-color: #1b5e20; color: white;" # Verde
+        elif 140 <= valor <= 199: return "background-color: #fbc02d; color: black;" # Amarillo
+        else: return "background-color: #b71c1c; color: white;" # Rojo
     elif momento == "Antes de dormir":
-        if 100 <= valor <= 140: return "background-color: #1b5e20; color: white;"
-        elif 141 <= valor <= 160: return "background-color: #fbc02d; color: black;"
-        else: return "background-color: #b71c1c; color: white;"
+        if 100 <= valor <= 140: return "background-color: #1b5e20; color: white;" # Verde
+        elif 141 <= valor <= 160: return "background-color: #fbc02d; color: black;" # Amarillo
+        else: return ""
     return ""
 
 def generar_pdf_salud(df):
@@ -140,14 +141,13 @@ if menu == "💰 FINANZAS":
     disponible = df_f['monto'].sum() if not df_f.empty else 0.0
     gastos_mes = abs(df_f[(df_f['tipo'] == 'GASTO') & (df_f['mes'] == mes_str)]['monto'].sum()) if not df_f.empty else 0.0
     
-    # --- ALERTA DE PRESUPUESTO ---
+    # --- INDICADOR DE PRESUPUESTO ---
     if presupuesto_mensual > 0:
-        porcentaje = (gastos_mes / presupuesto_mensual)
-        color_prog = "#2ecc71" if porcentaje < 0.8 else "#f1c40f" if porcentaje <= 1.0 else "#e74c3c"
-        st.write(f"📊 **Uso del Presupuesto: {porcentaje:.1%}**")
-        st.progress(min(porcentaje, 1.0))
+        porc = (gastos_mes / presupuesto_mensual)
+        st.write(f"📊 **Uso del Presupuesto: {porc:.1%}**")
+        st.progress(min(porc, 1.0))
         if gastos_mes > presupuesto_mensual:
-            st.error(f"⚠️ HAS EXCEDIDO EL PRESUPUESTO POR RD$ {gastos_mes - presupuesto_mensual:,.2f}")
+            st.error(f"⚠️ EXCEDIDO POR RD$ {gastos_mes - presupuesto_mensual:,.2f}")
 
     c1, c2 = st.columns(2)
     with c1: st.markdown(f"<div class='balance-box'><h3>DISPONIBLE</h3><h1 style='color:#2ecc71;'>RD$ {disponible:,.2f}</h1></div>", unsafe_allow_html=True)
@@ -176,7 +176,6 @@ elif menu == "🩺 SALUD":
 
     with t1:
         df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db)
-        
         if not df_g.empty:
             col_pdf, col_wa = st.columns(2)
             with col_pdf:
@@ -187,14 +186,12 @@ elif menu == "🩺 SALUD":
                 texto_w = f"🩸 *REPORTE LUIS RAFAEL QUEVEDO*\n📅 {f_str} ({u['hora']})\n📍 Glucosa: {u['valor']} mg/dL\n📝 Momento: {u['momento']}"
                 st.link_button("📲 WHATSAPP RÁPIDO", f"https://wa.me/?text={urllib.parse.quote(texto_w)}", use_container_width=True)
             
-            st.plotly_chart(px.line(df_g.iloc[::-1], x='hora', y='valor', markers=True, title="TENDENCIA DE GLUCOSA", template="plotly_dark"), use_container_width=True)
+            st.plotly_chart(px.line(df_g.iloc[::-1], x='hora', y='valor', markers=True, title="TENDENCIA", template="plotly_dark"), use_container_width=True)
             
-            # --- TABLA CON ALERTAS VISUALES ---
-            def aplicar_estilos(row):
+            # Aplicar colores a la tabla
+            def estilar_celdas(row):
                 return [color_glucosa(row['valor'], row['momento'])] * len(row)
-            
-            st.write("### Historial con Alertas Visuales")
-            st.dataframe(df_g[['fecha', 'hora', 'momento', 'valor']].style.apply(aplicar_estilos, axis=1), use_container_width=True)
+            st.dataframe(df_g[['fecha', 'hora', 'momento', 'valor']].style.apply(estilar_celdas, axis=1), use_container_width=True)
 
         with st.form("f_gluc", clear_on_submit=True):
             col_g1, col_g2 = st.columns(2)
@@ -210,38 +207,35 @@ elif menu == "🩺 SALUD":
         
         if not df_meds.empty:
             for _, m in df_meds.iterrows():
-                col_m1, col_m2 = st.columns([3,1])
-                presionado = col_m2.checkbox("TOMADA", key=f"check_{m['id']}", value=(m['id'] in tomas_hoy))
-                col_m1.write(f"**{m['nombre']}** - {m['dosis']} ({m['horario']})")
+                # Alineación: Texto izquierda, Check derecha
+                c_txt, c_chk = st.columns([5, 1])
+                c_txt.write(f"**{m['nombre']}** - {m['dosis']} ({m['horario']})")
+                presionado = c_chk.checkbox("", key=f"chk_{m['id']}", value=(m['id'] in tomas_hoy))
                 
-                # Guardar estado de la toma
                 if presionado and m['id'] not in tomas_hoy:
                     db.execute("INSERT INTO tomas_diarias (fecha, medicina_id) VALUES (?,?)", (f_str, m['id'])); db.commit()
                 elif not presionado and m['id'] in tomas_hoy:
                     db.execute("DELETE FROM tomas_diarias WHERE fecha = ? AND medicina_id = ?", (f_str, m['id'])); db.commit()
+                st.divider()
 
-        st.markdown("---")
         with st.form("f_med", clear_on_submit=True):
-            st.write("Añadir nueva medicina a la lista:")
+            st.write("Añadir nueva medicina:")
             n, d, h = st.text_input("MEDICINA").upper(), st.text_input("DOSIS").upper(), st.text_input("HORARIO").upper()
-            if st.form_submit_button("AGREGAR A LA LISTA"):
+            if st.form_submit_button("AGREGAR"):
                 db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h)); db.commit(); st.rerun()
-        
-        if st.button("🗑️ LIMPIAR LISTA DE MEDICINAS"):
-            db.execute("DELETE FROM medicamentos"); db.execute("DELETE FROM tomas_diarias"); db.commit(); st.rerun()
 
     with t3:
         st.markdown("### 📅 Próximas Citas")
         with st.form("f_citas", clear_on_submit=True):
             doc, fec, mot = st.text_input("DOCTOR").upper(), st.date_input("FECHA"), st.text_input("MOTIVO").upper()
-            if st.form_submit_button("AGENDAR CITA"):
+            if st.form_submit_button("AGENDAR"):
                 db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(fec), mot)); db.commit(); st.rerun()
         st.dataframe(pd.read_sql_query("SELECT doctor, fecha, motivo FROM citas ORDER BY fecha ASC", db), use_container_width=True)
 
 # --- 7. BITÁCORA ---
 elif menu == "📝 BITÁCORA":
-    st.title("📝 Bitácora de Notas")
-    nota = st.text_area("Nueva nota personalizada:", height=150)
+    st.title("📝 Bitácora")
+    nota = st.text_area("Nueva nota:", height=150)
     if st.button("GUARDAR NOTA"):
         if nota.strip():
             with open("nexus_notas.txt", "a", encoding="utf-8") as f: f.write(f"[{f_str} {h_str}]: {nota}\n\n")
@@ -252,7 +246,7 @@ elif menu == "📝 BITÁCORA":
 
 # --- 8. CONFIGURACIÓN ---
 elif menu == "⚙️ CONFIG":
-    st.title("⚙️ Configuración")
+    st.title("⚙️ Ajustes")
     new_p = st.number_input("Presupuesto Mensual (RD$):", min_value=0.0, value=float(presupuesto_mensual))
     if st.button("GUARDAR AJUSTES"):
         db.execute("INSERT OR REPLACE INTO config (param, valor) VALUES ('presupuesto', ?)", (new_p,))
