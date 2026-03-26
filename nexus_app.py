@@ -27,38 +27,25 @@ st.markdown("""
     h1, h2, h3 { font-weight: 800; color: white; }
     .balance-box { background-color: #1f2937; padding: 25px; border-radius: 15px; text-align: center; border: 1px solid #30363d; margin: 20px 0; }
     
-    /* --- TRUCO MAESTRO: FORZAR COLUMNAS HORIZONTALES EN MÓVIL --- */
-    [data-testid="stHorizontalBlock"] {
-        flex-direction: row !important;
-        display: flex !important;
-        flex-wrap: nowrap !important;
-        align-items: center !important;
-    }
-    
-    [data-testid="column"] {
-        width: 100% !important;
-        flex: 1 1 auto !important;
-        min-width: 0px !important;
-    }
-
     /* Botones Estilizados */
     div.stButton > button, div.stDownloadButton > button { 
         background-color: #1f2937; color: white; border: 1px solid #30363d; 
         border-radius: 8px; width: 100%; font-weight: bold; height: 55px; transition: 0.3s;
-        font-size: 12px; /* Un poco más pequeño para que quepa bien en móvil */
     }
     
     /* Color específico para PDF */
     div.stDownloadButton > button { background-color: #1e3a8a !important; border: 1px solid #3b82f6 !important; }
     div.stDownloadButton > button:hover { background-color: #2563eb !important; transform: scale(1.02); }
 
+    .btn-borrar-rojo > div > button { background-color: #441111 !important; color: #ff9999 !important; border: 1px solid #662222 !important; height: 40px; }
+    
     /* Botón WhatsApp Link */
     a[data-testid="stLinkButton"] {
         background-color: #25D366 !important; color: white !important; 
         height: 55px !important; border-radius: 8px !important; 
         display: flex !important; align-items: center; justify-content: center;
         font-weight: bold !important; text-decoration: none !important; border: 1px solid #128C7E !important;
-        transition: 0.3s; font-size: 12px;
+        transition: 0.3s;
     }
     a[data-testid="stLinkButton"]:hover { background-color: #128C7E !important; transform: scale(1.02); }
     </style>
@@ -154,8 +141,10 @@ if menu == "💰 FINANZAS":
     
     if not df_f.empty:
         st.dataframe(df_f[['fecha', 'tipo', 'categoria', 'detalle', 'monto']], use_container_width=True)
+        if st.button("🗑️ BORRAR ÚLTIMO"):
+            db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)"); db.commit(); st.rerun()
 
-# --- 6. SALUD (BOTONES REPARADOS AQUÍ) ---
+# --- 6. SALUD (BOTONES ALINEADOS AQUÍ) ---
 elif menu == "🩺 SALUD":
     st.title("🩺 Salud - Luis Rafael Quevedo")
     t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
@@ -163,8 +152,8 @@ elif menu == "🩺 SALUD":
     with t1:
         df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db)
         
+        # --- SECCIÓN DE BOTONES ALINEADOS ---
         if not df_g.empty:
-            # Esta fila ahora se mantendrá horizontal en el celular gracias al CSS de arriba
             col_pdf, col_wa = st.columns(2)
             
             with col_pdf:
@@ -179,14 +168,14 @@ elif menu == "🩺 SALUD":
             
             with col_wa:
                 u = df_g.iloc[0]
-                texto_w = f"🩸 *REPORTE LUIS RAFAEL QUEVEDO*\n📅 {f_str} ({u['hora']})\n📍 Glucosa: {u['valor']} mg/dL"
+                texto_w = f"🩸 *REPORTE LUIS RAFAEL QUEVEDO*\n📅 {f_str} ({u['hora']})\n📍 Glucosa: {u['valor']} mg/dL\n📝 Momento: {u['momento']}"
                 st.link_button(
-                    "📲 WHATSAPP", 
+                    "📲 WHATSAPP RÁPIDO", 
                     f"https://wa.me/?text={urllib.parse.quote(texto_w)}",
                     use_container_width=True
                 )
             
-            st.plotly_chart(px.line(df_g.iloc[::-1], x='hora', y='valor', markers=True, title="TENDENCIA", template="plotly_dark"), use_container_width=True)
+            st.plotly_chart(px.line(df_g.iloc[::-1], x='hora', y='valor', markers=True, title="TENDENCIA DE GLUCOSA", template="plotly_dark"), use_container_width=True)
             st.dataframe(df_g[['fecha', 'hora', 'momento', 'valor']], use_container_width=True)
 
         with st.form("f_gluc", clear_on_submit=True):
