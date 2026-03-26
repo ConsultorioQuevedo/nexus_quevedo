@@ -76,11 +76,27 @@ def iniciar_db():
     c = conn.cursor()
     c.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, fecha TEXT, hora TEXT, momento TEXT, valor INTEGER)')
     c.execute('CREATE TABLE IF NOT EXISTS medicamentos (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT, horario TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS tomas_diarias (fecha TEXT, medicina_id INTEGER, PRIMARY KEY (fecha, medicina_id))')
     c.execute('CREATE TABLE IF NOT EXISTS citas (id INTEGER PRIMARY KEY, doctor TEXT, fecha TEXT, motivo TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, fecha TEXT, mes TEXT, tipo TEXT, categoria TEXT, detalle TEXT, monto REAL)')
     c.execute('CREATE TABLE IF NOT EXISTS config (param TEXT PRIMARY KEY, valor REAL)')
     conn.commit()
     return conn
+
+def color_glucosa(valor, momento):
+    if momento == "Ayunas":
+        if 70 <= valor <= 100: return "background-color: #1b5e20; color: white;" # Verde
+        elif 101 <= valor <= 125: return "background-color: #fbc02d; color: black;" # Amarillo
+        else: return "background-color: #b71c1c; color: white;" # Rojo
+    elif momento == "Post-Desayuno (2h)":
+        if valor < 140: return "background-color: #1b5e20; color: white;"
+        elif 140 <= valor <= 199: return "background-color: #fbc02d; color: black;"
+        else: return "background-color: #b71c1c; color: white;"
+    elif momento == "Antes de dormir":
+        if 100 <= valor <= 140: return "background-color: #1b5e20; color: white;"
+        elif 141 <= valor <= 160: return "background-color: #fbc02d; color: black;"
+        else: return "background-color: #b71c1c; color: white;"
+    return ""
 
 def generar_pdf_salud(df):
     pdf = PDF()
@@ -124,6 +140,15 @@ if menu == "💰 FINANZAS":
     disponible = df_f['monto'].sum() if not df_f.empty else 0.0
     gastos_mes = abs(df_f[(df_f['tipo'] == 'GASTO') & (df_f['mes'] == mes_str)]['monto'].sum()) if not df_f.empty else 0.0
     
+    # --- ALERTA DE PRESUPUESTO ---
+    if presupuesto_mensual > 0:
+        porcentaje = (gastos_mes / presupuesto_mensual)
+        color_prog = "#2ecc71" if porcentaje < 0.8 else "#f1c40f" if porcentaje <= 1.0 else "#e74c3c"
+        st.write(f"📊 **Uso del Presupuesto: {porcentaje:.1%}**")
+        st.progress(min(porcentaje, 1.0))
+        if gastos_mes > presupuesto_mensual:
+            st.error(f"⚠️ HAS EXCEDIDO EL PRESUPUESTO POR RD$ {gastos_mes - presupuesto_mensual:,.2f}")
+
     c1, c2 = st.columns(2)
     with c1: st.markdown(f"<div class='balance-box'><h3>DISPONIBLE</h3><h1 style='color:#2ecc71;'>RD$ {disponible:,.2f}</h1></div>", unsafe_allow_html=True)
     with c2: st.markdown(f"<div class='balance-box'><h3>GASTOS MES</h3><h1 style='color:#e74c3c;'>RD$ {gastos_mes:,.2f}</h1></div>", unsafe_allow_html=True)
@@ -144,7 +169,7 @@ if menu == "💰 FINANZAS":
         if st.button("🗑️ BORRAR ÚLTIMO"):
             db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)"); db.commit(); st.rerun()
 
-# --- 6. SALUD (BOTONES ALINEADOS AQUÍ) ---
+# --- 6. SALUD ---
 elif menu == "🩺 SALUD":
     st.title("🩺 Salud - Luis Rafael Quevedo")
     t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICINAS", "📅 CITAS"])
@@ -152,46 +177,58 @@ elif menu == "🩺 SALUD":
     with t1:
         df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db)
         
-        # --- SECCIÓN DE BOTONES ALINEADOS ---
         if not df_g.empty:
             col_pdf, col_wa = st.columns(2)
-            
             with col_pdf:
                 pdf_data = generar_pdf_salud(df_g)
-                st.download_button(
-                    label="📥 GENERAR PDF", 
-                    data=pdf_data, 
-                    file_name=f"Reporte_Quevedo_{f_str}.pdf", 
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-            
+                st.download_button(label="📥 GENERAR PDF", data=pdf_data, file_name=f"Reporte_Quevedo_{f_str}.pdf", mime="application/pdf", use_container_width=True)
             with col_wa:
                 u = df_g.iloc[0]
                 texto_w = f"🩸 *REPORTE LUIS RAFAEL QUEVEDO*\n📅 {f_str} ({u['hora']})\n📍 Glucosa: {u['valor']} mg/dL\n📝 Momento: {u['momento']}"
-                st.link_button(
-                    "📲 WHATSAPP RÁPIDO", 
-                    f"https://wa.me/?text={urllib.parse.quote(texto_w)}",
-                    use_container_width=True
-                )
+                st.link_button("📲 WHATSAPP RÁPIDO", f"https://wa.me/?text={urllib.parse.quote(texto_w)}", use_container_width=True)
             
             st.plotly_chart(px.line(df_g.iloc[::-1], x='hora', y='valor', markers=True, title="TENDENCIA DE GLUCOSA", template="plotly_dark"), use_container_width=True)
-            st.dataframe(df_g[['fecha', 'hora', 'momento', 'valor']], use_container_width=True)
+            
+            # --- TABLA CON ALERTAS VISUALES ---
+            def aplicar_estilos(row):
+                return [color_glucosa(row['valor'], row['momento'])] * len(row)
+            
+            st.write("### Historial con Alertas Visuales")
+            st.dataframe(df_g[['fecha', 'hora', 'momento', 'valor']].style.apply(aplicar_estilos, axis=1), use_container_width=True)
 
         with st.form("f_gluc", clear_on_submit=True):
             col_g1, col_g2 = st.columns(2)
             v = col_g1.number_input("Valor mg/dL:", min_value=0)
-            m = col_g2.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Post-Cena", "Antes de dormir"])
+            m = col_g2.selectbox("Momento:", ["Ayunas", "Post-Desayuno (2h)", "Post-Almuerzo", "Post-Cena", "Antes de dormir"])
             if st.form_submit_button("GUARDAR LECTURA"):
                 db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", (f_str, h_str, m, v)); db.commit(); st.rerun()
 
     with t2:
-        st.markdown("### 💊 Control de Medicamentos")
+        st.markdown(f"### 💊 Control Diario: {f_str}")
+        df_meds = pd.read_sql_query("SELECT * FROM medicamentos", db)
+        tomas_hoy = pd.read_sql_query("SELECT medicina_id FROM tomas_diarias WHERE fecha = ?", db, params=(f_str,))['medicina_id'].tolist()
+        
+        if not df_meds.empty:
+            for _, m in df_meds.iterrows():
+                col_m1, col_m2 = st.columns([3,1])
+                presionado = col_m2.checkbox("TOMADA", key=f"check_{m['id']}", value=(m['id'] in tomas_hoy))
+                col_m1.write(f"**{m['nombre']}** - {m['dosis']} ({m['horario']})")
+                
+                # Guardar estado de la toma
+                if presionado and m['id'] not in tomas_hoy:
+                    db.execute("INSERT INTO tomas_diarias (fecha, medicina_id) VALUES (?,?)", (f_str, m['id'])); db.commit()
+                elif not presionado and m['id'] in tomas_hoy:
+                    db.execute("DELETE FROM tomas_diarias WHERE fecha = ? AND medicina_id = ?", (f_str, m['id'])); db.commit()
+
+        st.markdown("---")
         with st.form("f_med", clear_on_submit=True):
+            st.write("Añadir nueva medicina a la lista:")
             n, d, h = st.text_input("MEDICINA").upper(), st.text_input("DOSIS").upper(), st.text_input("HORARIO").upper()
-            if st.form_submit_button("AGREGAR MEDICAMENTO"):
+            if st.form_submit_button("AGREGAR A LA LISTA"):
                 db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n, d, h)); db.commit(); st.rerun()
-        st.dataframe(pd.read_sql_query("SELECT nombre, dosis, horario FROM medicamentos", db), use_container_width=True)
+        
+        if st.button("🗑️ LIMPIAR LISTA DE MEDICINAS"):
+            db.execute("DELETE FROM medicamentos"); db.execute("DELETE FROM tomas_diarias"); db.commit(); st.rerun()
 
     with t3:
         st.markdown("### 📅 Próximas Citas")
