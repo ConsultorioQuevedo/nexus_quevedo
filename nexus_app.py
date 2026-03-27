@@ -6,142 +6,195 @@ import pytz
 import plotly.express as px
 import urllib.parse
 import os
+from fpdf import FPDF
 
-# --- CONFIGURACIÓN ---
-st.set_page_config(page_title="NEXUS QUEVEDO", layout="wide")
+# --- 1. CONFIGURACIÓN Y ESTILO NEXUS ---
+st.set_page_config(page_title="NEXUS QUEVEDO PRO", layout="wide", page_icon="🌐")
 
-# --- ESTILOS ---
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
-    .stForm { background-color: #1c2128; border-radius: 10px; padding: 20px; border: 1px solid #30363d; }
-    .stButton>button { width: 100%; border-radius: 5px; }
+    [data-testid="stSidebar"] { background-color: #161b22; }
+    .stForm { background-color: #1c2128; border-radius: 15px; border: 1px solid #30363d; padding: 25px; }
+    h1, h2, h3 { color: #f0f6fc; font-weight: 700; }
+    .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; height: 45px; }
+    /* Estilo para botones de borrado */
+    div.stButton > button:first-child:contains("BORRAR") {
+        background-color: #441111; color: #ff9999; border: 1px solid #662222;
+    }
+    /* Estilo WhatsApp */
+    a[data-testid="stLinkButton"] {
+        background-color: #238636 !important; color: white !important; font-weight: bold !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- SEGURIDAD ---
-if "autenticado" not in st.session_state:
-    st.title("🌐 ACCESO NEXUS")
-    with st.form("login"):
-        pwd = st.text_input("Contraseña:", type="password")
-        if st.form_submit_button("Entrar"):
-            if pwd == "admin123":
-                st.session_state["autenticado"] = True
-                st.rerun()
-            else: st.error("Incorrecto")
+# --- 2. SEGURIDAD DE ACCESO ---
+if "auth" not in st.session_state:
+    st.markdown("<h1 style='text-align: center; margin-top: 100px;'>🌐 NEXUS SYSTEM</h1>", unsafe_allow_html=True)
+    _, col_login, _ = st.columns([1,1.2,1])
+    with col_login:
+        with st.form("login_nexus"):
+            pwd = st.text_input("Introduzca Clave Maestra:", type="password")
+            if st.form_submit_button("INGRESAR"):
+                if pwd == "admin123":
+                    st.session_state["auth"] = True
+                    st.rerun()
+                else: st.error("Acceso denegado")
     st.stop()
 
-# --- FUNCIONES BASE ---
-def obtener_tiempo():
-    zona = pytz.timezone('America/Santo_Domingo')
-    ahora = datetime.now(zona)
-    return ahora.strftime("%d/%m/%Y"), ahora.strftime("%I:%M %p"), ahora.strftime("%m-%Y")
+# --- 3. FUNCIONES DE TIEMPO Y BASE DE DATOS ---
+def obtener_info_rd():
+    rd_tz = pytz.timezone('America/Santo_Domingo')
+    ahora = datetime.now(rd_tz)
+    return ahora.strftime("%d/%m/%Y"), ahora.strftime("%I:%M %p"), ahora.strftime("%m-%Y"), ahora.date()
 
-def conectar():
-    conn = sqlite3.connect("quevedo_db.db", check_same_thread=False)
+def conectar_db():
+    conn = sqlite3.connect("control_nexus_quevedo.db", check_same_thread=False)
     c = conn.cursor()
     c.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, fecha TEXT, hora TEXT, momento TEXT, valor INTEGER)')
     c.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, fecha TEXT, mes TEXT, tipo TEXT, categoria TEXT, detalle TEXT, monto REAL)')
-    c.execute('CREATE TABLE IF NOT EXISTS medicamentos (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT, horario TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS meds (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT, horario TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS citas (id INTEGER PRIMARY KEY, doctor TEXT, fecha TEXT, motivo TEXT)')
     conn.commit()
     return conn
 
-db_conn = conectar()
+db_conn = conectar_db()
 db = db_conn.cursor()
-f_hoy, h_ahora, m_actual = obtener_tiempo()
+f_hoy, h_hoy, m_hoy, f_obj = obtener_info_rd()
 
-# --- NAVEGACIÓN ---
+# --- 4. NAVEGACIÓN LATERAL ---
 with st.sidebar:
-    st.title("🌐 NEXUS")
-    st.write(f"📅 {f_hoy}")
-    menu = st.radio("MENÚ", ["🩺 SALUD", "💰 FINANZAS", "💊 MEDICINAS", "📝 NOTAS", "⚙️ RESET"])
+    st.markdown("<h2 style='text-align: center;'>🌐 NEXUS</h2>", unsafe_allow_html=True)
+    st.write(f"📅 **Fecha:** {f_hoy}")
+    st.write(f"🕒 **Hora:** {h_hoy}")
+    st.markdown("---")
+    menu = st.radio("MENÚ PRINCIPAL", ["🩺 SALUD", "💰 FINANZAS", "💊 MEDICINAS", "📅 CITAS", "📝 BITÁCORA", "⚙️ CONFIG"])
+    st.markdown("---")
+    if st.button("SALIR"):
+        del st.session_state["auth"]
+        st.rerun()
 
-# --- SALUD (CON WHATSAPP Y BORRADO) ---
+# --- 5. SECCIÓN SALUD (SÓLIDA) ---
 if menu == "🩺 SALUD":
-    st.header("Control de Glucosa")
+    st.title("🩺 Control de Glucosa")
     df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db_conn)
     
     if not df_g.empty:
-        col1, col2 = st.columns(2)
-        with col1:
+        col_wa, col_del = st.columns(2)
+        with col_wa:
             u = df_g.iloc[0]
-            texto_wa = f"Mi glucosa hoy: {u['valor']} mg/dL ({u['momento']}) - {u['fecha']}"
-            st.link_button("📲 WHATSAPP", f"https://wa.me/?text={urllib.parse.quote(texto_wa)}")
-        with col2:
-            if st.button("🗑️ BORRAR ÚLTIMO"):
+            wa_msg = f"Reporte Glucosa - Valor: {u['valor']} mg/dL ({u['momento']}) - Fecha: {u['fecha']} {u['hora']}"
+            st.link_button("📲 ENVIAR POR WHATSAPP", f"https://wa.me/?text={urllib.parse.quote(wa_msg)}")
+        with col_del:
+            if st.button("🗑️ BORRAR ÚLTIMO REGISTRO"):
                 db.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)")
-                db_conn.commit()
-                st.rerun()
+                db_conn.commit(); st.rerun()
         
-        st.plotly_chart(px.line(df_g.iloc[::-1], x='fecha', y='valor', markers=True))
-        st.dataframe(df_g[['fecha', 'momento', 'valor']], use_container_width=True)
+        st.plotly_chart(px.line(df_g.iloc[::-1], x='fecha', y='valor', title="Tendencia de Niveles", markers=True, template="plotly_dark"))
+        st.dataframe(df_g[['fecha', 'hora', 'momento', 'valor']], use_container_width=True)
 
-    with st.form("f_g"):
-        val = st.number_input("Valor:", min_value=0)
-        mom = st.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Post-Cena"])
-        if st.form_submit_button("Guardar"):
-            db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", (f_hoy, h_ahora, mom, val))
+    with st.form("form_glucosa", clear_on_submit=True):
+        st.subheader("Registrar Nueva Lectura")
+        c1, c2 = st.columns(2)
+        v_g = c1.number_input("Valor (mg/dL):", min_value=0)
+        m_g = c2.selectbox("Momento:", ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Post-Cena", "Antes de dormir"])
+        if st.form_submit_button("GUARDAR EN BASE DE DATOS"):
+            db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", (f_hoy, h_hoy, m_g, v_g))
             db_conn.commit(); st.rerun()
 
-# --- FINANZAS (CON BORRADO) ---
+# --- 6. SECCIÓN FINANZAS (ESTABLE) ---
 elif menu == "💰 FINANZAS":
-    st.header("Finanzas RD$")
+    st.title("💰 Gestión Financiera RD$")
     df_f = pd.read_sql_query("SELECT * FROM finanzas ORDER BY id DESC", db_conn)
     
     if not df_f.empty:
-        if st.button("🗑️ BORRAR ÚLTIMO MOVIMIENTO"):
+        if st.button("🗑️ ELIMINAR ÚLTIMO MOVIMIENTO"):
             db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)")
             db_conn.commit(); st.rerun()
             
-        st.metric("Balance Disponible", f"RD$ {df_f['monto'].sum():,.2f}")
-        st.dataframe(df_f[['fecha', 'tipo', 'detalle', 'monto']], use_container_width=True)
+        t_in = df_f[df_f['tipo'] == 'INGRESO']['monto'].sum()
+        t_out = abs(df_f[df_f['tipo'] == 'GASTO']['monto'].sum())
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Ingresos Totales", f"RD$ {t_in:,.2f}")
+        c2.metric("Gastos Totales", f"RD$ {t_out:,.2f}")
+        c3.metric("Balance Neto", f"RD$ {(t_in - t_out):,.2f}", delta_color="normal")
 
-    with st.form("f_f"):
-        tipo = st.selectbox("Tipo", ["GASTO", "INGRESO"])
-        det = st.text_input("Detalle:").upper()
-        mon = st.number_input("Monto:", min_value=0.0)
-        if st.form_submit_button("Registrar"):
-            m_final = -mon if tipo == "GASTO" else mon
-            db.execute("INSERT INTO finanzas (fecha, mes, tipo, detalle, monto) VALUES (?,?,?,?,?)", (f_hoy, m_actual, tipo, det, m_final))
+    with st.form("form_finanzas", clear_on_submit=True):
+        col_f1, col_f2 = st.columns(2)
+        tipo = col_f1.selectbox("Tipo de Movimiento:", ["GASTO", "INGRESO"])
+        monto = col_f2.number_input("Monto (RD$):", min_value=0.0)
+        cate = st.text_input("Categoría:").upper()
+        deta = st.text_input("Detalle o Nota:").upper()
+        if st.form_submit_button("REGISTRAR TRANSACCIÓN"):
+            m_final = -monto if tipo == "GASTO" else monto
+            db.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)", 
+                       (f_hoy, m_hoy, tipo, cate, deta, m_final))
             db_conn.commit(); st.rerun()
+    
+    if not df_f.empty:
+        st.dataframe(df_f[['fecha', 'tipo', 'categoria', 'detalle', 'monto']], use_container_width=True)
 
-# --- MEDICINAS (CON BORRADO INDIVIDUAL) ---
+# --- 7. MEDICINAS (BORRADO INDIVIDUAL) ---
 elif menu == "💊 MEDICINAS":
-    st.header("Medicamentos")
-    df_m = pd.read_sql_query("SELECT * FROM medicamentos", db_conn)
+    st.title("💊 Medicamentos y Horarios")
+    df_m = pd.read_sql_query("SELECT * FROM meds", db_conn)
+    
     for _, r in df_m.iterrows():
-        c1, c2 = st.columns([4,1])
-        c1.warning(f"{r['nombre']} - {r['dosis']} ({r['horario']})")
-        if c2.button("🗑️", key=f"m_{r['id']}"):
-            db.execute("DELETE FROM medicamentos WHERE id=?", (r['id'],))
+        col_m1, col_m2 = st.columns([5,1])
+        col_m1.info(f"💊 **{r['nombre']}** | Dosis: {r['dosis']} | Hora: {r['horario']}")
+        if col_m2.button("🗑️", key=f"del_med_{r['id']}"):
+            db.execute("DELETE FROM meds WHERE id=?", (r['id'],))
             db_conn.commit(); st.rerun()
 
-    with st.form("f_m"):
-        nom = st.text_input("Nombre:").upper()
-        dos = st.text_input("Dosis:").upper()
-        hor = st.text_input("Horario:").upper()
-        if st.form_submit_button("Añadir"):
-            db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (nom, dos, hor))
+    with st.form("form_meds"):
+        st.subheader("Añadir Medicamento")
+        n_m = st.text_input("Nombre del Fármaco:").upper()
+        d_m = st.text_input("Dosis (ej. 500mg):").upper()
+        h_m = st.text_input("Horario sugerido:").upper()
+        if st.form_submit_button("AGREGAR AL PLAN"):
+            db.execute("INSERT INTO meds (nombre, dosis, horario) VALUES (?,?,?)", (n_m, d_m, h_m))
             db_conn.commit(); st.rerun()
 
-# --- NOTAS ---
-elif menu == "📝 NOTAS":
-    st.header("Bitácora")
-    if st.button("Borrar Notas"):
-        if os.path.exists("notas.txt"): os.remove("notas.txt")
+# --- 8. BITÁCORA Y CITAS ---
+elif menu == "📝 BITÁCORA":
+    st.title("📝 Notas y Observaciones")
+    if st.button("LIMPIAR BITÁCORA"):
+        if os.path.exists("nexus_notas.txt"): os.remove("nexus_notas.txt")
         st.rerun()
-    n_txt = st.text_area("Escribir:")
-    if st.button("Guardar"):
-        with open("notas.txt", "a") as f: f.write(f"{f_hoy}: {n_txt}\n")
+    
+    nota = st.text_area("Escribir nota del día:")
+    if st.button("GUARDAR NOTA"):
+        with open("nexus_notas.txt", "a", encoding="utf-8") as f:
+            f.write(f"[{f_hoy} {h_hoy}]: {nota}\n\n")
         st.rerun()
-    if os.path.exists("notas.txt"):
-        st.text(open("notas.txt", "r").read())
+    
+    if os.path.exists("nexus_notas.txt"):
+        st.markdown("### Historial de Notas")
+        st.text_area("Contenido:", open("nexus_notas.txt", "r", encoding="utf-8").read(), height=300)
 
-# --- RESET ---
-elif menu == "⚙️ RESET":
-    if st.button("⚠️ ELIMINAR TODA LA DATA"):
-        for t in ["glucosa", "finanzas", "medicamentos"]: db.execute(f"DELETE FROM {t}")
-        db_conn.commit(); st.rerun()
+elif menu == "📅 CITAS":
+    st.title("📅 Próximas Citas")
+    df_c = pd.read_sql_query("SELECT * FROM citas", db_conn)
+    if not df_c.empty: st.table(df_c)
+    
+    with st.form("form_citas"):
+        doc = st.text_input("Especialista:").upper()
+        fec = st.date_input("Fecha de la cita:")
+        mot = st.text_input("Motivo:").upper()
+        if st.form_submit_button("AGENDAR"):
+            db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(fec), mot))
+            db_conn.commit(); st.rerun()
 
-st.write("---")
-st.caption("Nexus Quevedo v1.0")
+# --- 9. CONFIGURACIÓN (RESET) ---
+elif menu == "⚙️ CONFIG":
+    st.title("⚙️ Ajustes del Sistema")
+    st.error("¡Peligro! Esta acción no se puede deshacer.")
+    if st.button("BORRAR TODA LA DATA DEL SISTEMA"):
+        for t in ["glucosa", "finanzas", "meds", "citas"]:
+            db.execute(f"DELETE FROM {t}")
+        db_conn.commit(); st.success("Datos eliminados correctamente."); st.rerun()
+
+st.markdown("---")
+st.markdown("<p style='text-align: center; color: gray;'>SISTEMA NEXUS - PROPIEDAD DE LUIS RAFAEL QUEVEDO</p>", unsafe_allow_html=True)
