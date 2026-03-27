@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-from datetime import datetime
+from datetime import datetime, date
 import pytz
 import plotly.express as px
 import io
@@ -33,7 +33,7 @@ class PDF(FPDF):
             self.set_fill_color(200, 200, 200) 
         self.ellipse(x, y, 4, 4, 'F')
 
-# --- 1. CONFIGURACIÓN VISUAL Y ESTILOS (TUS ESTILOS ORIGINALES) ---
+# --- 1. CONFIGURACIÓN VISUAL Y ESTILOS ---
 st.set_page_config(page_title="NEXUS QUEVEDO", layout="wide", page_icon="🌐")
 
 st.markdown("""
@@ -44,28 +44,25 @@ st.markdown("""
     h1, h2, h3 { font-weight: 800; color: white; }
     .balance-box { background-color: #1f2937; padding: 25px; border-radius: 15px; text-align: center; border: 1px solid #30363d; margin: 20px 0; }
     
-    /* ESTILO NUEVO PARA LAS TARJETAS DE ALERTA */
     .alerta-card {
         padding: 20px; border-radius: 12px; background-color: #1c2128;
         border: 1px solid #30363d; border-left: 6px solid #30363d; margin-bottom: 10px;
     }
 
-    /* Botones Estándar */
+    .insight-card {
+        padding: 15px; border-radius: 10px; background: linear-gradient(90deg, #1e3a8a33, #1e3a8a11);
+        border: 1px solid #3b82f644; margin-bottom: 20px;
+    }
+
     div.stButton > button, div.stDownloadButton > button { 
         background-color: #1f2937; color: white; border: 1px solid #30363d; 
         border-radius: 8px; width: 100%; font-weight: bold; height: 50px; transition: 0.3s;
     }
-    
-    /* Botón Descarga PDF */
     div.stDownloadButton > button { background-color: #1e3a8a !important; border: 1px solid #3b82f6 !important; }
-
-    /* Botón Borrar (Rojo) */
     .btn-borrar-rojo > div > button { 
         background-color: #441111 !important; color: #ff9999 !important; 
         border: 1px solid #662222 !important; height: 40px !important; 
     }
-    
-    /* Botón WhatsApp */
     a[data-testid="stLinkButton"] {
         background-color: #25D366 !important; color: white !important; 
         height: 50px !important; border-radius: 8px !important; 
@@ -93,7 +90,7 @@ if "password_correct" not in st.session_state:
 def obtener_tiempo_rd():
     zona = pytz.timezone('America/Santo_Domingo')
     ahora = datetime.now(zona)
-    return ahora.strftime("%d/%m/%Y"), ahora.strftime("%I:%M %p"), ahora.strftime("%m-%Y"), ahora.date()
+    return ahora.strftime("%d/%m/%Y"), ahora.strftime("%I:%M %p"), ahora.strftime("%m-%Y"), ahora.date(), ahora
 
 def iniciar_db():
     conn = sqlite3.connect("nexus_pro_v3.db", check_same_thread=False)
@@ -106,7 +103,7 @@ def iniciar_db():
     conn.commit()
     return conn
 
-# --- 4. LÓGICA DE INTERPRETACIÓN (TU SEMAFORO ORIGINAL) ---
+# --- 4. LÓGICA DE INTERPRETACIÓN ---
 def interpretar_salud(valor, momento):
     if momento == "Ayunas":
         if 70 <= valor <= 100: return "VERDE", "NORMAL", "background-color: #1b5e20; color: white;"
@@ -122,7 +119,7 @@ def interpretar_salud(valor, momento):
         else: return "ROJO", "REVISAR", "background-color: #b71c1c; color: white;"
     return "GRIS", "N/A", ""
 
-# --- 5. GENERADORES DE PDF (TUS FUNCIONES ORIGINALES) ---
+# --- 5. GENERADORES DE PDF ---
 def generar_pdf_salud(df):
     pdf = PDF()
     pdf.add_page()
@@ -157,11 +154,11 @@ def generar_pdf_bitacora(contenido):
 
 # --- 6. INICIALIZACIÓN ---
 db = iniciar_db()
-f_str, h_str, mes_str, f_obj = obtener_tiempo_rd()
+f_str, h_str, mes_str, f_obj, ahora_full = obtener_tiempo_rd()
 res_conf = db.execute("SELECT valor FROM config WHERE param='presupuesto'").fetchone()
 presupuesto_mensual = res_conf[0] if res_conf else 0.0
 
-# --- 7. BARRA LATERAL (TU MENÚ + INICIO) ---
+# --- 7. BARRA LATERAL ---
 with st.sidebar:
     st.markdown("<h2 style='text-align: center;'>🌐 NEXUS CONTROL</h2>", unsafe_allow_html=True)
     menu = st.radio("MENÚ PRINCIPAL", ["🏠 INICIO", "💰 FINANZAS", "🩺 SALUD", "📝 BITÁCORA", "⚙️ CONFIG"])
@@ -191,7 +188,7 @@ if menu == "🏠 INICIO":
             except: pass
         if not hay_citas: st.markdown("<div class='alerta-card' style='border-left-color: #27ae60;'><strong>📅 CITAS</strong><br>Todo al día.</div>", unsafe_allow_html=True)
 
-    with c2: # Alerta Salud
+    with c2: # Alerta Salud Inteligente
         ult_g = db.execute("SELECT valor, momento FROM glucosa ORDER BY id DESC LIMIT 1").fetchone()
         if ult_g:
             slug, txt, _ = interpretar_salud(ult_g[0], ult_g[1])
@@ -199,7 +196,7 @@ if menu == "🏠 INICIO":
             st.markdown(f"<div class='alerta-card' style='border-left-color: {color};'><strong>🩸 ÚLTIMA GLUCOSA</strong><br>{ult_g[0]} mg/dL<br>Estado: {txt}</div>", unsafe_allow_html=True)
         else: st.markdown("<div class='alerta-card'><strong>🩸 SALUD</strong><br>Sin registros aún.</div>", unsafe_allow_html=True)
 
-    with c3: # Alerta Finanzas
+    with c3: # Alerta Finanzas Inteligente
         gastos = abs(db.execute("SELECT SUM(monto) FROM finanzas WHERE tipo='GASTO' AND mes=?", (mes_str,)).fetchone()[0] or 0)
         if presupuesto_mensual > 0:
             porc = gastos / presupuesto_mensual
@@ -213,7 +210,21 @@ elif menu == "💰 FINANZAS":
     disponible = df_f['monto'].sum() if not df_f.empty else 0.0
     gastos_mes = abs(df_f[(df_f['tipo'] == 'GASTO') & (df_f['mes'] == mes_str)]['monto'].sum()) if not df_f.empty else 0.0
     
+    # --- INTELIGENCIA FINANCIERA ---
     if presupuesto_mensual > 0:
+        dias_mes = 30 # Aproximado
+        dia_actual = ahora_full.day
+        dias_restantes = (dias_mes - dia_actual) if dia_actual < dias_mes else 1
+        dinero_restante = presupuesto_mensual - gastos_mes
+        gasto_diario = dinero_restante / dias_restantes if dinero_restante > 0 else 0
+        
+        st.markdown(f"""
+        <div class="insight-card">
+            💡 <strong>GUÍA DE GASTO:</strong> Para no pasarte de tu presupuesto este mes, 
+            deberías gastar máximo <strong>RD$ {gasto_diario:,.2f} por día</strong>.
+        </div>
+        """, unsafe_allow_html=True)
+        
         porcentaje = min(gastos_mes / presupuesto_mensual, 1.0)
         st.write(f"📊 **Presupuesto del Mes ({mes_str}):** RD$ {gastos_mes:,.2f} / RD$ {presupuesto_mensual:,.2f}")
         st.progress(porcentaje)
@@ -244,9 +255,23 @@ elif menu == "💰 FINANZAS":
 
 elif menu == "🩺 SALUD":
     st.title("🩺 Control Médico")
+    df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db)
+    
+    # --- INTELIGENCIA DE SALUD ---
+    if not df_g.empty:
+        promedio_reciente = df_g['valor'].head(10).mean()
+        # Estimación de Hemoglobina Glicosilada (fórmula A1C)
+        a1c_est = (46.7 + promedio_reciente) / 28.7
+        
+        st.markdown(f"""
+        <div class="insight-card">
+            🩺 <strong>ANÁLISIS DE TENDENCIA:</strong> Tu promedio de los últimos registros es de <strong>{promedio_reciente:.1f} mg/dL</strong>. 
+            <br>Esto equivale a una hemoglobina glicosilada estimada de <strong>{a1c_est:.1f}%</strong>.
+        </div>
+        """, unsafe_allow_html=True)
+
     t1, t2, t3 = st.tabs(["🩸 GLUCOSA", "💊 MEDICAMENTOS", "📅 CITAS"])
     with t1:
-        df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db)
         if not df_g.empty:
             c_pdf, c_wa = st.columns(2)
             with c_pdf: st.download_button("📥 DESCARGAR REPORTE SEMÁFORO (PDF)", generar_pdf_salud(df_g), f"Glucosa_{f_str}.pdf", "application/pdf", use_container_width=True)
