@@ -9,7 +9,7 @@ import urllib.parse
 import os
 from fpdf import FPDF
 
-# --- CLASE ESPECIAL PARA EL PDF CON SEMÁFORO ---
+# --- CLASE ESPECIAL PARA EL PDF CON SEMÁFORO (MANTENIDO) ---
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 15)
@@ -33,7 +33,7 @@ class PDF(FPDF):
             self.set_fill_color(200, 200, 200) 
         self.ellipse(x, y, 4, 4, 'F')
 
-# --- 1. CONFIGURACIÓN VISUAL Y ESTILOS ---
+# --- 1. CONFIGURACIÓN VISUAL Y ESTILOS (TUS ESTILOS ORIGINALES) ---
 st.set_page_config(page_title="NEXUS QUEVEDO", layout="wide", page_icon="🌐")
 
 st.markdown("""
@@ -44,14 +44,10 @@ st.markdown("""
     h1, h2, h3 { font-weight: 800; color: white; }
     .balance-box { background-color: #1f2937; padding: 25px; border-radius: 15px; text-align: center; border: 1px solid #30363d; margin: 20px 0; }
     
-    /* TARJETAS DE ALERTA */
+    /* ESTILO NUEVO PARA LAS TARJETAS DE ALERTA */
     .alerta-card {
-        padding: 20px;
-        border-radius: 12px;
-        background-color: #1c2128;
-        border: 1px solid #30363d;
-        border-left: 6px solid #30363d;
-        margin-bottom: 10px;
+        padding: 20px; border-radius: 12px; background-color: #1c2128;
+        border: 1px solid #30363d; border-left: 6px solid #30363d; margin-bottom: 10px;
     }
 
     /* Botones Estándar */
@@ -62,7 +58,6 @@ st.markdown("""
     
     /* Botón Descarga PDF */
     div.stDownloadButton > button { background-color: #1e3a8a !important; border: 1px solid #3b82f6 !important; }
-    div.stDownloadButton > button:hover { background-color: #2563eb !important; }
 
     /* Botón Borrar (Rojo) */
     .btn-borrar-rojo > div > button { 
@@ -111,7 +106,7 @@ def iniciar_db():
     conn.commit()
     return conn
 
-# --- 4. LÓGICA DE INTERPRETACIÓN (SEMAFORO) ---
+# --- 4. LÓGICA DE INTERPRETACIÓN (TU SEMAFORO ORIGINAL) ---
 def interpretar_salud(valor, momento):
     if momento == "Ayunas":
         if 70 <= valor <= 100: return "VERDE", "NORMAL", "background-color: #1b5e20; color: white;"
@@ -127,7 +122,7 @@ def interpretar_salud(valor, momento):
         else: return "ROJO", "REVISAR", "background-color: #b71c1c; color: white;"
     return "GRIS", "N/A", ""
 
-# --- 5. GENERADORES DE PDF ---
+# --- 5. GENERADORES DE PDF (TUS FUNCIONES ORIGINALES) ---
 def generar_pdf_salud(df):
     pdf = PDF()
     pdf.add_page()
@@ -163,64 +158,10 @@ def generar_pdf_bitacora(contenido):
 # --- 6. INICIALIZACIÓN ---
 db = iniciar_db()
 f_str, h_str, mes_str, f_obj = obtener_tiempo_rd()
-
 res_conf = db.execute("SELECT valor FROM config WHERE param='presupuesto'").fetchone()
 presupuesto_mensual = res_conf[0] if res_conf else 0.0
 
-# --- NUEVO: FUNCIÓN DE PANEL DE ALERTAS ---
-def mostrar_panel_alertas():
-    st.markdown("### 🔔 PANEL DE ALERTA TEMPRANA")
-    col1, col2, col3 = st.columns(3)
-    
-    # 1. Alerta de Citas
-    with col1:
-        citas = db.execute("SELECT doctor, fecha, motivo FROM citas").fetchall()
-        encontrada = False
-        for c in citas:
-            try:
-                f_cita = datetime.strptime(c[1], '%Y-%m-%d').date()
-                dias_faltantes = (f_cita - f_obj).days
-                if 0 <= dias_faltantes <= 3:
-                    color = "#e74c3c" if dias_faltantes == 0 else "#f1c40f"
-                    st.markdown(f"""<div class='alerta-card' style='border-left-color: {color};'>
-                    <strong>📅 CITA PRÓXIMA</strong><br>
-                    {c[0]} ({c[2]})<br>
-                    {'HOY MISMO' if dias_faltantes == 0 else f'Faltan {dias_faltantes} días'}
-                    </div>""", unsafe_allow_html=True)
-                    encontrada = True
-            except: pass
-        if not encontrada:
-            st.markdown("<div class='alerta-card' style='border-left-color: #27ae60;'><strong>📅 CITAS</strong><br>No hay citas próximas en los siguientes 3 días.</div>", unsafe_allow_html=True)
-
-    # 2. Alerta de Salud (Glucosa)
-    with col2:
-        ult_g = db.execute("SELECT valor, momento FROM glucosa ORDER BY id DESC LIMIT 1").fetchone()
-        if ult_g:
-            slug, txt, _ = interpretar_salud(ult_g[0], ult_g[1])
-            color = "#27ae60" if slug == "VERDE" else ("#f1c40f" if slug == "AMARILLO" else "#e74c3c")
-            st.markdown(f"""<div class='alerta-card' style='border-left-color: {color};'>
-            <strong>🩸 ÚLTIMA GLUCOSA</strong><br>
-            {ult_g[0]} mg/dL ({ult_g[1]})<br>
-            Estado: {txt}
-            </div>""", unsafe_allow_html=True)
-        else:
-            st.markdown("<div class='alerta-card'><strong>🩸 SALUD</strong><br>Sin registros hoy.</div>", unsafe_allow_html=True)
-
-    # 3. Alerta de Finanzas
-    with col3:
-        gastos_mes = abs(db.execute("SELECT SUM(monto) FROM finanzas WHERE tipo='GASTO' AND mes=?", (mes_str,)).fetchone()[0] or 0)
-        if presupuesto_mensual > 0:
-            porc = gastos_mes / presupuesto_mensual
-            color = "#27ae60" if porc < 0.8 else ("#f1c40f" if porc < 1 else "#e74c3c")
-            st.markdown(f"""<div class='alerta-card' style='border-left-color: {color};'>
-            <strong>💰 PRESUPUESTO</strong><br>
-            Has usado el {porc*100:.1f}%<br>
-            Restan: RD$ {max(0, presupuesto_mensual - gastos_mes):,.2f}
-            </div>""", unsafe_allow_html=True)
-        else:
-            st.markdown("<div class='alerta-card'><strong>💰 FINANZAS</strong><br>Presupuesto no configurado.</div>", unsafe_allow_html=True)
-
-# --- 7. BARRA LATERAL (MENÚ) ---
+# --- 7. BARRA LATERAL (TU MENÚ + INICIO) ---
 with st.sidebar:
     st.markdown("<h2 style='text-align: center;'>🌐 NEXUS CONTROL</h2>", unsafe_allow_html=True)
     menu = st.radio("MENÚ PRINCIPAL", ["🏠 INICIO", "💰 FINANZAS", "🩺 SALUD", "📝 BITÁCORA", "⚙️ CONFIG"])
@@ -232,34 +173,67 @@ with st.sidebar:
 
 if menu == "🏠 INICIO":
     st.title(f"Bienvenido, Sr. Quevedo")
-    st.info(f"📅 Hoy es {f_str} | 🕒 Hora: {h_str}")
-    mostrar_panel_alertas()
-    st.markdown("---")
-    st.write("Seleccione una opción en el menú de la izquierda para comenzar a trabajar.")
+    st.info(f"📅 {f_str} | 🕒 {h_str}")
+    
+    st.markdown("### 🔔 PANEL DE ALERTA TEMPRANA")
+    c1, c2, c3 = st.columns(3)
+    
+    with c1: # Alerta Citas
+        citas = db.execute("SELECT doctor, fecha, motivo FROM citas").fetchall()
+        hay_citas = False
+        for c in citas:
+            try:
+                diff = (datetime.strptime(c[1], '%Y-%m-%d').date() - f_obj).days
+                if 0 <= diff <= 3:
+                    color = "#e74c3c" if diff == 0 else "#f1c40f"
+                    st.markdown(f"<div class='alerta-card' style='border-left-color: {color};'><strong>📅 CITA</strong><br>{c[0]}<br>{'HOY' if diff==0 else f'En {diff} días'}</div>", unsafe_allow_html=True)
+                    hay_citas = True
+            except: pass
+        if not hay_citas: st.markdown("<div class='alerta-card' style='border-left-color: #27ae60;'><strong>📅 CITAS</strong><br>Todo al día.</div>", unsafe_allow_html=True)
+
+    with c2: # Alerta Salud
+        ult_g = db.execute("SELECT valor, momento FROM glucosa ORDER BY id DESC LIMIT 1").fetchone()
+        if ult_g:
+            slug, txt, _ = interpretar_salud(ult_g[0], ult_g[1])
+            color = "#27ae60" if slug == "VERDE" else ("#f1c40f" if slug == "AMARILLO" else "#e74c3c")
+            st.markdown(f"<div class='alerta-card' style='border-left-color: {color};'><strong>🩸 ÚLTIMA GLUCOSA</strong><br>{ult_g[0]} mg/dL<br>Estado: {txt}</div>", unsafe_allow_html=True)
+        else: st.markdown("<div class='alerta-card'><strong>🩸 SALUD</strong><br>Sin registros aún.</div>", unsafe_allow_html=True)
+
+    with c3: # Alerta Finanzas
+        gastos = abs(db.execute("SELECT SUM(monto) FROM finanzas WHERE tipo='GASTO' AND mes=?", (mes_str,)).fetchone()[0] or 0)
+        if presupuesto_mensual > 0:
+            porc = gastos / presupuesto_mensual
+            color = "#27ae60" if porc < 0.8 else "#e74c3c"
+            st.markdown(f"<div class='alerta-card' style='border-left-color: {color};'><strong>💰 PRESUPUESTO</strong><br>{porc*100:.1f}% usado<br>Resta: RD$ {max(0, presupuesto_mensual-gastos):,.2f}</div>", unsafe_allow_html=True)
+        else: st.markdown("<div class='alerta-card'><strong>💰 FINANZAS</strong><br>Configura tu presupuesto.</div>", unsafe_allow_html=True)
 
 elif menu == "💰 FINANZAS":
     st.title("💰 Gestión Financiera")
     df_f = pd.read_sql_query("SELECT * FROM finanzas ORDER BY id DESC", db)
     disponible = df_f['monto'].sum() if not df_f.empty else 0.0
     gastos_mes = abs(df_f[(df_f['tipo'] == 'GASTO') & (df_f['mes'] == mes_str)]['monto'].sum()) if not df_f.empty else 0.0
+    
     if presupuesto_mensual > 0:
         porcentaje = min(gastos_mes / presupuesto_mensual, 1.0)
         st.write(f"📊 **Presupuesto del Mes ({mes_str}):** RD$ {gastos_mes:,.2f} / RD$ {presupuesto_mensual:,.2f}")
         st.progress(porcentaje)
+    
     c1, c2 = st.columns(2)
     with c1: st.markdown(f"<div class='balance-box'><h3>DISPONIBLE TOTAL</h3><h1 style='color:#2ecc71;'>RD$ {disponible:,.2f}</h1></div>", unsafe_allow_html=True)
     with c2: st.markdown(f"<div class='balance-box'><h3>GASTOS DEL MES</h3><h1 style='color:#e74c3c;'>RD$ {gastos_mes:,.2f}</h1></div>", unsafe_allow_html=True)
+
     with st.form("form_finanzas", clear_on_submit=True):
         col1, col2, col3 = st.columns([1,1,2])
         t_mov = col1.selectbox("Tipo", ["GASTO", "INGRESO"])
         f_mov = col2.date_input("Fecha", value=f_obj)
-        cat = col3.text_input("Categoría (Ej: Supermercado, Sueldo)").upper()
+        cat = col3.text_input("Categoría").upper()
         det = st.text_input("Detalle del movimiento").upper()
         monto = st.number_input("Monto RD$", min_value=0.0, step=100.0)
         if st.form_submit_button("REGISTRAR MOVIMIENTO"):
             m_final = -abs(monto) if t_mov == "GASTO" else abs(monto)
             db.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)", (f_mov.strftime("%d/%m/%Y"), f_mov.strftime("%m-%Y"), t_mov, cat, det, m_final))
             db.commit(); st.rerun()
+
     if not df_f.empty:
         st.subheader("Historial de Movimientos")
         st.dataframe(df_f[['fecha', 'tipo', 'categoria', 'detalle', 'monto']], use_container_width=True)
@@ -278,7 +252,7 @@ elif menu == "🩺 SALUD":
             with c_pdf: st.download_button("📥 DESCARGAR REPORTE SEMÁFORO (PDF)", generar_pdf_salud(df_g), f"Glucosa_{f_str}.pdf", "application/pdf", use_container_width=True)
             with c_wa:
                 ult = df_g.iloc[0]
-                msg = f"🩸 *REPORTE GLUCOSA*\n👤 Paciente: Luis Rafael Quevedo\n📅 Fecha: {ult['fecha']}\n🕒 Hora: {ult['hora']}\n📍 Valor: {ult['valor']} mg/dL\n📝 Momento: {ult['momento']}"
+                msg = f"🩸 *REPORTE GLUCOSA*\n👤 Paciente: Luis Rafael Quevedo\n📅 Fecha: {ult['fecha']}\n📍 Valor: {ult['valor']} mg/dL\n📝 Momento: {ult['momento']}"
                 st.link_button("📲 ENVIAR POR WHATSAPP", f"https://wa.me/?text={urllib.parse.quote(msg)}", use_container_width=True)
             st.plotly_chart(px.line(df_g.iloc[::-1], x='hora', y='valor', markers=True, title="Evolución de Glucosa", template="plotly_dark"), use_container_width=True)
             def color_tabla(row):
@@ -303,7 +277,7 @@ elif menu == "🩺 SALUD":
             if col_del.button("🗑️", key=f"del_med_{row['id']}"):
                 db.execute("DELETE FROM medicamentos WHERE id=?", (row['id'],)); db.commit(); st.rerun()
         with st.form("form_meds", clear_on_submit=True):
-            n_med = st.text_input("Nombre de Medicina").upper(); d_med = st.text_input("Dosis (Ej: 1 tableta)").upper(); h_med = st.text_input("Horario (Ej: 8:00 AM)").upper()
+            n_med = st.text_input("Nombre de Medicina").upper(); d_med = st.text_input("Dosis").upper(); h_med = st.text_input("Horario").upper()
             if st.form_submit_button("AÑADIR MEDICINA"):
                 db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n_med, d_med, h_med)); db.commit(); st.rerun()
     with t3:
@@ -315,7 +289,7 @@ elif menu == "🩺 SALUD":
                 db.execute("DELETE FROM citas WHERE id = (SELECT MAX(id) FROM citas)"); db.commit(); st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
         with st.form("form_citas", clear_on_submit=True):
-            doc = st.text_input("Doctor").upper(); fec_c = st.date_input("Fecha de Cita"); mot = st.text_input("Motivo/Especialidad").upper()
+            doc = st.text_input("Doctor").upper(); fec_c = st.date_input("Fecha de Cita"); mot = st.text_input("Motivo").upper()
             if st.form_submit_button("AGENDAR CITA"):
                 db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(fec_c), mot)); db.commit(); st.rerun()
 
