@@ -17,19 +17,23 @@ def obtener_fecha_rd():
 def conectar_db():
     conn = sqlite3.connect("control_quevedo.db", check_same_thread=False)
     c = conn.cursor()
-    # Tablas Principales
+    # Crear tablas si no existen
     c.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, fecha TEXT, mes TEXT, tipo TEXT, categoria TEXT, detalle TEXT, monto REAL)')
-    
-    # AQUÍ ESTÁ EL CAMBIO: Ya incluye la columna 'nota' para que no falle
     c.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, fecha TEXT, hora TEXT, momento TEXT, valor INTEGER, nota TEXT)')
-    
     c.execute('CREATE TABLE IF NOT EXISTS medicamentos (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT, horario TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS registro_medico (id INTEGER PRIMARY KEY, fecha TEXT, medicamento TEXT, hora_confirmada TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS citas (id INTEGER PRIMARY KEY, doctor TEXT, fecha TEXT, motivo TEXT)')
+    
+    # --- EL PARCHE MÁGICO ---
+    try:
+        c.execute('ALTER TABLE glucosa ADD COLUMN nota TEXT')
+    except:
+        # Si ya existe, no hace nada y sigue adelante
+        pass
+        
     conn.commit()
     return conn
 
-db = conectar_db()
 
 # --- 3. DISEÑO Y ESTILO ---
 st.set_page_config(page_title="NEXUS QUEVEDO PRO", layout="wide")
