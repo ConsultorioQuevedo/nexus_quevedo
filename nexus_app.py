@@ -8,7 +8,31 @@ import io
 import urllib.parse
 import os
 from fpdf import FPDF
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
+def enviar_correo_quevedo(asunto, mensaje):
+    remitente = "luisraqueal@gmail.com"
+    # Esta clave de 16 letras la generaremos ahora en su cuenta de Google
+    password_app = "xxxx xxxx xxxx xxxx" 
+    
+    msg = MIMEMultipart()
+    msg['From'] = remitente
+    msg['To'] = remitente
+    msg['Subject'] = f"SISTEMA QUEVEDO: {asunto}"
+    
+    msg.attach(MIMEText(mensaje, 'plain'))
+    
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(remitente, password_app)
+        server.sendmail(remitente, remitente, msg.as_as_string())
+        server.quit()
+        return True
+    except:
+        return False
 # --- CLASE PARA EL PDF PROFESIONAL CON SEMÁFORO ---
 class PDF(FPDF):
     def header(self):
