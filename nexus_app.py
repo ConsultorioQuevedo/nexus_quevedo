@@ -167,69 +167,190 @@ elif opcion == "💰 FINANZAS RD$":
     else:
         st.info("No hay movimientos registrados en la base de datos.")
 
-# --- 9. MÓDULO DE SALUD (SEMÁFORO DE GLUCOSA QUEVEDO) ---
+# --- 9. MÓDULO MAESTRO: CONTROL DE GLUCOSA (SÚPER ACTUALIZADO) ---
 elif opcion == "🩺 SALUD & GLUCOSA":
-    st.title("🩺 Monitoreo de Salud Inteligente")
+    st.title("🩺 Panel de Control de Glucosa - NEXUS PRO")
     st.markdown("---")
 
-    # Función interna para el Semáforo de Salud
-    def analizar_glucosa(v, m):
-        if "Ayunas" in m:
-            if 70 <= v <= 100: return "🟢 NORMAL", "#1b5e20"
-            elif 101 <= v <= 125: return "🟡 PRE-DIABETES", "#fbc02d"
-            else: return "🔴 ALTO (REVISAR)", "#b71c1c"
+    # --- LÓGICA DE COLORES Y SEMÁFOROS (NEXUS INTELLIGENCE) ---
+    def analizar_glucosa_full(v, m):
+        """Devuelve Estado, Color y Mensaje de alerta"""
+        if "Ayunas" in m or "Antes" in m:
+            if 70 <= v <= 100: return "🟢 NORMAL", "#1b5e20", "¡Excelente control!"
+            elif 101 <= v <= 125: return "🟡 PRE-DIABETES", "#fbc02d", "Cuidado con la dieta."
+            else: return "🔴 ALTO (REVISAR)", "#b71c1c", "Consulte a su médico."
         else: # Después de comer (Post-Prandial)
-            if v < 140: return "🟢 NORMAL", "#1b5e20"
-            elif 140 <= v <= 199: return "🟡 ELEVADO", "#fbc02d"
-            else: return "🔴 CRÍTICO", "#b71c1c"
+            if v < 140: return "🟢 NORMAL", "#1b5e20", "Buen manejo post-comida."
+            elif 140 <= v <= 199: return "🟡 ELEVADO", "#fbc02d", "Monitoree la siguiente toma."
+            else: return "🔴 CRÍTICO", "#b71c1c", "Alerta: Valor muy alto."
 
-    # Formulario de Entrada Médica
-    with st.form("f_salud_v4", clear_on_submit=True):
-        st.subheader("📝 Registrar Nivel de Glucosa")
-        col1, col2 = st.columns(2)
-        with col1:
-            valor_g = st.number_input("Nivel (mg/dL):", min_value=0, step=1)
-        with col2:
-            momento_g = st.selectbox("Momento de la Medición:", 
-                                     ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Post-Cena", "Antes de Dormir"])
+    # --- 1. FORMULARIO DE REGISTRO DETALLADO ---
+    with st.form("f_glucosa_pro", clear_on_submit=True):
+        st.subheader("📝 Registrar Nueva Medición Detallada")
+        c_a, c_b, c_c = st.columns(3)
+        with c_a:
+            valor_g = st.number_input("VALOR (mg/dL):", min_value=0, step=1, help="Ingrese el número del glucómetro")
+        with c_b:
+            momento_g = st.selectbox("MOMENTO DE MEDICIÓN:", 
+                                     ["Ayunas", "Post-Desayuno", "Antes de Almuerzo", "Post-Almuerzo", "Antes de Cena", "Post-Cena", "Antes de Dormir", "Madrugada"])
+        with c_c:
+            nota_g = st.text_input("NOTA (Ej: Comí mucho dulce, me siento mareado):").upper()
         
-        if st.form_submit_button("💾 GUARDAR REGISTRO MÉDICO"):
-            db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", 
-                       (f_txt, h_txt, momento_g, valor_g))
-            db.commit()
-            # Alerta visual inmediata del resultado
-            estado, color = analizar_glucosa(valor_g, momento_g)
-            st.markdown(f"<div style='background-color:{color}; padding:15px; border-radius:10px; color:white; font-weight:bold; text-align:center;'>"
-                        f"RESULTADO: {estado} ({valor_g} mg/dL)</div>", unsafe_allow_html=True)
-            st.rerun()
+        if st.form_submit_button("💾 GUARDAR REGISTRO Y ANALIZAR"):
+            if valor_g > 0:
+                # Insertamos datos incluyendo la nueva nota
+                db.execute("INSERT INTO glucosa (fecha, hora, momento, valor, nota) VALUES (?,?,?,?,?)", 
+                           (f_txt, h_txt, momento_g, valor_g, nota_g))
+                db.commit()
+                # Análisis inmediato
+                estado, color, msn = analizar_glucosa_full(valor_g, momento_g)
+                st.markdown(f"""
+                    <div style='background-color:{color}; padding:20px; border-radius:10px; color:white; text-align:center; margin-bottom:15px;'>
+                        <h2 style='color:white; margin:0;'>{valor_g} mg/dL - {estado}</h2>
+                        <p style='margin:5px 0 0 0;'>{msn}</p>
+                    </div>
+                """, unsafe_allow_html=True)
+                st.rerun()
+            else:
+                st.warning("⚠️ Ingrese un valor válido.")
 
     st.markdown("---")
 
-    # Visualización de Datos Históricos
+    # Cargar datos históricos
     df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db)
     
     if not df_g.empty:
-        # Gráfico de Tendencia Profesional
+        # --- 2. GRÁFICO DE TENDENCIA PROFESIONAL ---
+        st.subheader("📈 Tendencia Histórica (NEXUS GRAPH)")
         fig = px.line(df_g, x='fecha', y='valor', color='momento', 
-                      title="📈 Evolución de Glucosa (NEXUS PRO)", markers=True, template="plotly_dark")
+                      title="Evolución de Niveles de Glucosa", markers=True, template="plotly_dark")
+        # Líneas de referencia para guiar la vista
+        fig.add_hline(y=100, line_dash="dash", line_color="#a5d6a7", annotation_text="Límite Ayunas Normal")
+        fig.add_hline(y=140, line_dash="dash", line_color="#ef9a9a", annotation_text="Límite Post-Comida Normal")
         st.plotly_chart(fig, use_container_width=True)
 
-        # Tabla con Semáforos Visuales
-        st.subheader("📋 Historial Detallado")
+        st.markdown("---")
+
+        # --- 3. PANEL DE HERRAMIENTAS (PDF, WHATSAPP, BORRADO) ---
+        st.subheader("🛠️ Herramientas y Reportes")
+        col_pdf, col_wa, col_del = st.columns(3)
+
+        # A. GENERADOR DE PDF PROFESIONAL CON FIRMA QUEVEDO
+        with col_pdf:
+            if st.button("📄 GENERAR REPORTE PDF"):
+                try:
+                    pdf = FPDF()
+                    pdf.add_page()
+                    # Encabezado NEXUS PRO
+                    pdf.set_font("Arial", 'B', 18)
+                    pdf.set_text_color(33, 150, 243) # AzulNexus
+                    pdf.cell(200, 10, txt="NEXUS PRO - REPORTE DE SALUD", ln=True, align='C')
+                    pdf.set_font("Arial", size=10)
+                    pdf.set_text_color(0)
+                    pdf.cell(200, 10, txt=f"Generado el: {f_txt} {h_txt}", ln=True, align='C')
+                    pdf.ln(10)
+
+                    # Títulos de Tabla
+                    pdf.set_font("Arial", 'B', 11)
+                    pdf.set_fill_color(30, 30, 30) # Fondo oscuro
+                    pdf.set_text_color(255) # Texto blanco
+                    pdf.cell(30, 8, "FECHA", 1, 0, 'C', True)
+                    pdf.cell(40, 8, "MOMENTO", 1, 0, 'C', True)
+                    pdf.cell(25, 8, "VALOR", 1, 0, 'C', True)
+                    pdf.cell(30, 8, "ESTADO", 1, 0, 'C', True)
+                    pdf.cell(65, 8, "NOTA", 1, 1, 'C', True)
+
+                    # Datos
+                    pdf.set_font("Arial", size=10)
+                    pdf.set_text_color(0)
+                    for i, r in df_g.iterrows():
+                        pdf.cell(30, 8, r['fecha'], 1)
+                        pdf.cell(40, 8, r['momento'], 1)
+                        pdf.cell(25, 8, f"{r['valor']} mg/dL", 1, 0, 'R')
+                        # Análisis rápido para el PDF
+                        est_pdf, _, _ = analizar_glucosa_full(r['valor'], r['momento'])
+                        pdf.cell(30, 8, est_pdf, 1)
+                        # Nota (cortar si es muy larga)
+                        nota_pdf = str(r['nota']) if 'nota' in r else ""
+                        pdf.cell(65, 8, nota_pdf[:35], 1, 1) # Muestra los primeros 35 caracteres
+
+                    pdf.ln(15)
+                    # FIRMA QUEVEDO AL FINAL DE CADA PÁGINA
+                    pdf.set_font("Arial", 'I', 9)
+                    pdf.cell(200, 10, txt="__________________________________________________________", ln=True, align='C')
+                    pdf.cell(200, 5, txt="Este reporte es propiedad exclusiva de: LUIS RAFAEL QUEVEDO | 2026", ln=True, align='C')
+                    
+                    pdf_out = pdf.output(dest='S').encode('latin-1', 'replace')
+                    st.download_button(label="📥 Descargar Reporte PDF", data=pdf_out, file_name=f"Glucosa_Quevedo_{f_txt.replace('/','-')}.pdf", mime="application/pdf")
+                except Exception as e:
+                    st.error(f"Error generando PDF: {e}")
+
+        # B. VÍNCULO CON WHATSAPP
+        with col_wa:
+            st.markdown("##### 📱 Enviar por WhatsApp")
+            num_wa = st.text_input("Número (Ej: 18091234567):", placeholder="18091234567", help="Incluya el 1 antes del número")
+            if st.button("📲 Compartir Último Registro"):
+                if num_wa and len(num_wa) >= 10:
+                    ult = df_g.iloc[0] # Tomar el último registro
+                    est_wa, _, _ = analizar_glucosa_full(ult['valor'], ult['momento'])
+                    mensaje_wa = f"NEXUS PRO - Reporte de Glucosa Sr. Quevedo:\nFecha: {ult['fecha']}\nHora: {ult['hora']}\nMomento: {ult['momento']}\nValor: {ult['valor']} mg/dL\nEstado: {est_wa}\nNota: {ult['nota'] if 'nota' in ult else ''}"
+                    
+                    # Generar enlace de WhatsApp
+                    import urllib.parse
+                    msn_coded = urllib.parse.quote(mensaje_wa)
+                    link_wa = f"https://wa.me/{num_wa}?text={msn_coded}"
+                    st.markdown(f"[✅ Haga clic aquí para abrir WhatsApp y enviar]({link_wa})", unsafe_allow_html=True)
+                else:
+                    st.warning("⚠️ Ingrese un número de teléfono válido (mínimo 10 dígitos).")
+
+        # C. SECCIÓN DE BORRADO DE REGISTROS
+        with col_del:
+            st.markdown("##### 🗑️ Gestión de Historial")
+            expander_del_g = st.expander("Opciones de Borrado (CUIDADO)")
+            with expander_del_g:
+                st.warning("Esta acción borrará registros permanentemente.")
+                # Opción para borrar el último registro
+                if st.button("🗑️ Borrar ÚLTIMO Registro (Deshacer)"):
+                    db.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)")
+                    db.commit()
+                    st.success("✅ Último registro eliminado.")
+                    st.rerun()
+                
+                # Opción para limpieza total con seguro
+                if st.checkbox("⚠️ Confirmar vaciado total de glucosa"):
+                    if st.button("🔥 BORRAR TODO EL HISTORIAL"):
+                        db.execute("DELETE FROM glucosa")
+                        db.commit()
+                        st.error("Historial de glucosa vaciado.")
+                        st.rerun()
+
+        st.markdown("---")
+
+        # --- 4. TABLA CON SEMÁFOROS VISUALES Y NOTAS ---
+        st.subheader("📋 Historial Detallado (Semáforos Inteligentes)")
         
-        # Aplicamos el análisis a cada fila para mostrar el color
-        for i, row in df_g.head(10).iterrows():
-            est, col_hex = analizar_glucosa(row['valor'], row['momento'])
+        for i, row in df_g.iterrows():
+            est, col_hex, msn_tbl = analizar_glucosa_full(row['valor'], row['momento'])
+            nota_tbl = row['nota'] if 'nota' in row else ""
+            
             st.markdown(f"""
                 <div style='display: flex; justify-content: space-between; align-items: center; 
-                background-color: #161b22; padding: 10px; margin-bottom: 5px; border-radius: 8px; border-left: 8px solid {col_hex};'>
-                    <div style='flex: 1;'><b>{row['fecha']}</b> ({row['hora']})</div>
-                    <div style='flex: 1; text-align: center;'><b>{row['momento']}</b></div>
-                    <div style='flex: 1; text-align: right; color: {col_hex}; font-weight: bold;'>{row['valor']} mg/dL - {est}</div>
+                background-color: #161b22; padding: 15px; margin-bottom: 8px; border-radius: 8px; border-left: 10px solid {col_hex};'>
+                    <div style='flex: 1.5;'>
+                        <b>{row['fecha']}</b> ({row['hora']})<br>
+                        <span style='color: #8b949e;'>Momento: {row['momento']}</span>
+                    </div>
+                    <div style='flex: 2; text-align: center; color: #8b949e;'>
+                        <i>{nota_tbl}</i>
+                    </div>
+                    <div style='flex: 2; text-align: right; color: {col_hex}; font-weight: bold;'>
+                        <h3 style='color: {col_hex}; margin: 0;'>{row['valor']} mg/dL</h3>
+                        {est}
+                    </div>
                 </div>
             """, unsafe_allow_html=True)
     else:
-        st.info("No hay registros de salud todavía.")
+        st.info("No hay registros de salud todavía. Use el formulario de arriba para el primer registro.")
 
 # --- 10. MÓDULO: BOTIQUÍN (GESTIÓN DE MEDICAMENTOS) ---
 elif opcion == "💊 BOTIQUÍN":
