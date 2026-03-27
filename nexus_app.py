@@ -67,7 +67,7 @@ with st.sidebar:
     st.markdown("---")
     opcion = st.radio("SECCIONES:", [
         "🏠 DASHBOARD", 
-        "💰 FINANZAS RD$", 
+        "💰 FINANZAS", 
         "🩺 SALUD & GLUCOSA", 
         "💊 BOTIQUÍN", 
         "📅 AGENDA", 
@@ -121,7 +121,7 @@ if opcion == "🏠 DASHBOARD":
     else:
         st.caption("No hay registros de tomas el día de hoy.")
 # --- 8. MÓDULO: FINANZAS (VERSIÓN LIMPIA) ---
-elif opcion == "💰 FINANZAS RD$":
+elif opcion == "💰 FINANZAS":
     st.title("💰 Control de Finanzas - NEXUS PRO")
     st.markdown("---")
 
