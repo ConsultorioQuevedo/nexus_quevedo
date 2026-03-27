@@ -14,7 +14,7 @@ def obtener_fecha_rd():
     return ahora.strftime("%d/%m/%Y"), ahora.strftime("%I:%M %p"), ahora.strftime("%m-%Y"), ahora.date(), ahora
 
 # --- 2. BASE DE DATOS (ESTRUCTURA ACTUALIZADA QUEVEDO) --- 
-  def conectar_db():
+def conectar_db():
     conn = sqlite3.connect("control_quevedo.db", check_same_thread=False)
     c = conn.cursor()
     # Crear tablas si no existen
@@ -177,7 +177,7 @@ elif opcion == "💰 FINANZAS":
     else:
         st.info("No hay registros financieros todavía.")
 # --- 9. MÓDULO MAESTRO: CONTROL DE GLUCOSA (SÚPER ACTUALIZADO) ---
-elif opcion == "🩺 SALUD & GLUCOSA":
+    elif opcion == "🩺 SALUD & GLUCOSA":
     st.title("🩺 Panel de Control de Glucosa - NEXUS PRO")
     st.markdown("---")
 
