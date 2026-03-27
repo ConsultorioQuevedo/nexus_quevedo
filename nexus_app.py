@@ -292,22 +292,72 @@ elif opcion == "📅 AGENDA":
     except:
         st.info("Módulo de citas listo para el primer registro.")
 
-# --- 12. MÓDULO: BITÁCORA PERSONAL ---
+# --- 12. MÓDULO: BITÁCORA PROFESIONAL (PDF + GESTIÓN) ---
 elif opcion == "📝 BITÁCORA":
-    st.title("📝 Bitácora de Notas - NEXUS PRO")
+    st.title("📝 Bitácora de Notas Inteligente")
     st.markdown("---")
     
-    nota_nueva = st.text_area("Escriba sus observaciones, síntomas o pensamientos del día:", height=200)
+    # Campo de texto para nueva nota
+    nota_nueva = st.text_area("Escriba sus observaciones del día:", height=150, placeholder="Ej: Hoy me sentí con mucha energía después del desayuno...")
     
-    if st.button("💾 GUARDAR NOTA EN EL SISTEMA"):
-        if nota_nueva:
-            # Guardamos en un archivo de texto físico para que nunca se pierda
-            with open("bitacora_quevedo.txt", "a", encoding="utf-8") as f:
-                f.write(f"--- REGISTRO: {f_txt} {h_txt} ---\n")
-                f.write(f"{nota_nueva}\n\n")
-            st.success("✅ Nota guardada físicamente en el servidor (bitacora_quevedo.txt)")
-        else:
-            st.warning("Escriba algo antes de guardar.")
+    col_btn1, col_btn2 = st.columns(2)
+    
+    with col_btn1:
+        if st.button("💾 GUARDAR NOTA LOCAL"):
+            if nota_nueva:
+                with open("bitacora_quevedo.txt", "a", encoding="utf-8") as f:
+                    f.write(f"{f_txt} {h_txt}: {nota_nueva}\n\n")
+                st.success("✅ Nota guardada en el archivo del sistema.")
+                st.rerun()
+            else:
+                st.warning("Escriba algo antes de guardar.")
+
+    # --- FUNCIÓN PARA GENERAR PDF DE LA BITÁCORA ---
+    with col_btn2:
+        if st.button("📄 GENERAR REPORTE PDF"):
+            try:
+                with open("bitacora_quevedo.txt", "r", encoding="utf-8") as f:
+                    contenido = f.read()
+                
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", 'B', 16)
+                pdf.cell(200, 10, txt="NEXUS PRO - BITÁCORA PERSONAL", ln=True, align='C')
+                pdf.set_font("Arial", size=12)
+                pdf.ln(10)
+                pdf.multi_cell(0, 10, txt=contenido)
+                
+                # Crear el archivo en memoria para descargar
+                pdf_output = pdf.output(dest='S').encode('latin-1', 'replace')
+                st.download_button(label="📥 Descargar PDF Ahora", 
+                                   data=pdf_output, 
+                                   file_name=f"Bitacora_Quevedo_{f_txt.replace('/','-')}.pdf",
+                                   mime="application/pdf")
+            except FileNotFoundError:
+                st.error("No hay notas guardadas para generar un PDF.")
 
     st.markdown("---")
-    st.caption("NEXUS PRO v4.5 | Desarrollado para Luis Rafael Quevedo | 2026")
+    
+    # --- SECCIÓN DE BORRADO Y LIMPIEZA ---
+    st.subheader("🗑️ Gestión de Archivos")
+    expander = st.expander("Opciones de Limpieza (CUIDADO)")
+    with expander:
+        st.warning("Esta acción borrará todas las notas guardadas permanentemente.")
+        if st.button("🔥 BORRAR TODA LA BITÁCORA"):
+            with open("bitacora_quevedo.txt", "w", encoding="utf-8") as f:
+                f.write("") # Sobreescribe el archivo dejándolo vacío
+            st.error("Bitácora vaciada correctamente.")
+            st.rerun()
+
+    # Visualización rápida de lo que hay en el archivo
+    st.markdown("#### 📖 Vista Previa de Notas Actuales")
+    try:
+        with open("bitacora_quevedo.txt", "r", encoding="utf-8") as f:
+            notas_vivas = f.read()
+            if notas_vivas:
+                st.text_area("Contenido del archivo:", notas_vivas, height=300, disabled=True)
+            else:
+                st.info("La bitácora está vacía actualmente.")
+    except FileNotFoundError:
+        st.info("Aún no se ha creado el archivo de bitácora.")
+US PRO v4.5 | Desarrollado para Luis Rafael Quevedo | 2026")
