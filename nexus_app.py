@@ -361,5 +361,5 @@ elif opcion == "📝 BITÁCORA":
     except FileNotFoundError:
         st.info("Aún no se ha creado el archivo de bitácora.") 
         
-st.markdown("---")
+    st.markdown("---")
     st.caption("NEXUS PRO v4.5 | Desarrollado para Luis Rafael Quevedo | 2026")
