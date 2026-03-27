@@ -13,26 +13,35 @@ def obtener_fecha_rd():
     ahora = datetime.now(zona)
     return ahora.strftime("%d/%m/%Y"), ahora.strftime("%I:%M %p"), ahora.strftime("%m-%Y"), ahora.date(), ahora
 
-# --- 2. BASE DE DATOS (ESTRUCTURA ACTUALIZADA QUEVEDO) --- 
+# --- 2. BASE DE DATOS (SISTEMA QUEVEDO) ---
 def conectar_db():
-    conn = sqlite3.connect("control_quevedo.db", check_same_thread=False)
+    # Nombre profesional de su base de datos
+    conn = sqlite3.connect("sistema_quevedo_pro.db", check_same_thread=False)
     c = conn.cursor()
-    # Crear tablas si no existen
-    c.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, fecha TEXT, mes TEXT, tipo TEXT, categoria TEXT, detalle TEXT, monto REAL)')
-    c.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, fecha TEXT, hora TEXT, momento TEXT, valor INTEGER, nota TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS medicamentos (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT, horario TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS registro_medico (id INTEGER PRIMARY KEY, fecha TEXT, medicamento TEXT, hora_confirmada TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS citas (id INTEGER PRIMARY KEY, doctor TEXT, fecha TEXT, motivo TEXT)')
     
-    # --- EL PARCHE MÁGICO ---
-    try:
-        c.execute('ALTER TABLE glucosa ADD COLUMN nota TEXT')
-    except:
-        # Si ya existe, no hace nada y sigue adelante
-        pass
-        
+    # 1. Tabla de Finanzas
+    c.execute('''CREATE TABLE IF NOT EXISTS finanzas 
+               (id INTEGER PRIMARY KEY, fecha TEXT, mes TEXT, tipo TEXT, categoria TEXT, detalle TEXT, monto REAL)''')
+    
+    # 2. Tabla de Glucosa
+    c.execute('''CREATE TABLE IF NOT EXISTS glucosa 
+               (id INTEGER PRIMARY KEY, fecha TEXT, hora TEXT, momento TEXT, valor INTEGER, nota TEXT)''')
+    
+    # 3. TABLA MAESTRA DE REGISTRO MÉDICO (La que apaga las alertas)
+    # Esta tabla anotará: QUÉ medicina, QUÉ día y a QUÉ hora se la tomó.
+    c.execute('''CREATE TABLE IF NOT EXISTS registro_medico 
+               (id INTEGER PRIMARY KEY, fecha TEXT, medicamento TEXT, hora_confirmada TEXT)''')
+    
+    # 4. Otras tablas de apoyo
+    c.execute('CREATE TABLE IF NOT EXISTS medicamentos (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT, horario TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS citas (id INTEGER PRIMARY KEY, doctor TEXT, fecha TEXT, motivo TEXT)')
+
     conn.commit()
-    return conn
+    return conn, c
+
+# Ejecutamos la conexión
+db, cursor = conectar_db()
+
 
 
 # --- 3. DISEÑO Y ESTILO ---
