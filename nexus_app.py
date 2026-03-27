@@ -359,5 +359,7 @@ elif opcion == "📝 BITÁCORA":
             else:
                 st.info("La bitácora está vacía actualmente.")
     except FileNotFoundError:
-        st.info("Aún no se ha creado el archivo de bitácora.")
-US PRO v4.5 | Desarrollado para Luis Rafael Quevedo | 2026")
+        st.info("Aún no se ha creado el archivo de bitácora.") 
+        
+st.markdown("---")
+    st.caption("NEXUS PRO v4.5 | Desarrollado para Luis Rafael Quevedo | 2026")
