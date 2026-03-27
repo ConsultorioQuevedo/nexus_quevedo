@@ -9,245 +9,277 @@ import urllib.parse
 import os
 from fpdf import FPDF
 
-# --- CLASE ESPECIAL PARA EL PDF (REPORTES PROFESIONALES) ---
-class PDF(FPDF):
+# ==========================================
+# 1. MOTOR DE REPORTES PDF (CLASE EXTENSA)
+# ==========================================
+class PDF_Reporte(FPDF):
     def header(self):
-        self.set_font('Arial', 'B', 15)
-        self.cell(0, 10, 'NEXUS - CONTROL PERSONAL QUEVEDO', 0, 1, 'C')
+        # Logo o Título
+        self.set_fill_color(31, 41, 55)
+        self.rect(0, 0, 210, 30, 'F')
+        self.set_font('Arial', 'B', 20)
+        self.set_text_color(255, 255, 255)
+        self.cell(0, 15, 'NEXUS - SISTEMA DE CONTROL PRO', 0, 1, 'C')
         self.set_font('Arial', 'I', 10)
-        self.cell(0, 5, f'Reporte Generado el: {datetime.now().strftime("%d/%m/%Y")}', 0, 1, 'C')
-        self.ln(10)
+        self.cell(0, 5, 'REPORTE MÉDICO Y FINANCIERO - LUIS RAFAEL QUEVEDO', 0, 1, 'C')
+        self.ln(15)
 
     def footer(self):
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
-        self.cell(0, 10, 'Propiedad Privada - Sistema Nexus Pro v3', 0, 0, 'C')
+        self.set_text_color(128, 128, 128)
+        fecha_gen = datetime.now().strftime("%d/%m/%Y %H:%M")
+        self.cell(0, 10, f'Generado por Nexus AI el {fecha_gen} - Página {self.page_no()}', 0, 0, 'C')
 
-    def dibujar_semaforo(self, x, y, color_tipo):
-        if color_tipo == "VERDE": self.set_fill_color(27, 94, 32) 
-        elif color_tipo == "AMARILLO": self.set_fill_color(251, 192, 45) 
-        elif color_tipo == "ROJO": self.set_fill_color(183, 28, 28) 
-        else: self.set_fill_color(200, 200, 200) 
-        self.ellipse(x, y, 4, 4, 'F')
+    def agregar_tabla_glucosa(self, df):
+        self.set_font('Arial', 'B', 12)
+        self.set_text_color(0, 0, 0)
+        self.cell(0, 10, 'HISTORIAL DE GLUCOSA', 0, 1, 'L')
+        self.ln(2)
+        
+        # Encabezados
+        self.set_fill_color(200, 200, 200)
+        self.set_font('Arial', 'B', 10)
+        headers = ['Fecha', 'Hora', 'Momento', 'Valor (mg/dL)', 'Estado']
+        widths = [35, 30, 50, 35, 40]
+        
+        for i in range(len(headers)):
+            self.cell(widths[i], 10, headers[i], 1, 0, 'C', True)
+        self.ln()
+        
+        # Datos
+        self.set_font('Arial', '', 10)
+        for _, row in df.iterrows():
+            slug, txt, _ = interpretar_salud(row['valor'], row['momento'])
+            self.cell(widths[0], 9, str(row['fecha']), 1)
+            self.cell(widths[1], 9, str(row['hora']), 1)
+            self.cell(widths[2], 9, str(row['momento']), 1)
+            self.cell(widths[3], 9, f"{row['valor']}", 1, 0, 'C')
+            
+            # Color según estado
+            if slug == "VERDE": self.set_text_color(0, 100, 0)
+            elif slug == "AMARILLO": self.set_text_color(150, 100, 0)
+            elif slug == "ROJO": self.set_text_color(150, 0, 0)
+            
+            self.cell(widths[4], 9, txt, 1, 1, 'C')
+            self.set_text_color(0, 0, 0)
 
-# --- 1. CONFIGURACIÓN VISUAL Y ESTILOS ---
-st.set_page_config(page_title="NEXUS QUEVEDO", layout="wide", page_icon="🌐")
+# ==========================================
+# 2. CONFIGURACIÓN Y ESTILOS CSS
+# ==========================================
+st.set_page_config(page_title="NEXUS QUEVEDO PRO", layout="wide", page_icon="🌐")
 
 st.markdown("""
     <style>
-    .main { background-color: #0e1117; color: white; }
-    [data-testid="stSidebar"] { background-color: #161b22; min-width: 300px; }
-    .stForm { background-color: #161b22; border-radius: 15px; border: 1px solid #30363d; padding: 20px; }
-    h1, h2, h3 { font-weight: 800; color: white; }
-    .balance-box { background-color: #1f2937; padding: 25px; border-radius: 15px; text-align: center; border: 1px solid #30363d; margin: 20px 0; }
-    .alerta-card { padding: 20px; border-radius: 12px; background-color: #1c2128; border: 1px solid #30363d; border-left: 6px solid #30363d; margin-bottom: 10px; }
-    .insight-card { padding: 15px; border-radius: 10px; background: linear-gradient(90deg, #1e3a8a33, #1e3a8a11); border: 1px solid #3b82f644; margin-bottom: 20px; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap');
+    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     
-    div.stButton > button { 
-        background-color: #1f2937; color: white; border: 1px solid #30363d; 
-        border-radius: 8px; width: 100%; font-weight: bold; height: 50px; transition: 0.3s;
+    .main { background-color: #0b0e14; }
+    .stApp { background-color: #0b0e14; color: #e6edf3; }
+    
+    /* Tarjetas de Indicadores */
+    .metric-card {
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        transition: transform 0.2s;
     }
-    div.stButton > button:hover { border-color: #3b82f6; background-color: #232d3b; }
+    .metric-card:hover { transform: translateY(-5px); border-color: #58a6ff; }
     
-    .btn-borrar-rojo > div > button { background-color: #441111 !important; color: #ff9999 !important; border: 1px solid #662222 !important; height: 40px !important; }
+    /* Alertas Estilo Apple */
+    .alerta {
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        border-left: 5px solid;
+    }
+    
+    /* Botones Personalizados */
+    div.stButton > button {
+        background: linear-gradient(135deg, #1f6feb 0%, #094192 100%);
+        color: white; border: none; border-radius: 8px;
+        height: 45px; font-weight: bold; width: 100%;
+    }
+    
+    /* Estilo para WhatsApp */
+    .btn-whatsapp {
+        background-color: #25D366 !important;
+        color: white !important;
+        text-decoration: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        display: block;
+        text-align: center;
+        font-weight: bold;
+        margin-top: 10px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. FUNCIONES DE TIEMPO Y BASE DE DATOS ---
-def obtener_tiempo_rd():
+# ==========================================
+# 3. FUNCIONES CORE (SISTEMA)
+# ==========================================
+def obtener_tiempo():
     zona = pytz.timezone('America/Santo_Domingo')
     ahora = datetime.now(zona)
     return ahora.strftime("%d/%m/%Y"), ahora.strftime("%I:%M %p"), ahora.strftime("%m-%Y"), ahora.date(), ahora
 
 def iniciar_db():
-    # CONECTA EXACTAMENTE AL ARCHIVO DE TU FOTO
     conn = sqlite3.connect("nexus_quevedo_core.db", check_same_thread=False)
     c = conn.cursor()
+    # Creación de tablas si no existen
     c.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, fecha TEXT, hora TEXT, momento TEXT, valor INTEGER)')
+    c.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, fecha TEXT, mes TEXT, tipo TEXT, categoria TEXT, detalle TEXT, monto REAL)')
     c.execute('CREATE TABLE IF NOT EXISTS medicamentos (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT, horario TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS citas (id INTEGER PRIMARY KEY, doctor TEXT, fecha TEXT, motivo TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, fecha TEXT, mes TEXT, tipo TEXT, categoria TEXT, detalle TEXT, monto REAL)')
     c.execute('CREATE TABLE IF NOT EXISTS config (param TEXT PRIMARY KEY, valor REAL)')
     conn.commit()
     return conn
 
 def interpretar_salud(valor, momento):
     if momento == "Ayunas":
-        if 70 <= valor <= 100: return "VERDE", "NORMAL", "background-color: #1b5e20; color: white;"
-        elif 101 <= valor <= 125: return "AMARILLO", "PRE-DIABETES", "background-color: #fbc02d; color: black;"
-        else: return "ROJO", "ALTO", "background-color: #b71c1c; color: white;"
-    elif "Post" in momento:
-        if valor < 140: return "VERDE", "NORMAL", "background-color: #1b5e20; color: white;"
-        elif 140 <= valor <= 199: return "AMARILLO", "PRE-DIABETES", "background-color: #fbc02d; color: black;"
-        else: return "ROJO", "ALTO", "background-color: #b71c1c; color: white;"
-    elif momento == "Antes de dormir":
-        if 100 <= valor <= 140: return "VERDE", "NORMAL", "background-color: #1b5e20; color: white;"
-        elif 141 <= valor <= 160: return "AMARILLO", "MEDIO", "background-color: #fbc02d; color: black;"
-        else: return "ROJO", "REVISAR", "background-color: #b71c1c; color: white;"
-    return "GRIS", "N/A", ""
+        if 70 <= valor <= 100: return "VERDE", "NORMAL", "background-color: #1b5e20;"
+        elif 101 <= valor <= 125: return "AMARILLO", "PRE-DIABETES", "background-color: #795548;"
+        else: return "ROJO", "ALTO", "background-color: #b71c1c;"
+    else: # Post-Prandial
+        if valor < 140: return "VERDE", "NORMAL", "background-color: #1b5e20;"
+        elif 140 <= valor <= 199: return "AMARILLO", "PRE-DIABETES", "background-color: #795548;"
+        else: return "ROJO", "ALTO", "background-color: #b71c1c;"
 
-# --- 3. SEGURIDAD ---
-if "password_correct" not in st.session_state:
-    st.markdown("<h1 style='text-align: center; margin-top: 50px;'>🌐 NEXUS CONTROL</h1>", unsafe_allow_html=True)
-    _, col_b, _ = st.columns([1,2,1])
-    with col_b:
-        with st.form("login"):
-            pwd = st.text_input("Contraseña de Acceso:", type="password")
-            if st.form_submit_button("INGRESAR"):
-                if pwd == "admin123":
-                    st.session_state["password_correct"] = True
-                    st.rerun()
-                else: st.error("❌ Acceso Denegado")
+# ==========================================
+# 4. LÓGICA DE NAVEGACIÓN Y VISTAS
+# ==========================================
+db = iniciar_db()
+f_hoy, h_ahora, mes_act, f_obj, ahora_raw = obtener_tiempo()
+
+# Seguridad Simple
+if "autenticado" not in st.session_state:
+    st.title("🌐 NEXUS CORE LOGIN")
+    pw = st.text_input("Contraseña Maestra", type="password")
+    if st.button("Acceder"):
+        if pw == "admin123":
+            st.session_state.autenticado = True
+            st.rerun()
     st.stop()
 
-# --- 4. INICIALIZACIÓN DE DATOS ---
-db = iniciar_db()
-f_str, h_str, mes_str, f_obj, ahora_full = obtener_tiempo_rd()
-res_conf = db.execute("SELECT valor FROM config WHERE param='presupuesto'").fetchone()
-presupuesto_mensual = res_conf[0] if res_conf else 0.0
-
-# --- 5. INTERFAZ Y NAVEGACIÓN ---
+# Sidebar
 with st.sidebar:
-    st.markdown(f"<h2 style='text-align: center;'>SR. QUEVEDO</h2>", unsafe_allow_html=True)
-    st.markdown(f"<p style='text-align: center; color: #8b949e;'>{f_str} | {h_str}</p>", unsafe_allow_html=True)
+    st.image("https://cdn-icons-png.flaticon.com/512/179/179354.png", width=100)
+    st.title("NEXUS PRO")
+    st.write(f"📅 {f_hoy} | 🕒 {h_ahora}")
     st.markdown("---")
-    menu = st.radio("MÓDULOS ACTIVOS", ["🏠 PANEL DE CONTROL", "💰 CONTROL FINANCIERO", "🩺 SALUD Y GLUCOSA", "📝 BITÁCORA PERSONAL", "⚙️ CONFIGURACIÓN"])
-    st.markdown("---")
-    if st.button("SALIR DEL SISTEMA"):
-        del st.session_state["password_correct"]
-        st.rerun()
+    opcion = st.radio("MENÚ PRINCIPAL", ["🏠 Dashboard", "💰 Finanzas", "🩺 Salud", "📝 Bitácora", "⚙️ Ajustes"])
 
-# --- MÓDULO 1: PANEL DE CONTROL (INICIO) ---
-if menu == "🏠 PANEL DE CONTROL":
-    st.title("Panel de Control General")
-    st.markdown("### 🔔 Estatus Actual")
+# --- VISTA: DASHBOARD ---
+if opcion == "🏠 Dashboard":
+    st.title(f"Bienvenido, Sr. Quevedo")
     
-    col_a, col_b, col_c = st.columns(3)
+    # KPIs Rápidos
+    c1, c2, c3, c4 = st.columns(4)
     
-    with col_a: # Resumen Citas
-        citas = db.execute("SELECT doctor, fecha FROM citas ORDER BY fecha ASC").fetchall()
-        prox_cita = "Sin citas"
-        for c in citas:
-            try:
-                if datetime.strptime(c[1], '%Y-%m-%d').date() >= f_obj:
-                    prox_cita = f"{c[0]} ({c[1]})"
-                    break
-            except: pass
-        st.markdown(f"<div class='alerta-card' style='border-left-color: #3b82f6;'><strong>📅 PRÓXIMA CITA</strong><br>{prox_cita}</div>", unsafe_allow_html=True)
-
-    with col_b: # Resumen Glucosa
-        ult_g = db.execute("SELECT valor, momento FROM glucosa ORDER BY id DESC LIMIT 1").fetchone()
-        if ult_g:
-            slug, txt, _ = interpretar_salud(ult_g[0], ult_g[1])
-            color = "#27ae60" if slug == "VERDE" else "#e74c3c"
-            st.markdown(f"<div class='alerta-card' style='border-left-color: {color};'><strong>🩸 ÚLTIMA GLUCOSA</strong><br>{ult_g[0]} mg/dL ({txt})</div>", unsafe_allow_html=True)
-        else: st.markdown("<div class='alerta-card'><strong>🩸 SALUD</strong><br>Sin registros</div>", unsafe_allow_html=True)
-
-    with col_c: # Resumen Gastos
-        gastos_tot = abs(db.execute("SELECT SUM(monto) FROM finanzas WHERE tipo='GASTO' AND mes=?", (mes_str,)).fetchone()[0] or 0)
-        st.markdown(f"<div class='alerta-card' style='border-left-color: #f1c40f;'><strong>💰 GASTOS {mes_str}</strong><br>RD$ {gastos_tot:,.2f}</div>", unsafe_allow_html=True)
-
-# --- MÓDULO 2: FINANZAS ---
-elif menu == "💰 CONTROL FINANCIERO":
-    st.title("Gestión de Ingresos y Gastos")
-    df_f = pd.read_sql_query("SELECT * FROM finanzas ORDER BY id DESC", db)
+    # Glucosa
+    ult_g = db.execute("SELECT valor FROM glucosa ORDER BY id DESC LIMIT 1").fetchone()
+    val_g = ult_g[0] if ult_g else 0
+    c1.markdown(f"<div class='metric-card'><h4>Última Glucosa</h4><h2 style='color:#58a6ff'>{val_g} mg/dL</h2></div>", unsafe_allow_html=True)
     
-    # Análisis de Presupuesto
-    gastos_mes = abs(df_f[(df_f['tipo'] == 'GASTO') & (df_f['mes'] == mes_str)]['monto'].sum()) if not df_f.empty else 0
-    if presupuesto_mensual > 0:
-        dias_mes = 31 - f_obj.day + 1
-        gasto_permitido = (presupuesto_mensual - gastos_mes) / dias_mes
-        st.markdown(f'<div class="insight-card">💡 <b>GUÍA DE GASTO:</b> Para no excederte, puedes gastar <b>RD$ {max(0, gasto_permitido):,.2f} diarios</b> por el resto del mes.</div>', unsafe_allow_html=True)
+    # Balance
+    bal = db.execute("SELECT SUM(monto) FROM finanzas").fetchone()[0] or 0.0
+    c2.markdown(f"<div class='metric-card'><h4>Balance Total</h4><h2 style='color:#3fb950'>RD$ {bal:,.2f}</h2></div>", unsafe_allow_html=True)
     
-    c1, c2 = st.columns(2)
-    with c1: st.markdown(f"<div class='balance-box'><h3>Balance Total</h3><h1 style='color:#2ecc71;'>RD$ {df_f['monto'].sum() if not df_f.empty else 0:,.2f}</h1></div>", unsafe_allow_html=True)
-    with c2: st.markdown(f"<div class='balance-box'><h3>Gastos del Mes</h3><h1 style='color:#e74c3c;'>RD$ {gastos_mes:,.2f}</h1></div>", unsafe_allow_html=True)
+    # Gastos Mes
+    gastos = db.execute("SELECT SUM(monto) FROM finanzas WHERE tipo='GASTO' AND mes=?", (mes_act,)).fetchone()[0] or 0.0
+    c3.markdown(f"<div class='metric-card'><h4>Gastos Mes</h4><h2 style='color:#f85149'>RD$ {abs(gastos):,.2f}</h2></div>", unsafe_allow_html=True)
+    
+    # Citas
+    prox_c = db.execute("SELECT doctor FROM citas WHERE fecha >= ?", (str(f_obj),)).fetchone()
+    c4.markdown(f"<div class='metric-card'><h4>Prox. Cita</h4><h2 style='color:#d2a8ff'>{prox_c[0] if prox_c else 'Ninguna'}</h2></div>", unsafe_allow_html=True)
 
-    with st.form("registro_fin"):
+    # Gráfica de Tendencia
+    st.markdown("### 📈 Tendencia de Salud (Últimos 15 días)")
+    df_chart = pd.read_sql_query("SELECT fecha, valor FROM glucosa ORDER BY id DESC LIMIT 15", db)
+    if not df_chart.empty:
+        fig = px.line(df_chart.iloc[::-1], x='fecha', y='valor', markers=True, template="plotly_dark", color_discrete_sequence=['#58a6ff'])
+        st.plotly_chart(fig, use_container_width=True)
+
+# --- VISTA: FINANZAS ---
+elif opcion == "💰 Finanzas":
+    st.title("Control de Finanzas")
+    
+    with st.form("form_fin"):
         col1, col2, col3 = st.columns([1,1,2])
-        tipo = col1.selectbox("Tipo", ["GASTO", "INGRESO"])
-        monto = col2.number_input("Monto RD$", min_value=0.0)
-        cat = col3.text_input("Categoría (Ej: Supermercado, Farmacia)").upper()
-        det = st.text_input("Detalle del movimiento").upper()
-        if st.form_submit_button("REGISTRAR MOVIMIENTO"):
-            m_final = -abs(monto) if tipo == "GASTO" else abs(monto)
-            db.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)", (f_str, mes_str, tipo, cat, det, m_final))
-            db.commit(); st.rerun()
+        t = col1.selectbox("Tipo", ["INGRESO", "GASTO"])
+        m = col2.number_input("Monto RD$", min_value=0.0)
+        cat = col3.selectbox("Categoría", ["Salud", "Alimentos", "Servicios", "Otros", "Inversión"])
+        det = st.text_input("Detalle (Ej: Compra Insulina)")
+        if st.form_submit_button("Registrar Movimiento"):
+            m_real = m if t == "INGRESO" else -m
+            db.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)", (f_hoy, mes_act, t, cat, det.upper(), m_real))
+            db.commit()
+            st.success("Registrado")
+            st.rerun()
 
-    if not df_f.empty:
-        st.dataframe(df_f[['fecha', 'tipo', 'categoria', 'detalle', 'monto']], use_container_width=True)
-        st.markdown('<div class="btn-borrar-rojo">', unsafe_allow_html=True)
-        if st.button("🗑️ Eliminar último registro"):
-            db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)"); db.commit(); st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+    df_f = pd.read_sql_query("SELECT * FROM finanzas ORDER BY id DESC", db)
+    st.dataframe(df_f[['fecha', 'tipo', 'categoria', 'detalle', 'monto']], use_container_width=True)
 
-# --- MÓDULO 3: SALUD ---
-elif menu == "🩺 SALUD Y GLUCOSA":
-    st.title("Seguimiento Médico")
-    df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db)
+# --- VISTA: SALUD ---
+elif opcion == "🩺 Salud":
+    st.title("Control Médico")
     
-    if not df_g.empty:
-        promedio = df_g['valor'].head(15).mean()
-        a1c = (46.7 + promedio) / 28.7
-        st.markdown(f'<div class="insight-card">🩺 <b>ESTADO DE SALUD:</b> Promedio: <b>{promedio:.1f} mg/dL</b> | Hemoglobina Glicosilada Est. (A1C): <b>{a1c:.1f}%</b></div>', unsafe_allow_html=True)
-
-    tab1, tab2, tab3 = st.tabs(["🩸 Glucosa", "💊 Medicamentos", "📅 Citas Médicas"])
+    tab1, tab2, tab3 = st.tabs(["🩸 Registro Glucosa", "💊 Medicamentos", "📅 Citas"])
     
     with tab1:
-        with st.form("reg_glucosa", clear_on_submit=True):
-            col_v, col_m = st.columns(2)
-            val = col_v.number_input("Valor de Glucosa (mg/dL)", min_value=1)
-            mom = col_m.selectbox("Momento", ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Post-Cena", "Antes de dormir"])
-            if st.form_submit_button("GUARDAR LECTURA"):
-                db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", (f_str, h_str, mom, val))
-                db.commit(); st.rerun()
+        c_i, c_d = st.columns([1,2])
+        with c_i:
+            with st.form("f_glu"):
+                v = st.number_input("Valor mg/dL", 80)
+                m = st.selectbox("Momento", ["Ayunas", "Post-Desayuno", "Post-Almuerzo", "Post-Cena"])
+                if st.form_submit_button("Guardar"):
+                    db.execute("INSERT INTO glucosa (fecha, hora, momento, valor) VALUES (?,?,?,?)", (f_hoy, h_ahora, m, v))
+                    db.commit()
+                    st.rerun()
         
-        if not df_g.empty:
-            st.plotly_chart(px.line(df_g.iloc[::-1], x='hora', y='valor', markers=True, title="Historial del Día", template="plotly_dark"), use_container_width=True)
-            def highlight(row): return [interpretar_salud(row['valor'], row['momento'])[2]] * len(row)
-            st.dataframe(df_g[['fecha', 'hora', 'momento', 'valor']].style.apply(highlight, axis=1), use_container_width=True)
+        with c_d:
+            df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db)
+            if not df_g.empty:
+                # Botón WhatsApp
+                ult = df_g.iloc[0]
+                msg = f"Reporte Nexus: Glucosa {ult['valor']} mg/dL en {ult['momento']} ({f_hoy})"
+                link_wa = f"https://wa.me/?text={urllib.parse.quote(msg)}"
+                st.markdown(f'<a href="{link_wa}" class="btn-whatsapp">📲 Enviar Último Resultado a WhatsApp</a>', unsafe_allow_html=True)
+                
+                # Botón PDF
+                pdf = PDF_Reporte()
+                pdf.add_page()
+                pdf.agregar_tabla_glucosa(df_g.head(20))
+                btn_pdf = pdf.output(dest='S').encode('latin-1')
+                st.download_button("📥 Descargar Reporte PDF", btn_pdf, "Reporte_Salud_Quevedo.pdf", "application/pdf")
 
     with tab2:
+        with st.form("f_med"):
+            col_n, col_d, col_h = st.columns(3)
+            nom = col_n.text_input("Medicina")
+            dos = col_d.text_input("Dosis")
+            hor = col_h.text_input("Horario")
+            if st.form_submit_button("Añadir"):
+                db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (nom, dos, hor))
+                db.commit(); st.rerun()
+        
         df_m = pd.read_sql_query("SELECT * FROM medicamentos", db)
-        for _, m in df_m.iterrows():
-            st.info(f"💊 **{m['nombre']}** | {m['dosis']} | {m['horario']}")
-        with st.form("reg_med"):
-            n_m = st.text_input("Medicina"); d_m = st.text_input("Dosis"); h_m = st.text_input("Horario")
-            if st.form_submit_button("Agregar"):
-                db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n_m, d_m, h_m))
-                db.commit(); st.rerun()
+        st.table(df_m)
 
-    with tab3:
-        df_c = pd.read_sql_query("SELECT * FROM citas", db)
-        if not df_c.empty: st.table(df_c[['doctor', 'fecha', 'motivo']])
-        with st.form("reg_cita"):
-            d_c = st.text_input("Doctor"); f_c = st.date_input("Fecha"); m_c = st.text_input("Motivo")
-            if st.form_submit_button("Agendar"):
-                db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (d_c, str(f_c), m_c))
-                db.commit(); st.rerun()
-
-# --- MÓDULO 4: BITÁCORA ---
-elif menu == "📝 BITÁCORA PERSONAL":
-    st.title("Notas y Bitácora")
-    path_notas = "nexus_notas.txt"
-    if st.button("🗑️ Borrar Historial de Notas"):
-        if os.path.exists(path_notas): os.remove(path_notas); st.rerun()
+# --- VISTA: AJUSTES ---
+elif opcion == "⚙️ Ajustes":
+    st.title("Configuración")
+    pres = db.execute("SELECT valor FROM config WHERE param='presupuesto'").fetchone()
+    val_pres = pres[0] if pres else 0.0
     
-    nota_nueva = st.text_area("Escribir nueva nota:", height=100)
-    if st.button("💾 Guardar Nota"):
-        if nota_nueva:
-            with open(path_notas, "a", encoding="utf-8") as f:
-                f.write(f"[{f_str} {h_str}]: {nota_nueva}\n\n")
-            st.success("Nota guardada"); st.rerun()
-    
-    if os.path.exists(path_notas):
-        with open(path_notas, "r", encoding="utf-8") as f:
-            st.text_area("Notas Guardadas:", f.read(), height=400)
-
-# --- MÓDULO 5: CONFIGURACIÓN ---
-elif menu == "⚙️ CONFIGURACIÓN":
-    st.title("Ajustes del Sistema")
-    nuevo_p = st.number_input("Presupuesto Mensual (RD$)", value=float(presupuesto_mensual))
-    if st.button("Actualizar Presupuesto"):
+    nuevo_p = st.number_input("Presupuesto Mensual Sugerido RD$", value=val_pres)
+    if st.button("Actualizar"):
         db.execute("INSERT OR REPLACE INTO config (param, valor) VALUES ('presupuesto', ?)", (nuevo_p,))
-        db.commit(); st.success("Presupuesto actualizado")
+        db.commit()
+        st.success("Configuración Guardada")
+
+# Cerrar conexión al final
+db.close()
