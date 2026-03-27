@@ -91,8 +91,7 @@ def obtener_tiempo_rd():
     return ahora.strftime("%d/%m/%Y"), ahora.strftime("%I:%M %p"), ahora.strftime("%m-%Y"), ahora.date()
 
 def iniciar_db():
-    # CAMBIO CRÍTICO: SE CONECTA A TU ARCHIVO ORIGINAL PARA VER TUS DATOS
-    conn = sqlite3.connect("control_quevedo.db", check_same_thread=False)
+    conn = sqlite3.connect("nexus_pro_v3.db", check_same_thread=False)
     c = conn.cursor()
     c.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, fecha TEXT, hora TEXT, momento TEXT, valor INTEGER)')
     c.execute('CREATE TABLE IF NOT EXISTS medicamentos (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT, horario TEXT)')
@@ -104,6 +103,7 @@ def iniciar_db():
 
 # --- 4. LÓGICA DE INTERPRETACIÓN (SEMAFORO) ---
 def interpretar_salud(valor, momento):
+    # Devuelve (COLOR_SLUG, TEXTO, ESTILO_CSS)
     if momento == "Ayunas":
         if 70 <= valor <= 100: return "VERDE", "NORMAL", "background-color: #1b5e20; color: white;"
         elif 101 <= valor <= 125: return "AMARILLO", "PRE-DIABETES", "background-color: #fbc02d; color: black;"
@@ -126,6 +126,7 @@ def generar_pdf_salud(df):
     pdf.cell(190, 10, f"PACIENTE: LUIS RAFAEL QUEVEDO", ln=True, align='L')
     pdf.ln(5)
     
+    # Encabezados
     pdf.set_fill_color(30, 41, 59); pdf.set_text_color(255, 255, 255)
     pdf.cell(35, 10, " FECHA", 1, 0, 'C', True)
     pdf.cell(30, 10, " HORA", 1, 0, 'C', True)
@@ -158,6 +159,7 @@ def generar_pdf_bitacora(contenido):
 db = iniciar_db()
 f_str, h_str, mes_str, f_obj = obtener_tiempo_rd()
 
+# Cargar presupuesto desde BD
 res_conf = db.execute("SELECT valor FROM config WHERE param='presupuesto'").fetchone()
 presupuesto_mensual = res_conf[0] if res_conf else 0.0
 
@@ -177,6 +179,7 @@ if menu == "💰 FINANZAS":
     disponible = df_f['monto'].sum() if not df_f.empty else 0.0
     gastos_mes = abs(df_f[(df_f['tipo'] == 'GASTO') & (df_f['mes'] == mes_str)]['monto'].sum()) if not df_f.empty else 0.0
     
+    # Barra de Presupuesto
     if presupuesto_mensual > 0:
         porcentaje = min(gastos_mes / presupuesto_mensual, 1.0)
         st.write(f"📊 **Presupuesto del Mes ({mes_str}):** RD$ {gastos_mes:,.2f} / RD$ {presupuesto_mensual:,.2f}")
@@ -190,7 +193,7 @@ if menu == "💰 FINANZAS":
         col1, col2, col3 = st.columns([1,1,2])
         t_mov = col1.selectbox("Tipo", ["GASTO", "INGRESO"])
         f_mov = col2.date_input("Fecha", value=f_obj)
-        cat = col3.text_input("Categoría").upper()
+        cat = col3.text_input("Categoría (Ej: Supermercado, Sueldo)").upper()
         det = st.text_input("Detalle del movimiento").upper()
         monto = st.number_input("Monto RD$", min_value=0.0, step=100.0)
         if st.form_submit_button("REGISTRAR MOVIMIENTO"):
@@ -225,6 +228,7 @@ elif menu == "🩺 SALUD":
             
             st.plotly_chart(px.line(df_g.iloc[::-1], x='hora', y='valor', markers=True, title="Evolución de Glucosa", template="plotly_dark"), use_container_width=True)
             
+            # Aplicar colores a la tabla de la App
             def color_tabla(row):
                 _, _, estilo = interpretar_salud(row['valor'], row['momento'])
                 return [estilo] * len(row)
@@ -252,8 +256,8 @@ elif menu == "🩺 SALUD":
         
         with st.form("form_meds", clear_on_submit=True):
             n_med = st.text_input("Nombre de Medicina").upper()
-            d_med = st.text_input("Dosis").upper()
-            h_med = st.text_input("Horario").upper()
+            d_med = st.text_input("Dosis (Ej: 1 tableta)").upper()
+            h_med = st.text_input("Horario (Ej: 8:00 AM)").upper()
             if st.form_submit_button("AÑADIR MEDICINA"):
                 db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", (n_med, d_med, h_med)); db.commit(); st.rerun()
 
@@ -269,7 +273,7 @@ elif menu == "🩺 SALUD":
         with st.form("form_citas", clear_on_submit=True):
             doc = st.text_input("Doctor").upper()
             fec_c = st.date_input("Fecha de Cita")
-            mot = st.text_input("Motivo").upper()
+            mot = st.text_input("Motivo/Especialidad").upper()
             if st.form_submit_button("AGENDAR CITA"):
                 db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", (doc, str(fec_c), mot)); db.commit(); st.rerun()
 
