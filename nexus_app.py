@@ -121,7 +121,7 @@ if opcion == "🏠 DASHBOARD":
     else:
         st.caption("No hay registros de tomas el día de hoy.")
 
- # --- 8. MÓDULO: FINANZAS (CON BORRADO INDIVIDUAL Y TOTAL) ---
+# --- 8. MÓDULO: FINANZAS (VERSIÓN RECUPERADA) ---
 elif opcion == "💰 FINANZAS":
     st.title("💰 Control de Finanzas - NEXUS PRO")
     st.markdown("---")
@@ -134,68 +134,48 @@ elif opcion == "💰 FINANZAS":
             mes_f = st.selectbox("MES:", ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"])
         with c2:
             cat_f = st.selectbox("CATEGORÍA:", ["SALUD", "ALIMENTOS", "SERVICIOS", "TRANSPORTE", "OTROS"])
-            monto_f = st.number_input("MONTO ($):", min_value=0.0, step=100.0)
+            monto_f = st.number_input("MONTO ($):", min_value=0.0)
         with c3:
-            det_f = st.text_input("DETALLE (Ej: Pago Luz):").upper()
+            det_f = st.text_input("DETALLE:").upper()
         
-        if st.form_submit_button("💾 REGISTRAR MOVIMIENTO"):
+        if st.form_submit_button("💾 REGISTRAR"):
             if monto_f > 0:
                 db.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)", 
                            (f_txt, mes_f, tipo_f, cat_f, det_f, monto_f))
                 db.commit()
-                st.success(f"✅ {tipo_f} registrado correctamente.")
+                st.success("✅ Registrado.")
                 st.rerun()
 
     st.markdown("---")
 
-    # --- CÁLCULOS Y RESUMEN ---
-    df_f = pd.read_sql_query("SELECT * FROM finanzas ORDER BY id DESC", db)
-    
-    if not df_f.empty:
-        ingresos = df_f[df_f['tipo'] == 'INGRESO']['monto'].sum()
-        gastos = df_f[df_f['tipo'] == 'GASTO']['monto'].sum()
-        balance = ingresos - gastos
+    # --- MOSTRAR DATOS ---
+    try:
+        df_f = pd.read_sql_query("SELECT * FROM finanzas ORDER BY id DESC", db)
+        
+        if not df_f.empty:
+            ingresos = df_f[df_f['tipo'] == 'INGRESO']['monto'].sum()
+            gastos = df_f[df_f['tipo'] == 'GASTO']['monto'].sum()
+            balance = ingresos - gastos
 
-        # Tarjetas de Resumen
-        c1, c2, c3 = st.columns(3)
-        c1.metric("TOTAL INGRESOS", f"${ingresos:,.2f}", delta_color="normal")
-        c2.metric("TOTAL GASTOS", f"${gastos:,.2f}", delta="-"+f"{gastos:,.2f}")
-        c3.metric("BALANCE NETO", f"${balance:,.2f}", delta=f"{balance:,.2f}")
+            # Tarjetas
+            col1, col2, col3 = st.columns(3)
+            col1.metric("INGRESOS", f"${ingresos:,.2f}")
+            col2.metric("GASTOS", f"${gastos:,.2f}")
+            col3.metric("BALANCE", f"${balance:,.2f}")
 
-        st.markdown("---")
-        st.subheader("📋 Historial de Movimientos")
-
-        # --- TABLA CON BOTÓN DE BORRAR CADA FILA ---
-        for i, row in df_f.iterrows():
-            col_icon, col_txt, col_mon, col_del = st.columns([0.5, 3, 2, 1])
-            with col_icon:
-                st.write("🟢" if row['tipo'] == "INGRESO" else "🔴")
-            with col_txt:
-                st.markdown(f"**{row['detalle']}**")
-                st.caption(f"{row['fecha']} | {row['categoria']} ({row['mes']})")
-            with col_mon:
-                color_monto = "#2e7d32" if row['tipo'] == "INGRESO" else "#d32f2f"
-                st.markdown(f"<h4 style='color:{color_monto}; margin:0; text-align:right;'>${row['monto']:,.2f}</h4>", unsafe_allow_html=True)
-            with col_del:
-                # Botón de borrado único para este gasto/ingreso
-                if st.button("🗑️", key=f"del_fin_{row['id']}"):
-                    db.execute("DELETE FROM finanzas WHERE id = ?", (row['id'],))
-                    db.commit()
-                    st.warning("Registro eliminado.")
-                    st.rerun()
-            st.markdown("<hr style='margin:5px; border:0.1px solid #30363d;'>", unsafe_allow_html=True)
-
-        # Botón de Limpieza Total (Con Seguro)
-        st.markdown("<br>", unsafe_allow_html=True)
-        with st.expander("🗑️ OPCIONES DE LIMPIEZA TOTAL"):
-            if st.checkbox("Confirmar que deseo borrar TODA la contabilidad"):
-                if st.button("🔥 BORRAR TODO EL HISTORIAL FINANCIERO"):
-                    db.execute("DELETE FROM finanzas")
-                    db.commit()
-                    st.error("Contabilidad vaciada correctamente.")
-                    st.rerun()
-    else:
-        st.info("No hay movimientos registrados este mes.")
+            st.markdown("---")
+            # Listado simple para evitar errores de diseño
+            for i, row in df_f.iterrows():
+                with st.expander(f"{row['tipo']} - {row['detalle']} (${row['monto']:,.2f})"):
+                    st.write(f"Fecha: {row['fecha']} | Categoría: {row['categoria']}")
+                    if st.button("🗑️ Borrar este registro", key=f"del_{row['id']}"):
+                        db.execute("DELETE FROM finanzas WHERE id = ?", (row['id'],))
+                        db.commit()
+                        st.rerun()
+        else:
+            st.info("No hay datos registrados.")
+    except Exception as e:
+        st.error(f"Error en la tabla de finanzas: {e}")
 
 # --- 9. MÓDULO MAESTRO: CONTROL DE GLUCOSA (SÚPER ACTUALIZADO) ---
 elif opcion == "🩺 SALUD & GLUCOSA":
