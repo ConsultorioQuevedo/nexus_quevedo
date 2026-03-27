@@ -45,7 +45,7 @@ db, cursor = conectar_db()
 
 
 # --- 3. DISEÑO Y ESTILO ---
-st.set_page_config(page_title="NEXUS QUEVEDO PRO", layout="wide")
+st.set_page_config(page_title="SISTEMA QUEVEDO", layout="wide")
 st.markdown("""
     <style>
     .main { background-color: #0d1117; color: #c9d1d9; }
