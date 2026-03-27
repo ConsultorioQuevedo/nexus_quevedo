@@ -257,40 +257,66 @@ elif opcion == "💊 BOTIQUÍN":
         st.table(df_meds)
     else:
         st.info("El botiquín está vacío.")
-
-# --- 11. MÓDULO: AGENDA DE CITAS ---
+# --- 11. MÓDULO: AGENDA DE CITAS (CON GESTIÓN DE BORRADO) ---
 elif opcion == "📅 AGENDA":
-    st.title("📅 Gestión de Citas Médicas")
+    st.title("📅 Gestión de Citas Médicas - NEXUS PRO")
     st.markdown("---")
     
+    # --- FORMULARIO PARA AGENDAR ---
     with st.form("f_cita_nueva", clear_on_submit=True):
+        st.subheader("🗓️ Agendar Nueva Consulta")
         col_a, col_b = st.columns(2)
         with col_a:
-            doc = st.text_input("Doctor o Especialidad").upper()
-            fec_c = st.date_input("Fecha de la Cita")
+            doc = st.text_input("DOCTOR O ESPECIALIDAD:").upper()
+            fec_c = st.date_input("FECHA DE LA CITA:", value=f_obj)
         with col_b:
-            mot = st.text_area("Motivo de la Consulta").upper()
+            mot = st.text_area("MOTIVO O ESTUDIOS PENDIENTES:").upper()
         
-        if st.form_submit_button("🗓️ AGENDAR CITA"):
-            # Usamos el cursor del objeto db para insertar directamente
-            c = db.cursor()
-            c.execute('CREATE TABLE IF NOT EXISTS citas (id INTEGER PRIMARY KEY, doctor TEXT, fecha TEXT, motivo TEXT)')
-            db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", 
-                       (doc, str(fec_c), mot))
-            db.commit()
-            st.success("✅ Cita agendada correctamente.")
-            st.rerun()
+        if st.form_submit_button("💾 GUARDAR CITA EN AGENDA"):
+            if doc and mot:
+                db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", 
+                           (doc, str(fec_c), mot))
+                db.commit()
+                st.success(f"✅ Cita con {doc} guardada para el {fec_c}")
+                st.rerun()
+            else:
+                st.error("⚠️ Por favor, complete el nombre del Doctor y el Motivo.")
 
     st.markdown("---")
-    st.subheader("📌 Próximas Citas")
-    try:
-        df_citas = pd.read_sql_query("SELECT doctor, fecha, motivo FROM citas ORDER BY fecha ASC", db)
-        if not df_citas.empty:
-            st.dataframe(df_citas, use_container_width=True)
-        else:
-            st.info("No tiene citas pendientes.")
-    except:
-        st.info("Módulo de citas listo para el primer registro.")
+    st.subheader("📌 Citas Programadas")
+
+    # --- LISTADO Y BORRADO DE CITAS ---
+    df_citas = pd.read_sql_query("SELECT * FROM citas ORDER BY fecha ASC", db)
+    
+    if not df_citas.empty:
+        # Mostramos las citas en un formato limpio
+        for i, row in df_citas.iterrows():
+            with st.container():
+                c1, c2, c3 = st.columns([2, 3, 1])
+                with c1:
+                    st.markdown(f"**📅 {row['fecha']}**")
+                    st.caption(f"Dr/Especialidad: {row['doctor']}")
+                with c2:
+                    st.write(f"📝 {row['motivo']}")
+                with c3:
+                    # Botón único para borrar esta cita específica
+                    if st.button("🗑️ Borrar", key=f"del_cita_{row['id']}"):
+                        db.execute("DELETE FROM citas WHERE id = ?", (row['id'],))
+                        db.commit()
+                        st.warning("Cita eliminada.")
+                        st.rerun()
+                st.markdown("---")
+        
+        # Botón para limpiar toda la agenda de un solo golpe
+        if st.checkbox("⚠️ Activar botón de limpieza total"):
+            if st.button("🔥 BORRAR TODA LA AGENDA"):
+                db.execute("DELETE FROM citas")
+                db.commit()
+                st.error("Agenda vaciada por completo.")
+                st.rerun()
+    else:
+        st.info("No tiene citas pendientes en su agenda.")
+
 
 # --- 12. MÓDULO: BITÁCORA PROFESIONAL (PDF + GESTIÓN) ---
 elif opcion == "📝 BITÁCORA":
