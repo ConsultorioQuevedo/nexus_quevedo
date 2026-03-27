@@ -222,6 +222,20 @@ if opcion == "🏠 INICIO":
             st.markdown(f"<div class='alerta-card' style='border-left-color: {color};'><strong>PRESUPUESTO</strong><br>{porc*100:.1f}% utilizado<br>Gasto: RD$ {g_mes:,.2f}</div>", unsafe_allow_html=True)
         else: st.warning("Configura tu presupuesto mensual en Ajustes.")
 
+# --- BITÁCORA DE MEDICAMENTOS (HISTORIAL) ---
+    st.markdown("---")
+    st.markdown("### 📋 Historial de Medicación (Últimas 5 tomas)")
+    
+    # Buscamos los datos en la tabla que creamos
+    historial_med = db.execute("SELECT fecha, medicamento, hora_confirmada FROM registro_medico ORDER BY id DESC LIMIT 5").fetchall()
+    
+    if historial_med:
+        import pandas as pd
+        df_med = pd.DataFrame(historial_med, columns=["Fecha", "Medicamento", "Hora de Toma"])
+        st.table(df_med)
+    else:
+        st.info("Aún no hay registros de toma hoy, Sr. Quevedo.")
+
 # --- 7. PANTALLA: FINANZAS ---
 elif opcion == "💰 FINANZAS":
     st.title("Gestión Financiera RD$")
