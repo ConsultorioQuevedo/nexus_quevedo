@@ -349,7 +349,30 @@ elif opcion == "📝 BITÁCORA":
             if os.path.exists(archivo_notas): os.remove(archivo_notas)
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
+# --- NUEVA SECCIÓN: MEDICAMENTOS (SUMANDO AL PROGRAMA) ---
+elif opcion == "💊 MEDICAMENTOS":
+    st.markdown("<h2 style='text-align: center; color: #c9d1d9;'>💊 Control de Medicación</h2>", unsafe_allow_html=True)
+    
+    # Usamos tus clases CSS de las fotos para mantener la estética
+    st.markdown('<div class="alerta-card">', unsafe_allow_html=True)
+    with st.form("registro_medicinas"):
+        col1, col2 = st.columns(2)
+        nombre_med = col1.text_input("Nombre del Medicamento")
+        hora_med = col2.time_input("Hora de la toma")
+        
+        if st.form_submit_button("PROGRAMAR RECORDATORIO"):
+            db.execute("INSERT INTO medicamentos (nombre, hora_programada) VALUES (?,?)", 
+                       (nombre_med, str(hora_med)))
+            db.commit()
+            st.success(f"Registrado: {nombre_med}")
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
+    # Tabla de visualización
+    st.write("---")
+    df_meds = pd.read_sql_query("SELECT nombre, hora_programada FROM medicamentos", db)
+    if not df_meds.empty:
+        st.dataframe(df_meds, use_container_width=True)
 # --- 12. PANTALLA: CONFIGURACIÓN ---
 elif opcion == "⚙️ CONFIG":
     st.title("Configuración de Usuario")
