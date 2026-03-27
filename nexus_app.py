@@ -121,7 +121,7 @@ if opcion == "🏠 DASHBOARD":
     else:
         st.caption("No hay registros de tomas el día de hoy.")
 # --- 8. MÓDULO: FINANZAS (VERSIÓN LIMPIA) ---
-elif opcion == "💰 FINANZAS":
+elif opcion == "💰 FINANZASRD$":
     st.title("💰 Control de Finanzas - NEXUS PRO")
     st.markdown("---")
 
