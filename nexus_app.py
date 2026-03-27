@@ -231,8 +231,28 @@ elif opcion == "💰 FINANZAS":
         st.markdown('<div class="btn-borrar-rojo">', unsafe_allow_html=True)
         if st.button("🗑️ ELIMINAR ÚLTIMO REGISTRO"):
             db.execute("DELETE FROM finanzas WHERE id = (SELECT MAX(id) FROM finanzas)"); db.commit(); st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True) 
+       # --- 11. PANTALLA: MEDICAMENTOS (NUEVA FUNCIÓN) ---
+elif opcion == "💊 Medicamentos":
+    st.markdown('<div class="main-header">💊 Gestión de Medicamentos</div>', unsafe_allow_html=True)
+    
+    with st.form("form_medicina"):
+        col1, col2 = st.columns(2)
+        nombre_med = col1.text_input("Nombre del Medicamento")
+        hora_med = col2.time_input("Hora de la toma")
+        
+        if st.form_submit_button("PROGRAMAR RECORDATORIO"):
+            db.execute("INSERT INTO medicamentos (nombre, hora) VALUES (?, ?)", (nombre_med, str(hora_med)))
+            db.commit()
+            st.success(f"Registrado: {nombre_med}")
+            st.rerun()
 
+    st.markdown("### Mis Medicamentos")
+    df_meds = pd.read_sql_query("SELECT nombre, hora FROM medicamentos", db)
+    if not df_meds.empty:
+        st.dataframe(df_meds, use_container_width=True)
+    else:
+        st.info("No hay medicamentos programados aún.") 
 # --- 8. PANTALLA: SALUD ---
 elif opcion == "🩺 SALUD":
     st.title("Control de Glucosa")
