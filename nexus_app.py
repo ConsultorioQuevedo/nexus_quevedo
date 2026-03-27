@@ -231,32 +231,61 @@ elif opcion == "🩺 SALUD & GLUCOSA":
     else:
         st.info("No hay registros de salud todavía.")
 
-# --- 10. MÓDULO: BOTIQUÍN (CATÁLOGO DE MEDICAMENTOS) ---
+# --- 10. MÓDULO: BOTIQUÍN (GESTIÓN DE MEDICAMENTOS) ---
 elif opcion == "💊 BOTIQUÍN":
-    st.title("💊 Catálogo de Medicamentos Personal")
+    st.title("💊 Inventario de Medicamentos - NEXUS PRO")
     st.markdown("---")
     
+    # --- FORMULARIO PARA REGISTRAR ---
     with st.form("f_nuevo_med", clear_on_submit=True):
-        st.subheader("➕ Añadir Nueva Medicina")
+        st.subheader("➕ Añadir Nueva Medicina al Catálogo")
         c1, c2, c3 = st.columns(3)
-        with c1: n_med = st.text_input("Nombre de Medicina").upper()
-        with c2: d_med = st.text_input("Dosis (Ej: 500mg)").upper()
-        with c3: h_med = st.text_input("Frecuencia (Ej: Cada 8h)").upper()
+        with c1: n_med = st.text_input("NOMBRE:").upper()
+        with c2: d_med = st.text_input("DOSIS (Ej: 50mg):").upper()
+        with c3: h_med = st.text_input("FRECUENCIA (Ej: Cada 12h):").upper()
         
         if st.form_submit_button("💾 REGISTRAR EN BOTIQUÍN"):
-            db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", 
-                       (n_med, d_med, h_med))
-            db.commit()
-            st.success(f"✅ {n_med} añadida al catálogo.")
-            st.rerun()
+            if n_med:
+                db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", 
+                           (n_med, d_med, h_med))
+                db.commit()
+                st.success(f"✅ {n_med} añadida correctamente.")
+                st.rerun()
+            else:
+                st.warning("⚠️ Escriba el nombre de la medicina.")
 
     st.markdown("---")
-    st.subheader("📋 Medicinas Registradas")
-    df_meds = pd.read_sql_query("SELECT nombre, dosis, horario FROM medicamentos", db)
+    st.subheader("📋 Medicinas en Inventario")
+
+    # --- LISTADO CON BOTÓN DE BORRAR ---
+    df_meds = pd.read_sql_query("SELECT * FROM medicamentos ORDER BY nombre ASC", db)
+    
     if not df_meds.empty:
-        st.table(df_meds)
+        # Mostramos cada medicina con su propio botón de eliminar
+        for i, row in df_meds.iterrows():
+            with st.container():
+                col_info, col_del = st.columns([4, 1])
+                with col_info:
+                    st.markdown(f"**💊 {row['nombre']}** | {row['dosis']} | {row['horario']}")
+                with col_del:
+                    # Botón individual para borrar esta medicina específica
+                    if st.button("🗑️ Quitar", key=f"del_med_{row['id']}"):
+                        db.execute("DELETE FROM medicamentos WHERE id = ?", (row['id'],))
+                        db.commit()
+                        st.warning(f"Se eliminó {row['nombre']}.")
+                        st.rerun()
+                st.markdown("<hr style='margin:5px; border:0.5px solid #30363d;'>", unsafe_allow_html=True)
+        
+        # Opción de Limpieza Masiva
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.checkbox("⚠️ Habilitar vaciado total del botiquín"):
+            if st.button("🔥 BORRAR TODAS LAS MEDICINAS"):
+                db.execute("DELETE FROM medicamentos")
+                db.commit()
+                st.error("Botiquín vaciado por completo.")
+                st.rerun()
     else:
-        st.info("El botiquín está vacío.")
+        st.info("El botiquín está vacío. Registre sus medicinas arriba.")
 # --- 11. MÓDULO: AGENDA DE CITAS (CON GESTIÓN DE BORRADO) ---
 elif opcion == "📅 AGENDA":
     st.title("📅 Gestión de Citas Médicas - NEXUS PRO")
