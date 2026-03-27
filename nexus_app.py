@@ -173,9 +173,9 @@ elif opcion == "💰 FINANZAS":
                         db.execute("DELETE FROM finanzas WHERE id = ?", (row['id'],))
                         db.commit()
                         st.rerun()
-            st.markdown("---")
-    else:
-        st.info("No hay registros financieros todavía.")
+                        st.markdown("---")
+                    else:
+                         st.info("No hay registros financieros todavía.")
 # --- 9. MÓDULO MAESTRO: CONTROL DE GLUCOSA (SÚPER ACTUALIZADO) ---
 elif opcion == "🩺 SALUD & GLUCOSA":
     st.title("🩺 Panel de Control de Glucosa - NEXUS PRO")
