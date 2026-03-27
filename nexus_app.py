@@ -273,7 +273,12 @@ elif opcion == "🩺 SALUD":
 elif opcion == "💊 MEDICINAS":
     st.title("Control de Medicamentos")
     df_m = pd.read_sql_query("SELECT * FROM medicamentos", db)
-    
+   # INTELIGENCIA SUMADA: Recordatorio Visual
+    hora_actual_h = int(datetime.now(pytz.timezone('America/Santo_Domingo')).strftime("%H"))
+    if 6 <= hora_actual_h <= 9:
+        st.warning("☀️ Recordatorio: Revise sus medicamentos del bloque de la MAÑANA.")
+    elif 18 <= hora_actual_h <= 21:
+        st.info("🌙 Recordatorio: Revise sus medicamentos del bloque de la NOCHE.") 
     for _, r in df_m.iterrows():
         col_m1, col_m2 = st.columns([6,1])
         col_m1.info(f"💊 **{r['nombre']}** | {r['dosis']} | Horario: {r['horario']}")
