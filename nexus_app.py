@@ -457,15 +457,25 @@ elif opcion == "💊 BOTIQUÍN":
         with c2: d_med = st.text_input("DOSIS (Ej: 50mg):").upper()
         with c3: h_med = st.text_input("FRECUENCIA (Ej: Cada 12h):").upper()
         
-        if st.form_submit_button("💾 REGISTRAR EN BOTIQUÍN"):
+       if st.form_submit_button("💾 REGISTRAR EN BOTIQUÍN"):
             if n_med:
-                conn.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", 
-                           (n_med, d_med, h_med))
-                conn.commit()
-                st.success(f"✅ {n_med} añadida correctamente.")
-                st.rerun()
+                try:
+                    # Conexión rápida y segura para evitar el error
+                    conn_med = sqlite3.connect("control_quevedo.db")
+                    cursor_med = conn_med.cursor()
+                    
+                    cursor_med.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", 
+                                     (n_med, d_med, h_med))
+                    
+                    conn_med.commit()
+                    conn_med.close() # Cerramos de inmediato
+                    
+                    st.success(f"✅ {n_med} añadida correctamente al sistema.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al guardar: {e}")
             else:
-                st.warning("⚠️ Escriba el nombre de la medicina.")
+                st.warning("⚠️ Escriba el nombre de la medicina.") 
 
     st.markdown("---")
     st.subheader("📋 Medicinas en Inventario")
