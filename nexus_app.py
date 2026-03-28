@@ -468,27 +468,36 @@ elif opcion == "💊 BOTIQUÍN":
     st.title("💊 Inventario de Medicamentos - NEXUS PRO")
     st.markdown("---")
     
+    # --- ASEGURAR QUE LA TABLA EXISTA (PREVENCIÓN DE ERRORES) ---
+    conn_init = sqlite3.connect("control_quevedo.db")
+    conn_init.execute("""
+        CREATE TABLE IF NOT EXISTS medicamentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            nombre TEXT, 
+            dosis TEXT, 
+            horario TEXT
+        )
+    """)
+    conn_init.commit()
+    conn_init.close()
+    
     # --- FORMULARIO PARA REGISTRAR ---
     with st.form("f_nuevo_med", clear_on_submit=True):
         st.subheader("➕ Añadir Nueva Medicina al Catálogo")
         c1, c2, c3 = st.columns(3)
         with c1: n_med = st.text_input("NOMBRE:").upper()
         with c2: d_med = st.text_input("DOSIS (Ej: 50mg):").upper()
-        with c3: h_med = st.text_input("FRECUENCIA (Ej: Cada 12h):").upper()
+        with c3: h_med = st.text_input("HORA/FRECUENCIA (Ej: 08:00 AM):").upper()
         
         if st.form_submit_button("💾 REGISTRAR EN BOTIQUÍN"):
             if n_med:
                 try:
-                    # Conexión rápida y segura para evitar el error
                     conn_med = sqlite3.connect("control_quevedo.db")
                     cursor_med = conn_med.cursor()
-                    
                     cursor_med.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", 
                                      (n_med, d_med, h_med))
-                    
                     conn_med.commit()
-                    conn_med.close() # Cerramos de inmediato
-                    
+                    conn_med.close()
                     st.success(f"✅ {n_med} añadida correctamente al sistema.")
                     st.rerun()
                 except Exception as e:
@@ -501,9 +510,14 @@ elif opcion == "💊 BOTIQUÍN":
 
     # --- LISTADO CON BOTÓN DE BORRAR ---
     conn = sqlite3.connect("control_quevedo.db")
+    # Verificamos si hay datos
     df_meds = pd.read_sql_query("SELECT * FROM medicamentos ORDER BY nombre ASC", conn)
     
     if not df_meds.empty:
+        # Mostramos una tabla resumen primero para vista rápida
+        st.dataframe(df_meds[['nombre', 'dosis', 'horario']], use_container_width=True)
+        
+        st.markdown("#### ⚙️ Gestionar Medicinas")
         # Mostramos cada medicina con su propio botón de eliminar
         for i, row in df_meds.iterrows():
             with st.container():
@@ -511,7 +525,6 @@ elif opcion == "💊 BOTIQUÍN":
                 with col_info:
                     st.markdown(f"**💊 {row['nombre']}** | {row['dosis']} | {row['horario']}")
                 with col_del:
-                    # Botón individual para borrar esta medicina específica
                     if st.button("🗑️ Quitar", key=f"del_med_{row['id']}"):
                         conn.execute("DELETE FROM medicamentos WHERE id = ?", (row['id'],))
                         conn.commit()
@@ -521,14 +534,19 @@ elif opcion == "💊 BOTIQUÍN":
         
         # Opción de Limpieza Masiva
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.checkbox("⚠️ Habilitar vaciado total del botiquín"):
-            if st.button("🔥 BORRAR TODAS LAS MEDICINAS"):
-                conn.execute("DELETE FROM medicamentos")
-                conn.commit()
-                st.error("Botiquín vaciado por completo.")
-                st.rerun()
+        with st.expander("🚨 Zona de Peligro"):
+            if st.checkbox("Confirmar vaciado total"):
+                if st.button("🔥 BORRAR TODO EL BOTIQUÍN"):
+                    conn.execute("DELETE FROM medicamentos")
+                    conn.commit()
+                    st.error("Botiquín vaciado por completo.")
+                    st.rerun()
     else:
         st.info("El botiquín está vacío. Registre sus medicinas arriba.")
+    conn.close()
+
+# --- 11. MÓDULO: AGENDA DE CITAS ---
+# ... (sigue igual)
 # --- 11. MÓDULO: AGENDA DE CITAS (CORREGIDO) ---
 elif opcion == "🗓️ AGENDA":
     st.title("📅 Gestión de Citas Médicas - SISTEMA QUEVEDO")
