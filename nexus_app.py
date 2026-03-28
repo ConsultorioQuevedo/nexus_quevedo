@@ -26,7 +26,37 @@ def conectar_conn():
     # 2. Tabla de Glucosa
     c.execute('''CREATE TABLE IF NOT EXISTS glucosa 
                (id INTEGER PRIMARY KEY, fecha TEXT, hora TEXT, momento TEXT, valor INTEGER, nota TEXT)''')
+    # --- LÓGICA DE PREDICCIÓN (SOLO PARA SUS OJOS) ---
+st.markdown("---")
+st.subheader("🧐 Análisis de Tendencias - Sistema Quevedo")
+
+try:
+    # 1. Obtenemos los últimos 7 registros para comparar
+    df_tendencia = pd.read_sql_query("SELECT valor FROM glucosa ORDER BY id DESC LIMIT 7", conn)
     
+    if len(df_tendencia) > 1:
+        promedio_actual = df_tendencia['valor'].mean()
+        ultimo_valor = df_tendencia['valor'].iloc[0]
+        
+        # Comparación lógica
+        diferencia = ultimo_valor - promedio_actual
+        
+        col_pred1, col_pred2 = st.columns(2)
+        
+        with col_pred1:
+            if diferencia > 10:
+                st.warning(f"⚠️ **Tendencia al Alza:** Su última medición ({ultimo_valor}) está {diferencia:.1f} mg/dL por encima de su promedio semanal.")
+            elif diferencia < -10:
+                st.info(f"📉 **Tendencia a la Baja:** Su nivel actual está bajando respecto al promedio. ¡Buen control!")
+            else:
+                st.success("⚖️ **Estabilidad:** Sus niveles se mantienen constantes esta semana.")
+                
+        with col_pred2:
+            st.metric(label="Promedio Semanal", value=f"{promedio_actual:.1f}", delta=f"{diferencia:.1f}", delta_color="inverse")
+    else:
+        st.info("💡 Necesito al menos 2 registros para empezar a predecir tendencias.")
+except Exception as e:
+    pass # Si hay error, el programa sigue funcionando como si nada
     # 3. TABLA MAESTRA DE REGISTRO MÉDICO (La que apaga las alertas)
     # Esta tabla anotará: QUÉ medicina, QUÉ día y a QUÉ hora se la tomó.
     c.execute('''CREATE TABLE IF NOT EXISTS registro_medico 
