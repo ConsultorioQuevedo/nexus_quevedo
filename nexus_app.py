@@ -261,7 +261,7 @@ elif opcion == "🩺 SALUD & GLUCOSA":
     st.markdown("---")
 
     # Cargar datos históricos
-    df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", db)
+    df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", conn)
     
     if not df_g.empty:
         # --- 2. GRÁFICO DE TENDENCIA PROFESIONAL ---
