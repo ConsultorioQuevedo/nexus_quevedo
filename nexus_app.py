@@ -93,3 +93,98 @@ def mostrar_analisis_glucosa():
 
 # Para probar que funciona, llamamos la función
 mostrar_analisis_glucosa()
+# ==========================================
+# 5. SEGURIDAD DE ACCESO (SU CLAVE 1628)
+# ==========================================
+if "password_correct" not in st.session_state:
+    st.markdown("<h1 style='text-align: center; color: #58a6ff;'>🌐 SISTEMA QUEVEDO PRO</h1>", unsafe_allow_html=True)
+    with st.container():
+        _, col_login, _ = st.columns([1, 1, 1])
+        with col_login:
+            with st.form("login"):
+                pwd = st.text_input("Ingrese su Clave de Seguridad:", type="password")
+                if st.form_submit_button("🔓 DESBLOQUEAR ACCESO"):
+                    if pwd == "1628":
+                        st.session_state["password_correct"] = True
+                        st.rerun()
+                    else: 
+                        st.error("⚠️ Clave incorrecta. Intente de nuevo.")
+    st.stop()
+
+# ==========================================
+# 6. MENÚ DE NAVEGACIÓN (BARRA LATERAL)
+# ==========================================
+with st.sidebar:
+    st.markdown(f"<h2 style='color:#58a6ff; text-align:center;'>📊 SISTEMA QUEVEDO</h2>", unsafe_allow_html=True)
+    st.info(f"📅 {tiempo['fecha']}\n\n⏰ {tiempo['hora']}")
+    st.markdown("---")
+    
+    opcion = st.radio("SECCIONES:", [
+        "🏠 DASHBOARD",
+        "💰 FINANZAS",
+        "🩺 SALUD & GLUCOSA",
+        "💊 BOTIQUÍN",
+        "🗓️ AGENDA",
+        "📝 BITÁCORA"
+    ])
+    
+    st.markdown("---")
+    if st.button("🔴 CERRAR SESIÓN"):
+        del st.session_state["password_correct"]
+        st.rerun()
+
+# ==========================================
+# 7. LÓGICA DEL DASHBOARD (ALERTAS INTELIGENTES)
+# ==========================================
+if opcion == "🏠 DASHBOARD":
+    st.title(f"🛡️ Panel de Control - Sr. Quevedo")
+    
+    # Usamos la función de análisis que definimos en el Bloque 1
+    mostrar_analisis_glucosa()
+    
+    st.markdown("---")
+    st.subheader("🔔 Recordatorios de Salud (Basado en su Botiquín)")
+
+    # 1. Leer medicamentos y tomas del día
+    try:
+        df_plan = pd.read_sql_query("SELECT nombre, dosis, horario FROM medicamentos", conn)
+        tomas_hoy = pd.read_sql_query(f"SELECT medicamento FROM registro_medico WHERE fecha = '{tiempo['fecha']}'", conn)
+        lista_cumplidos = tomas_hoy['medicamento'].values
+        
+        alertas_visibles = 0
+
+        if not df_plan.empty:
+            for index, item in df_plan.iterrows():
+                med_nombre = item['nombre']
+                ya_confirmado = med_nombre in lista_cumplidos
+
+                if not ya_confirmado:
+                    alertas_visibles += 1
+                    with st.container():
+                        # Diseño de tarjeta para cada alerta
+                        col_msg, col_btn = st.columns([3, 1])
+                        with col_msg:
+                            st.warning(f"💊 **PENDIENTE:** {med_nombre} - Dosis: {item['dosis']} ({item['horario']})")
+                        with col_btn:
+                            if st.button(f"✅ REGISTRAR TOMA", key=f"btn_{med_nombre}_{index}"):
+                                conn.execute("INSERT INTO registro_medico (fecha, medicamento, hora_confirmada) VALUES (?,?,?)", 
+                                           (tiempo['fecha'], med_nombre, tiempo['hora']))
+                                conn.commit()
+                                st.success(f"¡Registrado!")
+                                st.rerun()
+            
+            if alertas_visibles == 0:
+                st.success("✅ ¡Excelente, Sr. Quevedo! Ha cumplido con todas sus medicinas por hoy.")
+        else:
+            st.info("💡 Su botiquín está vacío. Vaya a la sección 💊 BOTIQUÍN para agregar sus medicinas.")
+
+        # 3. Resumen visual de lo tomado
+        with st.expander("📋 Ver registro de lo tomado hoy", expanded=False):
+            if not tomas_hoy.empty:
+                st.table(tomas_hoy)
+            else:
+                st.caption("No hay registros de toma todavía.")
+
+    except Exception as e:
+        st.error(f"Error al cargar alertas: {e}")
+        
