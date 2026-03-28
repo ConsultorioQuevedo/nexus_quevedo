@@ -124,15 +124,15 @@ if opcion == "🏠 DASHBOARD":
             
             with col_msg:
                 st.warning(f"💊 **ATENCIÓN:** Es hora de su **{item['med']}** ({item['hora']})")
-            
+           
             with col_btn:
-                # AQUÍ ESTÁ EL BOTÓN QUE USTED QUERÍA
-                if st.button(f"✅ YA ME LA TOMÉ", key=f"btn_{item['med']}"):
-                    db.execute("INSERT INTO registro_medico (fecha, medicamento, hora_confirmada) VALUES (?,?,?)", 
+            # AQUÍ ESTÁ EL BOTÓN QUE USTED QUERÍA
+            if st.button(f"✅ YA ME LA TOMÉ", key=f"btn_{item['med']}"):
+                **conn**.execute("INSERT INTO registro_medico (fecha, medicamento, hora_confirmada) VALUES (?,?,?)", 
                                (f_txt, item['med'], h_txt))
-                    db.commit()
-                    st.success(f"¡Registrado!")
-                    st.rerun() # Esto hace que la alerta desaparezca de inmediato
+                **conn**.commit()
+                st.success(f"¡Registrado!")
+                st.rerun()
 
     if alertas_visibles == 0:
         st.success("✅ No tiene medicamentos pendientes por confirmar en este momento.")
