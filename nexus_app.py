@@ -181,7 +181,7 @@ elif opcion == "💰 FINANZAS":
 
     # Mostrar Historial y Borrado
     try:
-        df_f = pd.read_sql_query("SELECT * FROM finanzas ORDER BY id DESC", db)
+        df_f = pd.read_sql_query("SELECT * FROM finanzas ORDER BY id DESC", conn)
         if not df_f.empty:
             ing = df_f[df_f['tipo'] == 'INGRESO']['monto'].sum()
             gas = df_f[df_f['tipo'] == 'GASTO']['monto'].sum()
