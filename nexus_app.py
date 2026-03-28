@@ -300,7 +300,7 @@ elif opcion == "🩺 SALUD & GLUCOSA":
         st.subheader("🛠️ Herramientas y Reportes")
         col_pdf, col_wa, col_del = st.columns(3)
 # A. GENERADOR DE PDF PROFESIONAL (DATOS REALES - LUIS RAFAEL QUEVEDO)
-     with col_pdf:
+        with col_pdf:
             if st.button("📄 GENERAR REPORTE PDF"):
                 try:
                     # 1. FORZAMOS A SQLITE A SOLTAR CUALQUIER COSA VIEJA
