@@ -86,7 +86,7 @@ opcion = st.radio("SECCIONES:", [
     "📝 BITÁCORA"
 ])
 st.markdown("---") 
-    if st.button("🔴 CERRAR SESIÓN"):
+if st.button("🔴 CERRAR SESIÓN"):
         del st.session_state["password_correct"]
         st.rerun()
 # --- 7. LÓGICA DE ALERTAS INTELIGENTES (SISTEMA QUEVEDO) ---
