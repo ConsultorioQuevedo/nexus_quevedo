@@ -457,7 +457,7 @@ elif opcion == "💊 BOTIQUÍN":
         with c2: d_med = st.text_input("DOSIS (Ej: 50mg):").upper()
         with c3: h_med = st.text_input("FRECUENCIA (Ej: Cada 12h):").upper()
         
-       if st.form_submit_button("💾 REGISTRAR EN BOTIQUÍN"):
+        if st.form_submit_button("💾 REGISTRAR EN BOTIQUÍN"):
             if n_med:
                 try:
                     # Conexión rápida y segura para evitar el error
