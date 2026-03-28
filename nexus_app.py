@@ -86,49 +86,66 @@ with st.sidebar:
     if st.button("🔴 CERRAR SESIÓN"):
         del st.session_state["password_correct"]
         st.rerun()
-
-# --- 7. LÓGICA DE ALERTAS INTELIGENTES (INICIO) ---
+# --- 7. LÓGICA DE ALERTAS INTELIGENTES (SISTEMA QUEVEDO) ---
 if opcion == "🏠 DASHBOARD":
-    st.title("🛡️ Panel de Control - SISTEMA QUEVEDO")
+    st.title(f"🛡️ Panel de Control - SISTEMA QUEVEDO")
     st.markdown("---")
     
-    # Planificación horaria de sus medicamentos
+    # 1. Lista de sus medicamentos con sus horarios
     plan_medico = [
-        {"med": "Jarinu Max", "hora": "07:00 AM", "rango": [6, 9]},
-        {"med": "Aspirin / Pregabalina", "hora": "08:00 AM", "rango": [7, 10]},
-        {"med": "Pregabalina (Tarde)", "hora": "06:00 PM", "rango": [17, 20]},
-        {"med": "Insulina", "hora": "08:00 PM", "rango": [19, 22]},
+        {"med": "Jarinu Max", "hora": "07:00 AM", "rango": [6, 10]},
+        {"med": "Aspirin / Pregabalina", "hora": "08:00 AM", "rango": [7, 11]},
+        {"med": "Pregabalina (Tarde)", "hora": "06:00 PM", "rango": [17, 21]},
+        {"med": "Insulina", "hora": "08:00 PM", "rango": [19, 23]},
         {"med": "Triglicer / Libal", "hora": "09:00 PM", "rango": [20, 23]}
     ]
 
-    st.subheader("🔔 Alertas de Salud (Tiempo Real)")
+    st.subheader("🔔 Recordatorios de Salud (Tiempo Real)")
+    
+    # 2. Consultamos la base de datos para ver qué se ha tomado HOY
+    tomas_hoy = pd.read_sql_query(f"SELECT medicamento FROM registro_medico WHERE fecha = '{f_txt}'", db)
+    lista_cumplidos = tomas_hoy['medicamento'].values
+
     hora_actual_24 = ahora_obj.hour
-    alertas_vivas = 0
+    alertas_visibles = 0
 
     for item in plan_medico:
-        # Si la hora actual está dentro del rango permitido para la medicina
-        if item["rango"][0] <= hora_actual_24 <= item["rango"][1]:
-            alertas_vivas += 1
-            st.warning(f"💊 **ATENCIÓN:** Es hora de su **{item['med']}** ({item['hora']})")
+        # ¿Estamos en el horario?
+        en_horario = item["rango"][0] <= hora_actual_24 <= item["rango"][1]
+        # ¿Ya se la tomó?
+        ya_confirmado = item["med"] in lista_confirmados if 'lista_confirmados' in locals() else item["med"] in lista_cumplidos
+
+        if en_horario and not ya_confirmado:
+            alertas_visibles += 1
+            col_msg, col_btn = st.columns([3, 1])
             
-            if st.button(f"CONFIRMAR TOMA: {item['med']}", key=f"btn_{item['med']}"):
-                db.execute("INSERT INTO registro_medico (fecha, medicamento, hora_confirmada) VALUES (?,?,?)", 
-                           (f_txt, item['med'], h_txt))
-                db.commit()
-                st.success(f"✅ Toma de {item['med']} registrada a las {h_txt}")
-                st.rerun()
+            with col_msg:
+                st.warning(f"💊 **ATENCIÓN:** Es hora de su **{item['med']}** ({item['hora']})")
+            
+            with col_btn:
+                # AQUÍ ESTÁ EL BOTÓN QUE USTED QUERÍA
+                if st.button(f"✅ YA ME LA TOMÉ", key=f"btn_{item['med']}"):
+                    db.execute("INSERT INTO registro_medico (fecha, medicamento, hora_confirmada) VALUES (?,?,?)", 
+                               (f_txt, item['med'], h_txt))
+                    db.commit()
+                    st.success(f"¡Registrado!")
+                    st.rerun() # Esto hace que la alerta desaparezca de inmediato
 
-    if alertas_vivas == 0:
-        st.success("✅ No tiene medicamentos pendientes en este momento.")
+    if alertas_visibles == 0:
+        st.success("✅ No tiene medicamentos pendientes por confirmar en este momento.")
 
-    # Mostrar últimos registros de tomas para tranquilidad
+    # 3. Mostrar resumen de lo que ya se tomó para su tranquilidad
     st.markdown("---")
-    st.markdown("#### 📋 Últimas Tomas Registradas")
-    df_tomas = pd.read_sql_query("SELECT medicamento, hora_confirmada FROM registro_medico ORDER BY id DESC LIMIT 5", db)
-    if not df_tomas.empty:
-        st.table(df_tomas)
+    st.markdown("#### 📋 Registro de Cumplimiento (Hoy)")
+    if not tomas_hoy.empty:
+        st.dataframe(tomas_hoy, use_container_width=True)
     else:
-        st.caption("No hay registros de tomas el día de hoy.")
+        st.caption("Aún no ha registrado tomas el día de hoy.")
+
+
+ 
+ 
+  
 # --- 8. MÓDULO: FINANZAS (VERSIÓN LIMPIA) ---
 elif opcion == "💰 FINANZAS":
     st.title("💰 Control de Finanzas - NEXUS PRO")
