@@ -108,7 +108,6 @@ if opcion == "🏠 DASHBOARD":
     conn = sqlite3.connect("control_quevedo.db")
     tomas_hoy = pd.read_sql_query(f"SELECT medicamento FROM registro_medico WHERE fecha = '{f_txt}'", conn)
     lista_cumplidos = tomas_hoy['medicamento'].values
-
     hora_actual_24 = ahora_obj.hour
     alertas_visibles = 0
 
