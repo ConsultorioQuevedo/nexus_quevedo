@@ -218,18 +218,30 @@ elif opcion == "🩺 SALUD & GLUCOSA":
     st.title("🩺 Panel de Control de Glucosa - NEXUS PRO")
     st.markdown("---")
 
-    # --- LÓGICA DE COLORES Y SEMÁFOROS (NEXUS INTELLIGENCE) ---
+    # --- LÓGICA DE COLORES Y SEMÁFOROS (CORREGIDA CON RANGOS MÉDICOS) ---
     def analizar_glucosa_full(v, m):
-        """Devuelve Estado, Color y Mensaje de alerta"""
-        if "Ayunas" in m or "Antes" in m:
-            if 70 <= v <= 100: return "🟢 NORMAL", "#1b5e20", "¡Excelente control!"
-            elif 101 <= v <= 125: return "🟡 PRE-DIABETES", "#fbc02d", "Cuidado con la dieta."
-            else: return "🔴 ALTO (REVISAR)", "#b71c1c", "Consulte a su médico."
-        else: # Después de comer (Post-Prandial)
-            if v < 140: return "🟢 NORMAL", "#1b5e20", "Buen manejo post-comida."
-            elif 140 <= v <= 199: return "🟡 ELEVADO", "#fbc02d", "Monitoree la siguiente toma."
-            else: return "🔴 CRÍTICO", "#b71c1c", "Alerta: Valor muy alto."
+        """Devuelve Estado, Color y Mensaje de alerta (Rangos médicos reales)"""
+        # A. ALERTA CRÍTICA: VALOR EXTREMADAMENTE BAJO (HIPOGLUCEMIA)
+        if v < 70:
+            return "🔴 CRÍTICO (BAJO)", "#b71c1c", "¡Alerta! Hipoglucemia. Tome azúcar rápido."
 
+        # B. RANGOS EN AYUNAS (Antes de comer)
+        elif "Ayunas" in m or "Antes" in m:
+            if 70 <= v <= 100:
+                return "🟢 NORMAL", "#1b5e20", "¡Excelente control en ayunas!"
+            elif 101 <= v <= 125:
+                return "🟡 PRE-DIABETES", "#fbc02d", "Cuidado con la dieta (Ayunas alta)."
+            else: # v > 125
+                return "🔴 ALTO", "#b71c1c", "Valor de Diabetes en Ayunas. Consulte al médico."
+
+        # C. RANGOS POST-PRANDIAL (Después de comer)
+        else:
+            if v < 140:
+                return "🟢 NORMAL", "#1b5e20", "Buen manejo post-comida."
+            elif 140 <= v <= 199:
+                return "🟡 ELEVADO", "#fbc02d", "Monitoree la siguiente toma (Post-comida alta)."
+            else: # v >= 200
+                return "🔴 CRÍTICO (ALTO)", "#b71c1c", "Alerta: Valor muy alto post-comida."
     # --- 1. FORMULARIO DE REGISTRO DETALLADO ---
     with st.form("f_glucosa_pro", clear_on_submit=True):
         st.subheader("📝 Registrar Nueva Medición Detallada")
