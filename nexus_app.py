@@ -281,76 +281,83 @@ elif opcion == "🩺 SALUD & GLUCOSA":
         st.subheader("🛠️ Herramientas y Reportes")
         col_pdf, col_wa, col_del = st.columns(3)
 
-    # A. GENERADOR DE PDF PROFESIONAL (CON ADVERTENCIAS Y FIRMA)
+   # A. GENERADOR DE PDF PROFESIONAL (CONEXIÓN FORZADA Y FIRMA QUEVEDO)
         with col_pdf:
             if st.button("📄 GENERAR REPORTE PDF"):
                 try:
-                    pdf = FPDF()
-                    pdf.add_page()
-                    # Encabezado SISTEMA QUEVEDO
-                    pdf.set_font("Arial", 'B', 16)
-                    pdf.set_text_color(33, 150, 243) 
-                    pdf.cell(200, 10, txt="SISTEMA QUEVEDO - REPORTE DE SALUD", ln=True, align='C')
-                    pdf.set_font("Arial", size=10)
-                    pdf.set_text_color(0)
-                    pdf.cell(200, 10, txt=f"Generado el: {f_txt} {h_txt}", ln=True, align='C')
-                    pdf.ln(10)
-
-                    # Títulos de Tabla
-                    pdf.set_font("Arial", 'B', 10)
-                    pdf.set_fill_color(200, 200, 200) # Gris claro para que se vea al imprimir
-                    pdf.cell(30, 8, "FECHA", 1, 0, 'C', True)
-                    pdf.cell(38, 8, "MOMENTO", 1, 0, 'C', True)
-                    pdf.cell(25, 8, "VALOR", 1, 0, 'C', True)
-                    # Aumentamos el tamaño de la columna de estado para que quepa la advertencia
-                    pdf.cell(42, 8, "ESTADO Y ADVERTENCIA", 1, 0, 'C', True)
-                    pdf.cell(55, 8, "NOTA", 1, 1, 'C', True)
-
-                    # Datos
-                    pdf.set_font("Arial", size=9)
-                    for i, r in df_g.iterrows():
-                        # Obtener análisis inteligente (quitando emojis para el PDF)
-                        est_raw, _, _ = analizar_glucosa_full(r['valor'], r['momento'])
-                        est_txt = est_raw.replace("🟢", "").replace("🟡", "").replace("🔴", "").strip()
-                        
-                        # Definimos color y advertencia solo para valores ALTO o CRÍTICO
-                        advertencia = ""
-                        if "ALTO" in est_txt or "CRÍTICO" in est_txt:
-                            # Ponemos el texto en rojo oscuro
-                            pdf.set_text_color(183, 28, 28) 
-                            # Agregamos la advertencia según el caso
-                            if "ALTO" in est_txt: advertencia = " (REVISAR DIETA)"
-                            if "CRÍTICO" in est_txt: advertencia = " (ALERTA MÉDICA)"
-                        else:
-                            # Volvemos al texto negro para valores normales
-                            pdf.set_text_color(0)
-
-                        pdf.cell(30, 8, str(r['fecha']), 1)
-                        pdf.cell(38, 8, str(r['momento']), 1)
-                        # El valor lo ponemos alineado a la derecha
-                        pdf.cell(25, 8, f"{r['valor']} mg/dL", 1, 0, 'R')
-                        
-                        # Estado con advertencia (si aplica)
-                        pdf.cell(42, 8, f"{est_txt}{advertencia}", 1)
-                        
-                        # Volvemos a color negro para la nota y la limpiamos
-                        pdf.set_text_color(0)
-                        nota_limpia = str(r['nota']).encode('ascii', 'ignore').decode('ascii')
-                        pdf.cell(55, 8, nota_limpia[:30], 1, 1)
-
-                    pdf.ln(15)
-                    # --- PIE DE PÁGINA (FIRMA QUEVEDO) ---
-                    pdf.set_font("Arial", 'I', 10)
-                    # Línea de separación para que se vea profesional
-                    pdf.cell(200, 10, txt="_____________________________________________", ln=True, align='C')
-                    # Su nombre en cursiva al pie de página
-                    pdf.cell(200, 7, txt="Propiedad de: LUIS RAFAEL QUEVEDO", ln=True, align='C')
+                    # FORZAMOS LA LECTURA DE LA BASE DE DATOS CORRECTA ANTES DE EMPEZAR
+                    conn_pdf = sqlite3.connect("control_quevedo.db")
+                    df_actualizado = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", conn_pdf)
                     
-                    # El truco maestro para que no explote
-                    pdf_out = pdf.output(dest='S').encode('latin-1', 'replace')
-                    st.download_button(label="📥 Descargar Reporte PDF", data=pdf_out, file_name=f"Glucosa_Quevedo_{f_txt.replace('/','-')}.pdf", mime="application/pdf")
+                    if df_actualizado.empty:
+                        st.warning("No hay datos para generar el reporte.")
+                    else:
+                        pdf = FPDF()
+                        pdf.add_page()
+                        
+                        # Encabezado Principal
+                        pdf.set_font("Arial", 'B', 16)
+                        pdf.set_text_color(33, 150, 243) 
+                        pdf.cell(200, 10, txt="SISTEMA QUEVEDO - REPORTE MÉDICO", ln=True, align='C')
+                        
+                        pdf.set_font("Arial", size=10)
+                        pdf.set_text_color(0)
+                        pdf.cell(200, 10, txt=f"Fecha de Reporte: {f_txt} | Hora: {h_txt}", ln=True, align='C')
+                        pdf.ln(10)
+
+                        # Títulos de la Tabla
+                        pdf.set_font("Arial", 'B', 10)
+                        pdf.set_fill_color(230, 230, 230) 
+                        pdf.cell(30, 8, "FECHA", 1, 0, 'C', True)
+                        pdf.cell(35, 8, "MOMENTO", 1, 0, 'C', True)
+                        pdf.cell(25, 8, "VALOR", 1, 0, 'C', True)
+                        pdf.cell(45, 8, "ESTADO", 1, 0, 'C', True)
+                        pdf.cell(55, 8, "NOTA", 1, 1, 'C', True)
+
+                        # Datos de la Tabla
+                        pdf.set_font("Arial", size=9)
+                        for i, r in df_actualizado.iterrows():
+                            # Limpieza de Emojis para el PDF
+                            est_raw, _, _ = analizar_glucosa_full(r['valor'], r['momento'])
+                            est_txt = est_raw.replace("🟢", "").replace("🟡", "").replace("🔴", "").strip()
+                            
+                            # Alerta visual en el texto si el valor es alto
+                            if "ALTO" in est_txt or "CRÍTICO" in est_txt:
+                                pdf.set_text_color(180, 0, 0) # Rojo para alertas
+                            else:
+                                pdf.set_text_color(0)
+
+                            pdf.cell(30, 8, str(r['fecha']), 1)
+                            pdf.cell(35, 8, str(r['momento']), 1)
+                            pdf.cell(25, 8, f"{r['valor']} mg/dL", 1, 0, 'R')
+                            pdf.cell(45, 8, est_txt, 1)
+                            
+                            # Limpieza de nota (quitar caracteres raros)
+                            nota_p = str(r['nota']).encode('ascii', 'ignore').decode('ascii')
+                            pdf.set_text_color(0)
+                            pdf.cell(55, 8, nota_p[:30], 1, 1)
+
+                        pdf.ln(15)
+                        # --- EL PIE DE PÁGINA PROFESIONAL ---
+                        pdf.set_font("Arial", 'B', 11)
+                        pdf.cell(200, 10, txt="________________________________________________", ln=True, align='C')
+                        pdf.set_font("Arial", 'I', 12)
+                        pdf.cell(200, 8, txt="Luis Rafael Quevedo", ln=True, align='C')
+                        pdf.set_font("Arial", size=8)
+                        pdf.cell(200, 5, txt="Documento generado por NEXUS SYSTEM PRO", ln=True, align='C')
+                        
+                        # Generación del archivo
+                        pdf_out = pdf.output(dest='S').encode('latin-1', 'replace')
+                        st.download_button(
+                            label="📥 DESCARGAR REPORTE PDF ACTUALIZADO", 
+                            data=pdf_out, 
+                            file_name=f"Reporte_Glucosa_Quevedo_{f_txt.replace('/','-')}.pdf", 
+                            mime="application/pdf"
+                        )
+                        conn_pdf.close() # Cerramos para limpiar la memoria
+
                 except Exception as e:
-                    st.error(f"Error generando PDF: {e}")
+                    st.error(f"Hubo un inconveniente al generar el archivo: {e}")
         # B. VÍNCULO CON WHATSAPP
         with col_wa:
             st.markdown("##### 📱 Enviar por WhatsApp")
