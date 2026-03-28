@@ -299,32 +299,33 @@ elif opcion == "🩺 SALUD & GLUCOSA":
         # --- 3. PANEL DE HERRAMIENTAS (PDF, WHATSAPP, BORRADO) ---
         st.subheader("🛠️ Herramientas y Reportes")
         col_pdf, col_wa, col_del = st.columns(3)
-
-   # A. GENERADOR DE PDF PROFESIONAL (CONEXIÓN FORZADA Y FIRMA QUEVEDO)
+# A. GENERADOR DE PDF PROFESIONAL (DATOS REALES - LUIS RAFAEL QUEVEDO)
         with col_pdf:
             if st.button("📄 GENERAR REPORTE PDF"):
                 try:
-                    # FORZAMOS LA LECTURA DE LA BASE DE DATOS CORRECTA ANTES DE EMPEZAR
+                    # 1. FORZAMOS LA CONEXIÓN JUSTO AL HACER CLICK
                     conn_pdf = sqlite3.connect("control_quevedo.db")
+                    
+                    # 2. LEEMOS LOS DATOS MÁS RECIENTES
                     df_actualizado = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", conn_pdf)
                     
                     if df_actualizado.empty:
-                        st.warning("No hay datos para generar el reporte.")
+                        st.warning("No hay datos recientes para generar el reporte.")
                     else:
                         pdf = FPDF()
                         pdf.add_page()
                         
-                        # Encabezado Principal
+                        # Encabezado con su Nombre
                         pdf.set_font("Arial", 'B', 16)
                         pdf.set_text_color(33, 150, 243) 
-                        pdf.cell(200, 10, txt="SISTEMA QUEVEDO - REPORTE MÉDICO", ln=True, align='C')
+                        pdf.cell(200, 10, txt="SISTEMA QUEVEDO - REPORTE DE GLUCOSA", ln=True, align='C')
                         
                         pdf.set_font("Arial", size=10)
                         pdf.set_text_color(0)
-                        pdf.cell(200, 10, txt=f"Fecha de Reporte: {f_txt} | Hora: {h_txt}", ln=True, align='C')
+                        pdf.cell(200, 10, txt=f"Paciente: Luis Rafael Quevedo | Reporte al: {f_txt}", ln=True, align='C')
                         pdf.ln(10)
 
-                        # Títulos de la Tabla
+                        # Títulos de Tabla
                         pdf.set_font("Arial", 'B', 10)
                         pdf.set_fill_color(230, 230, 230) 
                         pdf.cell(30, 8, "FECHA", 1, 0, 'C', True)
@@ -333,50 +334,41 @@ elif opcion == "🩺 SALUD & GLUCOSA":
                         pdf.cell(45, 8, "ESTADO", 1, 0, 'C', True)
                         pdf.cell(55, 8, "NOTA", 1, 1, 'C', True)
 
-                        # Datos de la Tabla
+                        # Carga de Datos (Limpiando registros viejos)
                         pdf.set_font("Arial", size=9)
                         for i, r in df_actualizado.iterrows():
-                            # Limpieza de Emojis para el PDF
+                            # Usamos su lógica de semáforos para el texto
                             est_raw, _, _ = analizar_glucosa_full(r['valor'], r['momento'])
                             est_txt = est_raw.replace("🟢", "").replace("🟡", "").replace("🔴", "").strip()
                             
-                            # Alerta visual en el texto si el valor es alto
-                            if "ALTO" in est_txt or "CRÍTICO" in est_txt:
-                                pdf.set_text_color(180, 0, 0) # Rojo para alertas
-                            else:
-                                pdf.set_text_color(0)
-
                             pdf.cell(30, 8, str(r['fecha']), 1)
                             pdf.cell(35, 8, str(r['momento']), 1)
-                            pdf.cell(25, 8, f"{r['valor']} mg/dL", 1, 0, 'R')
+                            pdf.cell(25, 8, f"{r['valor']}", 1, 0, 'R')
                             pdf.cell(45, 8, est_txt, 1)
-                            
-                            # Limpieza de nota (quitar caracteres raros)
-                            nota_p = str(r['nota']).encode('ascii', 'ignore').decode('ascii')
-                            pdf.set_text_color(0)
-                            pdf.cell(55, 8, nota_p[:30], 1, 1)
+                            nota_p = str(r['nota'])[:30]
+                            pdf.cell(55, 8, nota_p, 1, 1)
 
                         pdf.ln(15)
-                        # --- EL PIE DE PÁGINA PROFESIONAL ---
+                        # --- FIRMA DE PROPIEDAD ---
                         pdf.set_font("Arial", 'B', 11)
                         pdf.cell(200, 10, txt="________________________________________________", ln=True, align='C')
                         pdf.set_font("Arial", 'I', 12)
-                        pdf.cell(200, 8, txt="Luis Rafael Quevedo", ln=True, align='C')
+                        pdf.cell(200, 8, txt="Luis Rafael Quevedo", ln=True, align='C') # Su nombre aquí
                         pdf.set_font("Arial", size=8)
-                        pdf.cell(200, 5, txt="Documento generado por NEXUS SYSTEM PRO", ln=True, align='C')
+                        pdf.cell(200, 5, txt="NEXUS SYSTEM PRO - Certificado de Salud Personal", ln=True, align='C')
                         
-                        # Generación del archivo
+                        # Generación limpia
                         pdf_out = pdf.output(dest='S').encode('latin-1', 'replace')
                         st.download_button(
-                            label="📥 DESCARGAR REPORTE PDF ACTUALIZADO", 
+                            label="📥 DESCARGAR REPORTE AHORA", 
                             data=pdf_out, 
-                            file_name=f"Reporte_Glucosa_Quevedo_{f_txt.replace('/','-')}.pdf", 
+                            file_name=f"Reporte_Quevedo_{f_txt.replace('/','-')}.pdf", 
                             mime="application/pdf"
                         )
-                        conn_pdf.close() # Cerramos para limpiar la memoria
+                    conn_pdf.close() # Cerramos para que no se "pegue" la base de datos
 
                 except Exception as e:
-                    st.error(f"Hubo un inconveniente al generar el archivo: {e}")
+                    st.error(f"Error al generar PDF: {e}")
         # B. VÍNCULO CON WHATSAPP
         with col_wa:
             st.markdown("##### 📱 Enviar por WhatsApp")
