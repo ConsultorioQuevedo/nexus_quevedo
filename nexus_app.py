@@ -74,15 +74,18 @@ with st.sidebar:
    st.sidebar.markdown("<h1 style='color:#0056b3; text-align:center;'>📊 SISTEMA QUEVEDO</h1>", unsafe_allow_html=True)
    st.info(f"📅 {f_txt}\n⏰ {h_txt}")
    st.markdown("---")
-    opcion = st.radio("SECCIONES:", [
-        "🏠 DASHBOARD", 
-        "💰 FINANZAS", 
-        "🩺 SALUD & GLUCOSA", 
-        "💊 BOTIQUÍN", 
-        "📅 AGENDA", 
-        "📝 BITÁCORA"
-    ])
-    st.markdown("---")
+   st.sidebar.markdown("<h1 style='color:#0056b3;...")
+st.info(f"📅 {f_txt}\n⏰ {h_txt}")
+st.markdown("---")
+opcion = st.radio("SECCIONES:", [
+    "🏠 DASHBOARD",
+    "💰 FINANZAS",
+    "🩺 SALUD & GLUCOSA",
+    "💊 BOTIQUÍN",
+    "🗓️ AGENDA",
+    "📝 BITÁCORA"
+])
+st.markdown("---") 
     if st.button("🔴 CERRAR SESIÓN"):
         del st.session_state["password_correct"]
         st.rerun()
