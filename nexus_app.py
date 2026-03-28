@@ -55,7 +55,7 @@ st.markdown("""
 
 # --- 4. SEGURIDAD DE ACCESO ---
 if "password_correct" not in st.session_state:
-    st.title("🌐 ACCESO NEXUS SYSTEM")
+    st.title("🌐 SISTEMA QUEVEDO")
     with st.form("login"):
         pwd = st.text_input("Ingrese su Clave:", type="password")
         if st.form_submit_button("DESBLOQUEAR"):
