@@ -423,6 +423,7 @@ elif opcion == "💊 BOTIQUÍN":
     st.subheader("📋 Medicinas en Inventario")
 
     # --- LISTADO CON BOTÓN DE BORRAR ---
+    conn = sqlite3.connect("control_quevedo.db")
     df_meds = pd.read_sql_query("SELECT * FROM medicamentos ORDER BY nombre ASC", conn)
     
     if not df_meds.empty:
