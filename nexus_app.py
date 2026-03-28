@@ -13,8 +13,8 @@ def obtener_fecha_rd():
     ahora = datetime.now(zona)
     return ahora.strftime("%d/%m/%Y"), ahora.strftime("%I:%M %p"), ahora.strftime("%m-%Y"), ahora.date(), ahora
 
-    # --- 2. BASE DE DATOS (SISTEMA QUEVEDO) ---
-def conectar_conn.():
+ # --- 2. BASE DE DATOS (SISTEMA QUEVEDO) ---
+ def conectar_conn():
     # Nombre profesional de su base de datos
     conn = sqlite3.connect("sistema_quevedo_pro.db", check_same_thread=False)
     c = conn.cursor()
