@@ -71,7 +71,7 @@ f_txt, h_txt, m_txt, f_obj, ahora_obj = obtener_fecha_rd()
 
 # --- 6. MENÚ DE NAVEGACIÓN (DASHBOARD QUEVEDO) ---
 with st.sidebar:
-    st.markdown("<h2 style='color:#58a6ff;'>🌐 NEXUS PRO</h2>", unsafe_allow_html=True)
+   st.sidebar.markdown("<h1 style='color:#0056b3; text-align:center;'>📊 SISTEMA QUEVEDO</h1>", unsafe_allow_html=True)
     st.info(f"📅 {f_txt}\n⏰ {h_txt}")
     st.markdown("---")
     opcion = st.radio("SECCIONES:", [
