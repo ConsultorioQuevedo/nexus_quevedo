@@ -628,4 +628,4 @@ elif opcion == "📝 BITÁCORA":
         st.info("Aún no se ha creado el archivo de bitácora.") 
         
     st.markdown("---")
-    st.caption("NEXUS PRO v4.5 | Desarrollado junto a Luis Rafael Quevedo | 2026")
+    st.caption("NEXUS PRO v4.5 | Por Luis Rafael Quevedo ayudado por IA| 2026")
