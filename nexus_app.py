@@ -40,7 +40,7 @@ def conectar_conn():
     return conn, c
 
 # Ejecutamos la conexión
-db, cursor = conectar_db()
+conn, cursor = conectar_conn()
 
 
 
