@@ -281,7 +281,7 @@ elif opcion == "🩺 SALUD & GLUCOSA":
         st.subheader("🛠️ Herramientas y Reportes")
         col_pdf, col_wa, col_del = st.columns(3)
 
-      # A. GENERADOR DE PDF PROFESIONAL (VERSIÓN ANTIBLOQUEO)
+    # A. GENERADOR DE PDF PROFESIONAL (CON ADVERTENCIAS Y FIRMA)
         with col_pdf:
             if st.button("📄 GENERAR REPORTE PDF"):
                 try:
@@ -300,33 +300,53 @@ elif opcion == "🩺 SALUD & GLUCOSA":
                     pdf.set_font("Arial", 'B', 10)
                     pdf.set_fill_color(200, 200, 200) # Gris claro para que se vea al imprimir
                     pdf.cell(30, 8, "FECHA", 1, 0, 'C', True)
-                    pdf.cell(40, 8, "MOMENTO", 1, 0, 'C', True)
+                    pdf.cell(38, 8, "MOMENTO", 1, 0, 'C', True)
                     pdf.cell(25, 8, "VALOR", 1, 0, 'C', True)
-                    pdf.cell(35, 8, "ESTADO", 1, 0, 'C', True)
-                    pdf.cell(60, 8, "NOTA", 1, 1, 'C', True)
+                    # Aumentamos el tamaño de la columna de estado para que quepa la advertencia
+                    pdf.cell(42, 8, "ESTADO Y ADVERTENCIA", 1, 0, 'C', True)
+                    pdf.cell(55, 8, "NOTA", 1, 1, 'C', True)
 
                     # Datos
                     pdf.set_font("Arial", size=9)
                     for i, r in df_g.iterrows():
-                        # Limpieza de Emojis para evitar el error de 'latin-1'
+                        # Obtener análisis inteligente (quitando emojis para el PDF)
                         est_raw, _, _ = analizar_glucosa_full(r['valor'], r['momento'])
-                        # Quitamos los círculos de colores manualmente
                         est_txt = est_raw.replace("🟢", "").replace("🟡", "").replace("🔴", "").strip()
                         
-                        pdf.cell(30, 8, str(r['fecha']), 1)
-                        pdf.cell(40, 8, str(r['momento']), 1)
-                        pdf.cell(25, 8, f"{r['valor']} mg/dL", 1, 0, 'R')
-                        pdf.cell(35, 8, est_txt, 1)
-                        
-                        # Limpiar la nota de cualquier símbolo extraño
-                        nota_limpia = str(r['nota']).encode('ascii', 'ignore').decode('ascii')
-                        pdf.cell(60, 8, nota_limpia[:30], 1, 1)
+                        # Definimos color y advertencia solo para valores ALTO o CRÍTICO
+                        advertencia = ""
+                        if "ALTO" in est_txt or "CRÍTICO" in est_txt:
+                            # Ponemos el texto en rojo oscuro
+                            pdf.set_text_color(183, 28, 28) 
+                            # Agregamos la advertencia según el caso
+                            if "ALTO" in est_txt: advertencia = " (REVISAR DIETA)"
+                            if "CRÍTICO" in est_txt: advertencia = " (ALERTA MÉDICA)"
+                        else:
+                            # Volvemos al texto negro para valores normales
+                            pdf.set_text_color(0)
 
-                    pdf.ln(10)
-                    pdf.set_font("Arial", 'I', 8)
-                    pdf.cell(200, 5, txt="Este reporte es propiedad de: LUIS RAFAEL QUEVEDO", ln=True, align='C')
+                        pdf.cell(30, 8, str(r['fecha']), 1)
+                        pdf.cell(38, 8, str(r['momento']), 1)
+                        # El valor lo ponemos alineado a la derecha
+                        pdf.cell(25, 8, f"{r['valor']} mg/dL", 1, 0, 'R')
+                        
+                        # Estado con advertencia (si aplica)
+                        pdf.cell(42, 8, f"{est_txt}{advertencia}", 1)
+                        
+                        # Volvemos a color negro para la nota y la limpiamos
+                        pdf.set_text_color(0)
+                        nota_limpia = str(r['nota']).encode('ascii', 'ignore').decode('ascii')
+                        pdf.cell(55, 8, nota_limpia[:30], 1, 1)
+
+                    pdf.ln(15)
+                    # --- PIE DE PÁGINA (FIRMA QUEVEDO) ---
+                    pdf.set_font("Arial", 'I', 10)
+                    # Línea de separación para que se vea profesional
+                    pdf.cell(200, 10, txt="_____________________________________________", ln=True, align='C')
+                    # Su nombre en cursiva al pie de página
+                    pdf.cell(200, 7, txt="Propiedad de: LUIS RAFAEL QUEVEDO", ln=True, align='C')
                     
-                    # El truco maestro: usar 'latin-1' con 'replace' para que no explote
+                    # El truco maestro para que no explote
                     pdf_out = pdf.output(dest='S').encode('latin-1', 'replace')
                     st.download_button(label="📥 Descargar Reporte PDF", data=pdf_out, file_name=f"Glucosa_Quevedo_{f_txt.replace('/','-')}.pdf", mime="application/pdf")
                 except Exception as e:
