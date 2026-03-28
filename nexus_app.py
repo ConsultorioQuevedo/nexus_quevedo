@@ -276,3 +276,120 @@ elif opcion == "💰 FINANZAS":
             st.info("Aún no hay registros en su libro financiero.")
     except Exception as e:
         st.error(f"Error al cargar finanzas: {e}")     
+# ==========================================
+# 9. MÓDULO MAESTRO: 🩺 SALUD & GLUCOSA
+# ==========================================
+elif opcion == "🩺 SALUD & GLUCOSA":
+    st.title("🩺 Control de Glucosa - Sr. Quevedo")
+    
+    # --- LÓGICA DE COLORES (Rangos Médicos Reales) ---
+    def analizar_glucosa_full(v, m):
+        if v < 70:
+            return "🔴 CRÍTICO (BAJO)", "#f85149", "¡Alerta! Hipoglucemia. Tome azúcar rápido."
+        elif "Ayunas" in m or "Antes" in m:
+            if 70 <= v <= 100:
+                return "🟢 NORMAL", "#2ea043", "¡Excelente control en ayunas!"
+            elif 101 <= v <= 125:
+                return "🟡 PRE-DIABETES", "#f1e05a", "Cuidado con la dieta (Ayunas alta)."
+            else:
+                return "🔴 ALTO", "#f85149", "Valor de Diabetes en Ayunas. Consulte al médico."
+        else:
+            if v < 140:
+                return "🟢 NORMAL", "#2ea043", "Buen manejo post-comida."
+            elif 140 <= v <= 199:
+                return "🟡 ELEVADO", "#f1e05a", "Monitoree la siguiente toma (Post-comida alta)."
+            else:
+                return "🔴 CRÍTICO (ALTO)", "#f85149", "Alerta: Valor muy alto post-comida."
+
+    # 1. FORMULARIO DE REGISTRO
+    with st.form("f_glucosa_pro", clear_on_submit=True):
+        st.subheader("📝 Nueva Medición")
+        c_a, c_b, c_c = st.columns([1, 1, 2])
+        with c_a:
+            valor_g = st.number_input("VALOR (mg/dL):", min_value=0, step=1)
+        with c_b:
+            momento_g = st.selectbox("MOMENTO:", ["Ayunas", "Post-Desayuno", "Antes de Almuerzo", "Post-Almuerzo", "Antes de Cena", "Post-Cena", "Antes de Dormir", "Madrugada"])
+        with c_c:
+            nota_g = st.text_input("NOTA / OBSERVACIÓN:").upper()
+        
+        if st.form_submit_button("💾 GUARDAR REGISTRO"):
+            if valor_g > 0:
+                conn.execute("INSERT INTO glucosa (fecha, hora, momento, valor, nota) VALUES (?,?,?,?,?)", 
+                           (tiempo['fecha'], tiempo['hora'], momento_g, valor_g, nota_g))
+                conn.commit()
+                st.success("✅ Registro guardado")
+                st.rerun()
+
+    # 2. CARGA Y VISUALIZACIÓN
+    df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", conn)
+    
+    if not df_g.empty:
+        # Gráfico de Tendencia
+        st.subheader("📈 Tendencia Histórica")
+        fig = px.line(df_g, x='fecha', y='valor', color='momento', markers=True, template="plotly_dark")
+        fig.add_hline(y=100, line_dash="dash", line_color="#2ea043", annotation_text="Límite Ayunas")
+        fig.add_hline(y=140, line_dash="dash", line_color="#f1e05a", annotation_text="Límite Post-Comida")
+        st.plotly_chart(fig, use_container_width=True)
+
+        # 3. PANEL DE HERRAMIENTAS
+        st.markdown("---")
+        col_pdf, col_wa, col_del = st.columns(3)
+
+        with col_pdf:
+            if st.button("📄 GENERAR REPORTE PDF"):
+                try:
+                    pdf = FPDF()
+                    pdf.add_page()
+                    pdf.set_font("Arial", 'B', 16)
+                    pdf.cell(200, 10, txt="SISTEMA QUEVEDO - REPORTE MÉDICO", ln=True, align='C')
+                    pdf.set_font("Arial", 'B', 12)
+                    pdf.cell(200, 10, txt=f"PACIENTE: LUIS RAFAEL QUEVEDO", ln=True, align='C')
+                    pdf.ln(10)
+                    # Tabla sencilla
+                    pdf.set_font("Arial", 'B', 10)
+                    pdf.cell(40, 8, "FECHA", 1); pdf.cell(40, 8, "MOMENTO", 1); pdf.cell(30, 8, "VALOR", 1); pdf.cell(80, 8, "NOTA", 1, 1)
+                    pdf.set_font("Arial", size=9)
+                    for _, r in df_g.head(20).iterrows():
+                        pdf.cell(40, 8, str(r['fecha']), 1)
+                        pdf.cell(40, 8, str(r['momento']), 1)
+                        pdf.cell(30, 8, f"{r['valor']} mg/dL", 1)
+                        nota_pdf = str(r['nota'])[:40].encode('latin-1', 'replace').decode('latin-1')
+                        pdf.cell(80, 8, nota_pdf, 1, 1)
+                    
+                    pdf_data = pdf.output(dest='S').encode('latin-1')
+                    st.download_button(label="📥 DESCARGAR REPORTE", data=pdf_data, file_name=f"Reporte_Quevedo_{tiempo['fecha']}.pdf", mime="application/pdf")
+                except Exception as e:
+                    st.error(f"Error PDF: {e}")
+
+        with col_wa:
+            num_wa = st.text_input("WhatsApp (Ej: 1809...):")
+            if st.button("📲 COMPARTIR ÚLTIMO"):
+                if num_wa:
+                    u = df_g.iloc[0]
+                    msg = f"Reporte Sr. Quevedo: {u['fecha']} - {u['momento']}: {u['valor']} mg/dL. Nota: {u['nota']}"
+                    link = f"https://wa.me/{num_wa}?text={msg.replace(' ', '%20')}"
+                    st.markdown(f"[✅ ENVIAR POR WHATSAPP]({link})")
+
+        with col_del:
+            if st.checkbox("🔓 Activar Borrado"):
+                if st.button("🗑️ Borrar Último"):
+                    conn.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)")
+                    conn.commit()
+                    st.rerun()
+
+        # 4. HISTORIAL CON SEMÁFOROS
+        st.subheader("📋 Historial con Semáforos")
+        for i, row in df_g.iterrows():
+            est, col, msn = analizar_glucosa_full(row['valor'], row['momento'])
+            st.markdown(f"""
+                <div style='background-color: #161b22; padding: 15px; margin-bottom: 8px; border-radius: 8px; border-left: 10px solid {col};'>
+                    <div style='display: flex; justify-content: space-between;'>
+                        <span><b>{row['fecha']}</b> | {row['momento']}</span>
+                        <span style='color: {col}; font-weight: bold;'>{row['valor']} mg/dL</span>
+                    </div>
+                    <div style='color: #8b949e; font-size: 0.9em; margin-top: 5px;'><i>{row['nota']}</i></div>
+                    <div style='color: {col}; font-size: 0.8em; font-weight: bold;'>{est}: {msn}</div>
+                </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("No hay registros todavía.")
