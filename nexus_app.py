@@ -262,6 +262,7 @@ elif opcion == "🩺 SALUD & GLUCOSA":
     st.markdown("---")
 
     # Cargar datos históricos
+    conn = sqlite3.connect("control_quevedo.db") 
     df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", conn)
     
     if not df_g.empty:
