@@ -474,3 +474,130 @@ elif opcion == "💊 BOTIQUÍN":
     else:
         st.info("El botiquín está vacío. Registre sus medicinas arriba.")
     conn.close()
+# ==========================================
+# 11. MÓDULO: 🗓️ AGENDA DE CITAS
+# ==========================================
+elif opcion == "🗓️ AGENDA":
+    st.title("📅 Gestión de Citas Médicas")
+    st.markdown("---")
+    
+    # 1. FORMULARIO PARA AGENDAR
+    with st.form("f_cita_nueva", clear_on_submit=True):
+        st.subheader("🗓️ Agendar Nueva Consulta")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            # Usamos .upper() para mantener el orden profesional que le gusta
+            doc = st.text_input("DOCTOR O ESPECIALIDAD:").upper()
+            # f_obj es el objeto datetime que creamos en el Bloque 1
+            fec_c = st.date_input("FECHA DE LA CITA:", value=f_obj)
+        with col_b:
+            mot = st.text_area("MOTIVO O ESTUDIOS PENDIENTES:").upper()
+        
+        if st.form_submit_button("💾 GUARDAR CITA EN AGENDA"):
+            if doc and mot:
+                conn.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", 
+                           (doc, str(fec_c), mot))
+                conn.commit()
+                st.success(f"✅ Cita con {doc} guardada.")
+                st.rerun()
+            else:
+                st.error("⚠️ Por favor, complete el nombre del Doctor y el Motivo.")
+
+    st.markdown("---")
+    st.subheader("📌 Citas Programadas")
+
+    # 2. LISTADO Y BORRADO
+    try:
+        df_citas = pd.read_sql_query("SELECT * FROM citas ORDER BY fecha ASC", conn)
+        
+        if not df_citas.empty:
+            for i, row in df_citas.iterrows():
+                # Comprobamos si la cita ya pasó para ponerle un color diferente
+                cita_pasada = str(row['fecha']) < tiempo['fecha']
+                fondo = "#1a1c1e" if not cita_pasada else "#0d1117"
+                opacidad = "1.0" if not cita_pasada else "0.5"
+
+                st.markdown(f"""
+                <div style='background-color: {fondo}; padding: 15px; border-radius: 10px; border-left: 5px solid #58a6ff; opacity: {opacidad}; margin-bottom: 10px;'>
+                    <div style='display: flex; justify-content: space-between;'>
+                        <span><b>📅 {row['fecha']}</b></span>
+                        <span style='color: #58a6ff;'>Dr: {row['doctor']}</span>
+                    </div>
+                    <p style='margin-top: 10px; font-size: 0.9em;'>📝 {row['motivo']}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if st.button(f"🗑️ Eliminar Cita", key=f"del_cita_{row['id']}"):
+                    conn.execute("DELETE FROM citas WHERE id = ?", (row['id'],))
+                    conn.commit()
+                    st.rerun()
+        else:
+            st.info("No tiene citas pendientes.")
+    except Exception as e:
+        st.error(f"Error en Agenda: {e}")
+
+# ==========================================
+# 12. MÓDULO: 📝 BITÁCORA PROFESIONAL
+# ==========================================
+elif opcion == "📝 BITÁCORA":
+    st.title("📝 Bitácora de Notas")
+    st.markdown("---")
+    
+    nota_nueva = st.text_area("Escriba sus observaciones del día:", height=150, 
+                             placeholder="Ej: Hoy me sentí con mucha energía...")
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("💾 GUARDAR NOTA"):
+            if nota_nueva:
+                # Usamos encoding utf-8 para que acepte tildes
+                with open("bitacora_quevedo.txt", "a", encoding="utf-8") as f:
+                    f.write(f"[{tiempo['fecha']} {tiempo['hora']}]: {nota_nueva}\n\n")
+                    f.write("-" * 30 + "\n")
+                st.success("✅ Nota guardada.")
+                st.rerun()
+
+    with c2:
+        if st.button("📄 EXPORTAR A PDF"):
+            try:
+                with open("bitacora_quevedo.txt", "r", encoding="utf-8") as f:
+                    contenido = f.read()
+                
+                if contenido:
+                    pdf = FPDF()
+                    pdf.add_page()
+                    pdf.set_font("Arial", 'B', 16)
+                    pdf.cell(200, 10, txt="NEXUS PRO - BITÁCORA PERSONAL", ln=True, align='C')
+                    pdf.set_font("Arial", size=11)
+                    pdf.ln(10)
+                    # El replace es para evitar errores de símbolos raros en PDF
+                    pdf.multi_cell(0, 7, txt=contenido.encode('latin-1', 'replace').decode('latin-1'))
+                    
+                    pdf_data = pdf.output(dest='S').encode('latin-1')
+                    st.download_button(label="📥 DESCARGAR PDF", data=pdf_data, 
+                                     file_name=f"Bitacora_Quevedo.pdf", mime="application/pdf")
+                else:
+                    st.warning("La bitácora está vacía.")
+            except FileNotFoundError:
+                st.error("Aún no hay archivo de notas.")
+
+    st.markdown("---")
+    st.subheader("📖 Vista Previa del Archivo")
+    try:
+        with open("bitacora_quevedo.txt", "r", encoding="utf-8") as f:
+            notas = f.read()
+            if notas:
+                st.text_area("Contenido actual:", notas, height=300)
+                if st.checkbox("🔓 Habilitar Borrado Total"):
+                    if st.button("🔥 VACIAR BITÁCORA"):
+                        with open("bitacora_quevedo.txt", "w", encoding="utf-8") as f:
+                            f.write("")
+                        st.rerun()
+            else:
+                st.info("No hay notas todavía.")
+    except FileNotFoundError:
+        st.caption("Esperando primer registro...")
+
+# Pie de página final
+st.markdown("---")
+st.caption(f"NEXUS PRO v4.5 | {tiempo['fecha']} | Luis Rafael Quevedo")
