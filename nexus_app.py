@@ -66,7 +66,7 @@ if "password_correct" not in st.session_state:
     st.stop()
 
 # --- 5. INICIALIZACIÓN ---
-db = conectar_db()
+conn = conectar_conn()
 f_txt, h_txt, m_txt, f_obj, ahora_obj = obtener_fecha_rd()
 
 # --- 6. MENÚ DE NAVEGACIÓN (DASHBOARD QUEVEDO) ---
