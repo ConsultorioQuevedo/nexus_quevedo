@@ -454,10 +454,13 @@ elif opcion == "💊 BOTIQUÍN":
                 st.rerun()
     else:
         st.info("El botiquín está vacío. Registre sus medicinas arriba.")
-# --- 11. MÓDULO: AGENDA DE CITAS (CON GESTIÓN DE BORRADO) ---
-elif opcion == "📅 AGENDA":
-    st.title("📅 Gestión de Citas Médicas - NEXUS PRO")
+# --- 11. MÓDULO: AGENDA DE CITAS (CORREGIDO) ---
+elif opcion == "🗓️ AGENDA":
+    st.title("📅 Gestión de Citas Médicas - SISTEMA QUEVEDO")
     st.markdown("---")
+    
+    # 1. Asegurar Conexión
+    conn = sqlite3.connect("control_quevedo.db")
     
     # --- FORMULARIO PARA AGENDAR ---
     with st.form("f_cita_nueva", clear_on_submit=True):
@@ -483,37 +486,38 @@ elif opcion == "📅 AGENDA":
     st.subheader("📌 Citas Programadas")
 
     # --- LISTADO Y BORRADO DE CITAS ---
-    df_citas = pd.read_sql_query("SELECT * FROM citas ORDER BY fecha ASC", db)
-    
-    if not df_citas.empty:
-        # Mostramos las citas en un formato limpio
-        for i, row in df_citas.iterrows():
-            with st.container():
-                c1, c2, c3 = st.columns([2, 3, 1])
-                with c1:
-                    st.markdown(f"**📅 {row['fecha']}**")
-                    st.caption(f"Dr/Especialidad: {row['doctor']}")
-                with c2:
-                    st.write(f"📝 {row['motivo']}")
-                with c3:
-                    # Botón único para borrar esta cita específica
-                    if st.button("🗑️ Borrar", key=f"del_cita_{row['id']}"):
-                        conn.execute("DELETE FROM citas WHERE id = ?", (row['id'],))
-                        conn.commit()
-                        st.warning("Cita eliminada.")
-                        st.rerun()
-                        st.markdown("---")
+    try:
+        # Aquí corregimos 'db' por 'conn'
+        df_citas = pd.read_sql_query("SELECT * FROM citas ORDER BY fecha ASC", conn)
         
-        # Botón para limpiar toda la agenda de un solo golpe
-        if st.checkbox("⚠️ Activar botón de limpieza total"):
-            if st.button("🔥 BORRAR TODA LA AGENDA"):
-                conn.execute("DELETE FROM citas")
-                conn.commit()
-                st.error("Agenda vaciada por completo.")
-                st.rerun()
-    else:
-        st.info("No tiene citas pendientes en su agenda.")
-
+        if not df_citas.empty:
+            for i, row in df_citas.iterrows():
+                with st.container():
+                    c1, c2, c3 = st.columns([2, 3, 1])
+                    with c1:
+                        st.markdown(f"**📅 {row['fecha']}**")
+                        st.caption(f"Dr/Especialidad: {row['doctor']}")
+                    with c2:
+                        st.write(f"📝 {row['motivo']}")
+                    with c3:
+                        if st.button("🗑️ Borrar", key=f"del_cita_{row['id']}"):
+                            conn.execute("DELETE FROM citas WHERE id = ?", (row['id'],))
+                            conn.commit()
+                            st.warning("Cita eliminada.")
+                            st.rerun()
+                    st.markdown("---")
+            
+            if st.checkbox("⚠️ Activar botón de limpieza total"):
+                if st.button("🔥 BORRAR TODA LA AGENDA"):
+                    conn.execute("DELETE FROM citas")
+                    conn.commit()
+                    st.error("Agenda vaciada por completo.")
+                    st.rerun()
+        else:
+            st.info("No tiene citas pendientes en su agenda.")
+    except Exception as e:
+        st.error(f"Error al cargar la agenda: {e}")
+                
 
 # --- 12. MÓDULO: BITÁCORA PROFESIONAL (PDF + GESTIÓN) ---
 elif opcion == "📝 BITÁCORA":
