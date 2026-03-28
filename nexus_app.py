@@ -89,59 +89,66 @@ st.markdown("---")
 if st.button("🔴 CERRAR SESIÓN"):
         del st.session_state["password_correct"]
         st.rerun()
-# --- 7. LÓGICA DE ALERTAS INTELIGENTES (SISTEMA QUEVEDO) ---
+# --- 7. LÓGICA DE ALERTAS INTELIGENTES (SISTEMA QUEVEDO DINÁMICO) ---
 if opcion == "🏠 DASHBOARD":
     st.title(f"🛡️ Panel de Control - SISTEMA QUEVEDO")
     st.markdown("---")
     
-    # 1. Lista de sus medicamentos con sus horarios
-    plan_medico = [
-        {"med": "Jarinu Max", "hora": "07:00 AM", "rango": [6, 10]},
-        {"med": "Aspirin / Pregabalina", "hora": "08:00 AM", "rango": [7, 11]},
-        {"med": "Pregabalina (Tarde)", "hora": "06:00 PM", "rango": [17, 21]},
-        {"med": "Insulina", "hora": "08:00 PM", "rango": [19, 23]},
-        {"med": "Triglicer / Libal", "hora": "09:00 PM", "rango": [20, 23]}
-    ]
-
-    st.subheader("🔔 Recordatorios de Salud (Tiempo Real)")
-
+    # Conectamos a la base de datos central
     conn = sqlite3.connect("control_quevedo.db")
+    
+    # 1. LEER MEDICAMENTOS DESDE EL BOTIQUÍN (DINÁMICO)
+    # Buscamos en la tabla que tú alimentas en la sección 💊 BOTIQUÍN
+    df_plan = pd.read_sql_query("SELECT nombre, dosis, horario FROM medicamentos", conn)
+    
+    st.subheader("🔔 Recordatorios de Salud (Basado en su Botiquín)")
+
+    # 2. Revisar qué se ha tomado hoy
     tomas_hoy = pd.read_sql_query(f"SELECT medicamento FROM registro_medico WHERE fecha = '{f_txt}'", conn)
     lista_cumplidos = tomas_hoy['medicamento'].values
+    
+    # Hora actual para comparar
     hora_actual_24 = ahora_obj.hour
     alertas_visibles = 0
 
-    for item in plan_medico:
-        # ¿Estamos en el horario?
-        en_horario = item["rango"][0] <= hora_actual_24 <= item["rango"][1]
-        # ¿Ya se la tomó?
-        ya_confirmado = item["med"] in lista_confirmados if 'lista_confirmados' in locals() else item["med"] in lista_cumplidos
-
-        if en_horario and not ya_confirmado:
-            alertas_visibles += 1
-            col_msg, col_btn = st.columns([3, 1])
+    if not df_plan.empty:
+        for index, item in df_plan.iterrows():
+            med_nombre = item['nombre']
+            med_dosis = item['dosis']
+            # Intentamos extraer la hora del texto "Cada Xh" o si pusiste la hora fija
+            # Para que el sistema sea inteligente, asumiremos que en 'horario' pones algo como "08:00"
+            # Si no hay hora válida, mostramos el registro general
             
-            with col_msg:
-                st.warning(f"💊 **ATENCIÓN:** Es hora de su **{item['med']}** ({item['hora']})")
-           
-            with col_btn:
-            # AQUÍ ESTÁ EL BOTÓN QUE USTED QUERÍA
-             if st.button(f"✅ YA ME LA TOMÉ", key=f"btn_{item['med']}"):
-                conn.execute("INSERT INTO registro_medico (fecha, medicamento, hora_confirmada) VALUES (?,?,?)", (f_txt, item['med'], h_txt))
-                conn.commit()
-                st.success(f"¡Registrado!")
-                st.rerun()
+            ya_confirmado = med_nombre in lista_cumplidos
 
-    if alertas_visibles == 0:
-        st.success("✅ No tiene medicamentos pendientes por confirmar en este momento.")
+            if not ya_confirmado:
+                alertas_visibles += 1
+                col_msg, col_btn = st.columns([3, 1])
+                
+                with col_msg:
+                    st.warning(f"💊 **PENDIENTE:** {med_nombre} - Dosis: {med_dosis} ({item['horario']})")
+                
+                with col_btn:
+                    if st.button(f"✅ REGISTRAR TOMA", key=f"btn_{med_nombre}_{index}"):
+                        conn.execute("INSERT INTO registro_medico (fecha, medicamento, hora_confirmada) VALUES (?,?,?)", 
+                                   (f_txt, med_nombre, h_txt))
+                        conn.commit()
+                        st.success(f"¡Registrado!")
+                        st.rerun()
+    else:
+        st.info("💡 Su botiquín está vacío. Vaya a la sección 💊 BOTIQUÍN para agregar sus medicinas.")
 
-    # 3. Mostrar resumen de lo que ya se tomó para su tranquilidad
+    if alertas_visibles == 0 and not df_plan.empty:
+        st.success("✅ ¡Excelente, Sr. Quevedo! Ha cumplido con todas sus medicinas registradas por hoy.")
+
+    # 3. Resumen de cumplimiento
     st.markdown("---")
-    st.markdown("#### 📋 Registro de Cumplimiento (Hoy)")
+    st.markdown("#### 📋 Registro de lo tomado hoy")
     if not tomas_hoy.empty:
         st.dataframe(tomas_hoy, use_container_width=True)
     else:
-        st.caption("Aún no ha registrado tomas el día de hoy.")
+        st.caption("No hay registros de toma todavía.")
+
 
 
  
