@@ -89,7 +89,7 @@ with st.sidebar:
 
 # --- 7. LÓGICA DE ALERTAS INTELIGENTES (INICIO) ---
 if opcion == "🏠 DASHBOARD":
-    st.title(f"Panel de Control - Sr. Quevedo")
+    st.title("🛡️ Panel de Control - SISTEMA QUEVEDO")
     st.markdown("---")
     
     # Planificación horaria de sus medicamentos
