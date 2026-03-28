@@ -254,7 +254,7 @@ elif opcion == "🩺 SALUD & GLUCOSA":
                         <p style='margin:5px 0 0 0;'>{msn}</p>
                     </div>
                 """, unsafe_allow_html=True)
-                     st.rerun()
+               st.rerun()
             else:
                 st.warning("⚠️ Ingrese un valor válido.")
 
