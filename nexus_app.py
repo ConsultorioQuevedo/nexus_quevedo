@@ -187,4 +187,92 @@ if opcion == "🏠 DASHBOARD":
 
     except Exception as e:
         st.error(f"Error al cargar alertas: {e}")
+   # ==========================================
+# 8. MÓDULO: 💰 FINANZAS (VERSIÓN NEXUS PRO)
+# ==========================================
+elif opcion == "💰 FINANZAS":
+    st.title("💰 Gestión de Capital - Sr. Quevedo")
+    
+    # 1. FORMULARIO DE REGISTRO CON DISEÑO DE TARJETA
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    with st.form("f_finanzas_pro", clear_on_submit=True):
+        col1, col2, col3 = st.columns([2, 2, 2])
+        with col1:
+            tipo_f = st.selectbox("TIPO:", ["GASTO", "INGRESO"])
+            monto_f = st.number_input("MONTO ($):", min_value=0.0, step=100.0)
+        with col2:
+            cat_f = st.selectbox("CATEGORÍA:", ["SALUD", "ALIMENTOS", "SERVICIOS", "TRANSPORTE", "OTROS"])
+            mes_f = st.selectbox("MES:", ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"])
+        with col3:
+            det_f = st.text_input("DETALLE:").upper()
+            st.write("") # Espacio estético
+            btn_guardar = st.form_submit_button("💾 GUARDAR MOVIMIENTO")
+
+        if btn_guardar:
+            if monto_f > 0:
+                conn.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)", 
+                           (tiempo['fecha'], mes_f, tipo_f, cat_f, det_f, monto_f))
+                conn.commit()
+                st.success("✅ Registro guardado con éxito.")
+                st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # 2. CÁLCULOS Y GRÁFICOS (LA VISIÓN PRO)
+    try:
+        df_f = pd.read_sql_query("SELECT * FROM finanzas ORDER BY id DESC", conn)
         
+        if not df_f.empty:
+            ing = df_f[df_f['tipo'] == 'INGRESO']['monto'].sum()
+            gas = df_f[df_f['tipo'] == 'GASTO']['monto'].sum()
+            balance = ing - gas
+
+            # Métricas en columnas limpias
+            st.markdown("---")
+            m1, m2, m3 = st.columns(3)
+            m1.metric("INGRESOS TOTALES", f"${ing:,.2f}")
+            m2.metric("GASTOS TOTALES", f"${gas:,.2f}", delta=f"-${gas:,.2f}", delta_color="normal")
+            m3.metric("BALANCE DISPONIBLE", f"${balance:,.2f}")
+
+            # FILA DE ANÁLISIS: Gráfico de Pastel y Resumen
+            col_graf, col_hist = st.columns([1, 1.5])
+
+            with col_graf:
+                st.subheader("📊 Gastos por Categoría")
+                df_gastos = df_f[df_f['tipo'] == 'GASTO']
+                if not df_gastos.empty:
+                    fig = px.pie(df_gastos, values='monto', names='categoria', 
+                                 hole=0.4, template="plotly_dark",
+                                 color_discrete_sequence=px.colors.qualitative.Pastel)
+                    fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), showlegend=False)
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("No hay gastos para graficar.")
+
+            with col_hist:
+                st.subheader("📝 Últimos Movimientos")
+                # Estilo de lista moderna con borrado
+                for i, row in df_f.head(10).iterrows():
+                    color_monto = "#2ea043" if row['tipo'] == "INGRESO" else "#f85149"
+                    simbolo = "+" if row['tipo'] == "INGRESO" else "-"
+                    
+                    with st.container():
+                        c_info, c_del = st.columns([4, 1])
+                        with c_info:
+                            st.markdown(f"""
+                            **{row['detalle']}**  
+                            <small>{row['fecha']} | {row['categoria']}</small>  
+                            <span style='color:{color_monto}; font-weight:bold; font-size:1.1em;'>
+                            {simbolo} ${row['monto']:,.2f}
+                            </span>
+                            """, unsafe_allow_html=True)
+                        with c_del:
+                            st.write("") # Alineación
+                            if st.button("🗑️", key=f"del_fin_{row['id']}"):
+                                conn.execute("DELETE FROM finanzas WHERE id = ?", (row['id'],))
+                                conn.commit()
+                                st.rerun()
+                        st.markdown("---")
+        else:
+            st.info("Aún no hay registros en su libro financiero.")
+    except Exception as e:
+        st.error(f"Error al cargar finanzas: {e}")     
