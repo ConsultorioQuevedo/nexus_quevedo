@@ -423,7 +423,7 @@ elif opcion == "💊 BOTIQUÍN":
     st.subheader("📋 Medicinas en Inventario")
 
     # --- LISTADO CON BOTÓN DE BORRAR ---
-    df_meds = pd.read_sql_query("SELECT * FROM medicamentos ORDER BY nombre ASC", db)
+    df_meds = pd.read_sql_query("SELECT * FROM medicamentos ORDER BY nombre ASC", conn)
     
     if not df_meds.empty:
         # Mostramos cada medicina con su propio botón de eliminar
