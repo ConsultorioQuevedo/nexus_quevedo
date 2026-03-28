@@ -244,12 +244,11 @@ elif opcion == "🩺 SALUD & GLUCOSA":
         
         if st.form_submit_button("💾 GUARDAR REGISTRO Y ANALIZAR"):
             if valor_g > 0:
-                # Insertamos datos incluyendo la nueva nota
-                db.execute("INSERT INTO glucosa (fecha, hora, momento, valor, nota) VALUES (?,?,?,?,?)", 
-                           (f_txt, h_txt, momento_g, valor_g, nota_g))
-                db.commit()
-                # Análisis inmediato
-                estado, color, msn = analizar_glucosa_full(valor_g, momento_g)
+            conn = sqlite3.connect("control_quevedo.db")
+            conn.execute("INSERT INTO glucosa (fecha, hora, momento, valor, nota) VALUES (?,?,?,?,?)", (f_txt, h_txt, momento_g, valor_g, nota_g))
+            conn.commit()
+            estado, color, msn = analizar_glucosa_full(valor_g, momento_g)
+            st.success("✅ Registro guardado")
                 st.markdown(f"""
                     <div style='background-color:{color}; padding:20px; border-radius:10px; color:white; text-align:center; margin-bottom:15px;'>
                         <h2 style='color:white; margin:0;'>{valor_g} mg/dL - {estado}</h2>
