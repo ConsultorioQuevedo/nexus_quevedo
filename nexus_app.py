@@ -248,7 +248,7 @@ elif opcion == "🩺 SALUD & GLUCOSA":
             conn.commit()
             estado, color, msn = analizar_glucosa_full(valor_g, momento_g)
             st.success("✅ Registro guardado")
-                st.markdown(f"""
+            st.markdown(f"""
                     <div style='background-color:{color}; padding:20px; border-radius:10px; color:white; text-align:center; margin-bottom:15px;'>
                         <h2 style='color:white; margin:0;'>{valor_g} mg/dL - {estado}</h2>
                         <p style='margin:5px 0 0 0;'>{msn}</p>
