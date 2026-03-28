@@ -281,56 +281,56 @@ elif opcion == "🩺 SALUD & GLUCOSA":
         st.subheader("🛠️ Herramientas y Reportes")
         col_pdf, col_wa, col_del = st.columns(3)
 
-        # A. GENERADOR DE PDF PROFESIONAL CON FIRMA QUEVEDO
+      # A. GENERADOR DE PDF PROFESIONAL (VERSIÓN ANTIBLOQUEO)
         with col_pdf:
             if st.button("📄 GENERAR REPORTE PDF"):
                 try:
                     pdf = FPDF()
                     pdf.add_page()
-                    # Encabezado NEXUS PRO
-                    pdf.set_font("Arial", 'B', 18)
-                    pdf.set_text_color(33, 150, 243) # AzulNexus
-                    pdf.cell(200, 10, txt="NEXUS PRO - REPORTE DE SALUD", ln=True, align='C')
+                    # Encabezado SISTEMA QUEVEDO
+                    pdf.set_font("Arial", 'B', 16)
+                    pdf.set_text_color(33, 150, 243) 
+                    pdf.cell(200, 10, txt="SISTEMA QUEVEDO - REPORTE DE SALUD", ln=True, align='C')
                     pdf.set_font("Arial", size=10)
                     pdf.set_text_color(0)
                     pdf.cell(200, 10, txt=f"Generado el: {f_txt} {h_txt}", ln=True, align='C')
                     pdf.ln(10)
 
                     # Títulos de Tabla
-                    pdf.set_font("Arial", 'B', 11)
-                    pdf.set_fill_color(30, 30, 30) # Fondo oscuro
-                    pdf.set_text_color(255) # Texto blanco
+                    pdf.set_font("Arial", 'B', 10)
+                    pdf.set_fill_color(200, 200, 200) # Gris claro para que se vea al imprimir
                     pdf.cell(30, 8, "FECHA", 1, 0, 'C', True)
                     pdf.cell(40, 8, "MOMENTO", 1, 0, 'C', True)
                     pdf.cell(25, 8, "VALOR", 1, 0, 'C', True)
-                    pdf.cell(30, 8, "ESTADO", 1, 0, 'C', True)
-                    pdf.cell(65, 8, "NOTA", 1, 1, 'C', True)
+                    pdf.cell(35, 8, "ESTADO", 1, 0, 'C', True)
+                    pdf.cell(60, 8, "NOTA", 1, 1, 'C', True)
 
                     # Datos
-                    pdf.set_font("Arial", size=10)
-                    pdf.set_text_color(0)
+                    pdf.set_font("Arial", size=9)
                     for i, r in df_g.iterrows():
-                        pdf.cell(30, 8, r['fecha'], 1)
-                        pdf.cell(40, 8, r['momento'], 1)
+                        # Limpieza de Emojis para evitar el error de 'latin-1'
+                        est_raw, _, _ = analizar_glucosa_full(r['valor'], r['momento'])
+                        # Quitamos los círculos de colores manualmente
+                        est_txt = est_raw.replace("🟢", "").replace("🟡", "").replace("🔴", "").strip()
+                        
+                        pdf.cell(30, 8, str(r['fecha']), 1)
+                        pdf.cell(40, 8, str(r['momento']), 1)
                         pdf.cell(25, 8, f"{r['valor']} mg/dL", 1, 0, 'R')
-                        # Análisis rápido para el PDF
-                        est_pdf, _, _ = analizar_glucosa_full(r['valor'], r['momento'])
-                        pdf.cell(30, 8, est_pdf, 1)
-                        # Nota (cortar si es muy larga)
-                        nota_pdf = str(r['nota']) if 'nota' in r else ""
-                        pdf.cell(65, 8, nota_pdf[:35], 1, 1) # Muestra los primeros 35 caracteres
+                        pdf.cell(35, 8, est_txt, 1)
+                        
+                        # Limpiar la nota de cualquier símbolo extraño
+                        nota_limpia = str(r['nota']).encode('ascii', 'ignore').decode('ascii')
+                        pdf.cell(60, 8, nota_limpia[:30], 1, 1)
 
-                    pdf.ln(15)
-                    # FIRMA QUEVEDO AL FINAL DE CADA PÁGINA
-                    pdf.set_font("Arial", 'I', 9)
-                    pdf.cell(200, 10, txt="__________________________________________________________", ln=True, align='C')
-                    pdf.cell(200, 5, txt="Este reporte es propiedad exclusiva de: LUIS RAFAEL QUEVEDO | 2026", ln=True, align='C')
+                    pdf.ln(10)
+                    pdf.set_font("Arial", 'I', 8)
+                    pdf.cell(200, 5, txt="Este reporte es propiedad de: LUIS RAFAEL QUEVEDO", ln=True, align='C')
                     
+                    # El truco maestro: usar 'latin-1' con 'replace' para que no explote
                     pdf_out = pdf.output(dest='S').encode('latin-1', 'replace')
                     st.download_button(label="📥 Descargar Reporte PDF", data=pdf_out, file_name=f"Glucosa_Quevedo_{f_txt.replace('/','-')}.pdf", mime="application/pdf")
                 except Exception as e:
                     st.error(f"Error generando PDF: {e}")
-
         # B. VÍNCULO CON WHATSAPP
         with col_wa:
             st.markdown("##### 📱 Enviar por WhatsApp")
