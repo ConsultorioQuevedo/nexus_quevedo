@@ -73,7 +73,7 @@ f_txt, h_txt, m_txt, f_obj, ahora_obj = obtener_fecha_rd()
 with st.sidebar:
    st.sidebar.markdown("<h1 style='color:#0056b3; text-align:center;'>📊 SISTEMA QUEVEDO</h1>", unsafe_allow_html=True)
    st.info(f"📅 {f_txt}\n⏰ {h_txt}")
-    st.markdown("---")
+   st.markdown("---")
     opcion = st.radio("SECCIONES:", [
         "🏠 DASHBOARD", 
         "💰 FINANZAS", 
@@ -175,7 +175,7 @@ elif opcion == "💰 FINANZAS":
                 st.success("✅ Registro guardado con éxito.")
                 st.rerun()
 
-    st.markdown("---")
+                st.markdown("---")
 
     # Mostrar Historial y Borrado
     try:
@@ -206,7 +206,7 @@ elif opcion == "💰 FINANZAS":
                             db.execute("DELETE FROM finanzas WHERE id = ?", (row['id'],))
                             db.commit()
                             st.rerun()
-                st.markdown("---")
+                            st.markdown("---")
         else:
             st.info("Aún no hay registros en su libro financiero.")
     except Exception as e:
@@ -499,7 +499,7 @@ elif opcion == "📅 AGENDA":
                         db.commit()
                         st.warning("Cita eliminada.")
                         st.rerun()
-                st.markdown("---")
+                        st.markdown("---")
         
         # Botón para limpiar toda la agenda de un solo golpe
         if st.checkbox("⚠️ Activar botón de limpieza total"):
