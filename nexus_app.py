@@ -87,7 +87,7 @@ with st.sidebar:
         del st.session_state["password_correct"]
         st.rerun()
 # --- 7. LÓGICA DE ALERTAS INTELIGENTES (SISTEMA QUEVEDO) ---
- if opcion == "🏠 DASHBOARD":
+if opcion == "🏠 DASHBOARD":
     st.title(f"🛡️ Panel de Control - SISTEMA QUEVEDO")
     st.markdown("---")
     
