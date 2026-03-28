@@ -152,7 +152,8 @@ elif opcion == "💰 FINANZAS":
     st.title("💰 Control de Finanzas - NEXUS PRO")
     st.markdown("---")
 
-    # Aseguramos que la tabla exista
+    # Aseguramos que la tabla exista 
+    conn = sqlite3.connect("control_quevedo.db")
     conn.execute('''CREATE TABLE IF NOT EXISTS finanzas 
                (id INTEGER PRIMARY KEY, fecha TEXT, mes TEXT, tipo TEXT, categoria TEXT, detalle TEXT, monto REAL)''')
     conn.commit()
