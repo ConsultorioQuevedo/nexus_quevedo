@@ -59,7 +59,7 @@ if "password_correct" not in st.session_state:
     with st.form("login"):
         pwd = st.text_input("Ingrese su Clave:", type="password")
         if st.form_submit_button("DESBLOQUEAR"):
-            if pwd == "admin123":
+            if pwd == "1628":
                 st.session_state["password_correct"] = True
                 st.rerun()
             else: st.error("Clave incorrecta")
