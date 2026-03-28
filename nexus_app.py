@@ -127,7 +127,7 @@ if opcion == "🏠 DASHBOARD":
            
             with col_btn:
             # AQUÍ ESTÁ EL BOTÓN QUE USTED QUERÍA
-            if st.button(f"✅ YA ME LA TOMÉ", key=f"btn_{item['med']}"):
+    if st.button(f"✅ YA ME LA TOMÉ", key=f"btn_{item['med']}"):
                 **conn**.execute("INSERT INTO registro_medico (fecha, medicamento, hora_confirmada) VALUES (?,?,?)", 
                                (f_txt, item['med'], h_txt))
                 **conn**.commit()
