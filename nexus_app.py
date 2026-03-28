@@ -153,9 +153,9 @@ elif opcion == "💰 FINANZAS":
     st.markdown("---")
 
     # Aseguramos que la tabla exista
-    db.execute('''CREATE TABLE IF NOT EXISTS finanzas 
+    conn.execute('''CREATE TABLE IF NOT EXISTS finanzas 
                (id INTEGER PRIMARY KEY, fecha TEXT, mes TEXT, tipo TEXT, categoria TEXT, detalle TEXT, monto REAL)''')
-    db.commit()
+    conn.commit()
 
     # Formulario de Registro
     with st.form("f_finanzas_vFinal", clear_on_submit=True):
@@ -170,9 +170,9 @@ elif opcion == "💰 FINANZAS":
         
         if st.form_submit_button("💾 GUARDAR MOVIMIENTO"):
             if monto_f > 0:
-                db.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)", 
+                conn.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)", 
                            (f_txt, mes_f, tipo_f, cat_f, det_f, monto_f))
-                db.commit()
+                conn.commit()
                 st.success("✅ Registro guardado con éxito.")
                 st.rerun()
 
@@ -204,8 +204,8 @@ elif opcion == "💰 FINANZAS":
                         st.markdown(f"<h4 style='color:{color}; margin:0;'>${row['monto']:,.2f}</h4>", unsafe_allow_html=True)
                     with c_del:
                         if st.button("🗑️", key=f"del_fin_{row['id']}"):
-                            db.execute("DELETE FROM finanzas WHERE id = ?", (row['id'],))
-                            db.commit()
+                            conn.execute("DELETE FROM finanzas WHERE id = ?", (row['id'],))
+                            conn.commit()
                             st.rerun()
                             st.markdown("---")
         else:
@@ -355,16 +355,16 @@ elif opcion == "🩺 SALUD & GLUCOSA":
                 st.warning("Esta acción borrará registros permanentemente.")
                 # Opción para borrar el último registro
                 if st.button("🗑️ Borrar ÚLTIMO Registro (Deshacer)"):
-                    db.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)")
-                    db.commit()
+                    conn.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)")
+                    conn.commit()
                     st.success("✅ Último registro eliminado.")
                     st.rerun()
                 
                 # Opción para limpieza total con seguro
                 if st.checkbox("⚠️ Confirmar vaciado total de glucosa"):
                     if st.button("🔥 BORRAR TODO EL HISTORIAL"):
-                        db.execute("DELETE FROM glucosa")
-                        db.commit()
+                        conn.execute("DELETE FROM glucosa")
+                        conn.commit()
                         st.error("Historial de glucosa vaciado.")
                         st.rerun()
 
@@ -411,9 +411,9 @@ elif opcion == "💊 BOTIQUÍN":
         
         if st.form_submit_button("💾 REGISTRAR EN BOTIQUÍN"):
             if n_med:
-                db.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", 
+                conn.execute("INSERT INTO medicamentos (nombre, dosis, horario) VALUES (?,?,?)", 
                            (n_med, d_med, h_med))
-                db.commit()
+                conn.commit()
                 st.success(f"✅ {n_med} añadida correctamente.")
                 st.rerun()
             else:
@@ -435,8 +435,8 @@ elif opcion == "💊 BOTIQUÍN":
                 with col_del:
                     # Botón individual para borrar esta medicina específica
                     if st.button("🗑️ Quitar", key=f"del_med_{row['id']}"):
-                        db.execute("DELETE FROM medicamentos WHERE id = ?", (row['id'],))
-                        db.commit()
+                        conn.execute("DELETE FROM medicamentos WHERE id = ?", (row['id'],))
+                        conn.commit()
                         st.warning(f"Se eliminó {row['nombre']}.")
                         st.rerun()
                 st.markdown("<hr style='margin:5px; border:0.5px solid #30363d;'>", unsafe_allow_html=True)
@@ -445,8 +445,8 @@ elif opcion == "💊 BOTIQUÍN":
         st.markdown("<br>", unsafe_allow_html=True)
         if st.checkbox("⚠️ Habilitar vaciado total del botiquín"):
             if st.button("🔥 BORRAR TODAS LAS MEDICINAS"):
-                db.execute("DELETE FROM medicamentos")
-                db.commit()
+                conn.execute("DELETE FROM medicamentos")
+                conn.commit()
                 st.error("Botiquín vaciado por completo.")
                 st.rerun()
     else:
@@ -468,9 +468,9 @@ elif opcion == "📅 AGENDA":
         
         if st.form_submit_button("💾 GUARDAR CITA EN AGENDA"):
             if doc and mot:
-                db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", 
+                conn.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", 
                            (doc, str(fec_c), mot))
-                db.commit()
+                conn.commit()
                 st.success(f"✅ Cita con {doc} guardada para el {fec_c}")
                 st.rerun()
             else:
@@ -495,8 +495,8 @@ elif opcion == "📅 AGENDA":
                 with c3:
                     # Botón único para borrar esta cita específica
                     if st.button("🗑️ Borrar", key=f"del_cita_{row['id']}"):
-                        db.execute("DELETE FROM citas WHERE id = ?", (row['id'],))
-                        db.commit()
+                        conn.execute("DELETE FROM citas WHERE id = ?", (row['id'],))
+                        conn.commit()
                         st.warning("Cita eliminada.")
                         st.rerun()
                         st.markdown("---")
@@ -504,8 +504,8 @@ elif opcion == "📅 AGENDA":
         # Botón para limpiar toda la agenda de un solo golpe
         if st.checkbox("⚠️ Activar botón de limpieza total"):
             if st.button("🔥 BORRAR TODA LA AGENDA"):
-                db.execute("DELETE FROM citas")
-                db.commit()
+                conn.execute("DELETE FROM citas")
+                conn.commit()
                 st.error("Agenda vaciada por completo.")
                 st.rerun()
     else:
