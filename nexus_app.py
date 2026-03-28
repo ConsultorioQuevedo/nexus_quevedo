@@ -104,9 +104,9 @@ if opcion == "🏠 DASHBOARD":
     ]
 
     st.subheader("🔔 Recordatorios de Salud (Tiempo Real)")
-    
-    # 2. Consultamos la base de datos para ver qué se ha tomado HOY
-    tomas_hoy = pd.read_sql_query(f"SELECT medicamento FROM registro_medico WHERE fecha = '{f_txt}'", db)
+
+    conn = sqlite3.connect("control_quevedo.db")
+    tomas_hoy = pd.read_sql_query(f"SELECT medicamento FROM registro_medico WHERE fecha = '{f_txt}'", conn)
     lista_cumplidos = tomas_hoy['medicamento'].values
 
     hora_actual_24 = ahora_obj.hour
