@@ -265,7 +265,28 @@ if menu == "💰 Finanzas":
                         (tiempo['fecha'], tiempo['mes'], tipo, cat, det, monto))
             conn.commit()
             st.success("Transacción registrada.")
-            st.rerun()
+            st.rerun() 
+     # --- VENTANILLA DE ENTRADA DE PRESUPUESTO ---
+with st.expander("💰 REGISTRAR DINERO (INGRESOS O GASTOS)", expanded=True):
+    col_desc, col_monto, col_tipo = st.columns([2, 1, 1])
+    
+    # Aquí usted escribe qué es el dinero
+    nueva_desc = col_desc.text_input("Concepto:", placeholder="Ej: Mi Pensión, Venta, Pago...")
+    
+    # Aquí pone la cantidad
+    nuevo_monto = col_monto.number_input("Cantidad ($):", min_value=0.0, step=100.0)
+    
+    # Aquí elige si entra o sale
+    nuevo_tipo = col_tipo.selectbox("¿Qué es?", ["INGRESO", "GASTO"])
+
+    # El botón que dispara la magia
+    if st.button("📌 GUARDAR EN MI CUENTA", use_container_width=True):
+        if nueva_desc and nuevo_monto > 0:
+            conn.execute("INSERT INTO finanzas (fecha, descripcion, monto, tipo) VALUES (?,?,?,?)",
+                         (str(tiempo['fecha']), nueva_desc.upper(), nuevo_monto, nuevo_tipo))
+            conn.commit()
+            st.success(f"¡Listo Luis Rafael! Se anotó: {nueva_desc} por ${nuevo_monto:,.2f}")
+            st.rerun()       
 
     # --- ANÁLISIS DE DATOS ---
     df_f = pd.read_sql_query(f"SELECT * FROM finanzas WHERE mes = '{tiempo['mes']}'", conn)
