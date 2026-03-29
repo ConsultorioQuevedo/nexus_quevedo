@@ -462,7 +462,7 @@ elif opcion == "💊 BOTIQUÍN":
                 st.markdown("<hr style='margin:5px; border:0.5px solid #30363d;'>", unsafe_allow_html=True)
         
         # Opción de Limpieza Masiva
-               st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
           with st.expander("🚨 Zona de Peligro"):
             if st.checkbox("Confirmar vaciado total"):
                 if st.button("🔥 BORRAR TODO EL BOTIQUÍN"):
