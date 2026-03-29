@@ -382,7 +382,7 @@ with col_pdf:
                    if st.button("🗑️ Borrar Último"):
                     conn.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)")
                     conn.commit()
-                     st.rerun()
+                    st.rerun()
             
             st.subheader("📊 Historial con Semáforos")
             if not df_g.empty:
