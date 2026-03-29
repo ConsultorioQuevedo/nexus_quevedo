@@ -448,7 +448,7 @@ elif opcion == "💊 BOTIQUÍN":
        fecha_limpia = f_obj         
        st.markdown("#### ⚙️ Gestionar Medicinas")
         # Mostramos cada medicina con su propio botón de eliminar
-        for i, row in df_meds.iterrows():
+            for i, row in df_meds.iterrows():
             with st.container():
                 col_info, col_del = st.columns([4, 1])
                 with col_info:
