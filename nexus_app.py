@@ -389,42 +389,55 @@ elif menu == "💊 Botiquín":
                         st.error("⚠️ Sin stock disponible")
     else:
         st.info("No hay medicamentos registrados aún.") 
-        # ==========================================
+     # =========================================================
 # 11. MÓDULO: AGENDA DE CITAS - LUIS RAFAEL QUEVEDO
-# ==========================================
+# =========================================================
 elif menu == "📅 Agenda":
     st.title("📅 Agenda de Citas - Luis Rafael Quevedo")
     
-    # --- FORMULARIO DE REGISTRO ---
+    # --- PROCESAMIENTO DE FECHA PARA EL CALENDARIO ---
+    # Convertimos el texto de tiempo['fecha'] a un objeto Date real para evitar el error 401
+    try:
+        fecha_calendario = pd.to_datetime(tiempo['fecha']).date()
+    except:
+        import datetime
+        fecha_calendario = datetime.date.today()
+
+    # --- CAPA 1: REGISTRO DE CITAS ---
     with st.expander("➕ PROGRAMAR NUEVA CITA", expanded=True):
         col1, col2 = st.columns(2)
-        f_cita = col1.date_input("Fecha de la Cita:", value=tiempo['fecha'])
+        # Usamos la fecha procesada aquí
+        f_cita = col1.date_input("Fecha de la Cita:", value=fecha_calendario)
         h_cita = col2.time_input("Hora de la Cita:")
-        asunto = st.text_input("Médico o Especialidad:").upper()
-        lugar = st.text_input("Centro Médico / Dirección:").upper()
+        asunto = st.text_input("MÉDICO O ESPECIALIDAD:").upper()
+        lugar = st.text_input("CENTRO MÉDICO / LUGAR:").upper()
         
-        if st.button("💾 GUARDAR CITA", use_container_width=True):
+        if st.button("💾 GUARDAR EN MI AGENDA", use_container_width=True):
             if asunto:
                 conn.execute("INSERT INTO agenda (fecha, hora, asunto, lugar) VALUES (?,?,?,?)",
                              (str(f_cita), str(h_cita), asunto, lugar))
                 conn.commit()
-                st.success("✅ Cita guardada correctamente.")
+                st.success(f"✅ Cita con {asunto} guardada con éxito.")
                 st.rerun()
 
-    # --- LISTADO Y FUNCIONES INTELIGENTES ---
+    # --- CAPA 2: VISUALIZACIÓN Y ACCIONES ---
     st.markdown("---")
-    df_a = pd.read_sql_query("SELECT * FROM agenda ORDER BY fecha, hora ASC", conn)
-    
+    # Leemos la tabla agenda (asegúrese de que la tabla exista en su DB)
+    try:
+        df_a = pd.read_sql_query("SELECT * FROM agenda ORDER BY fecha, hora ASC", conn)
+    except:
+        st.error("⚠️ La tabla 'agenda' no existe. Cree la tabla en su base de datos.")
+        df_a = pd.DataFrame()
+
     if not df_a.empty:
         for _, cita in df_a.iterrows():
             with st.container():
                 c1, c2, c3 = st.columns([3, 1, 1])
                 
-                # Info Cita
-                info_texto = f"📅 {cita['fecha']} | ⏰ {cita['hora']}\n📍 {cita['asunto']} - {cita['lugar']}"
-                c1.markdown(f"**{cita['asunto']}**\n\n{cita['fecha']} a las {cita['hora']}")
+                # Datos de la Cita
+                c1.markdown(f"**{cita['asunto']}**\n\n📅 {cita['fecha']} | ⏰ {cita['hora']}\n📍 {cita['lugar']}")
                 
-                # Botón WhatsApp (Inteligencia de Aviso)
+                # Inteligencia: WhatsApp Directo
                 msg_wa = f"Recordatorio para Luis Rafael Quevedo: Cita de {cita['asunto']} el {cita['fecha']} a las {cita['hora']} en {cita['lugar']}."
                 if c2.button("📱 WA", key=f"wa_{cita['id']}"):
                     enviar_whatsapp(msg_wa)
@@ -436,26 +449,41 @@ elif menu == "📅 Agenda":
                     st.rerun()
                 st.markdown("---")
 
-        # --- GENERADOR DE PDF ---
-        if st.button("📄 DESCARGAR REPORTE PDF (LUIS RAFAEL QUEVEDO)", use_container_width=True):
+        # --- CAPA 3: GENERADOR DE REPORTE PDF ---
+        if st.button("📄 GENERAR REPORTE PDF (LUIS RAFAEL QUEVEDO)", use_container_width=True):
             from fpdf import FPDF
             pdf = FPDF()
             pdf.add_page()
+            
+            # Encabezado con su nombre
             pdf.set_font("Arial", 'B', 16)
-            pdf.cell(200, 10, "REPORTE DE AGENDA MÉDICA", ln=True, align='C')
+            pdf.cell(200, 10, "NEXUS PRO - AGENDA MÉDICA", ln=True, align='C')
             pdf.set_font("Arial", '', 12)
-            pdf.cell(200, 10, "Titular: LUIS RAFAEL QUEVEDO", ln=True, align='C')
+            pdf.cell(200, 10, f"TITULAR: LUIS RAFAEL QUEVEDO", ln=True, align='C')
+            pdf.cell(200, 10, f"FECHA DE REPORTE: {tiempo['fecha']}", ln=True, align='C')
             pdf.ln(10)
             
-            for _, c in df_a.iterrows():
-                pdf.multi_cell(0, 10, f"FECHA: {c['fecha']} | HORA: {c['hora']}\nASUNTO: {c['asunto']}\nLUGAR: {c['lugar']}\n" + "-"*30)
+            # Listado de citas en el PDF
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 10, "DETALLE DE CITAS PROGRAMADAS:", ln=True)
+            pdf.set_font("Arial", '', 11)
+            pdf.ln(5)
             
-            pdf_output = f"agenda_quevedo_{tiempo['fecha']}.pdf"
-            pdf.output(pdf_output)
-            with open(pdf_output, "rb") as f:
-                st.download_button("⬇️ CLIC AQUÍ PARA DESCARGAR PDF", f, file_name=pdf_output)
+            for _, c in df_a.iterrows():
+                linea1 = f"FECHA: {c['fecha']} | HORA: {c['hora']}"
+                linea2 = f"ASUNTO: {c['asunto']}"
+                linea3 = f"LUGAR: {c['lugar']}"
+                pdf.multi_cell(0, 8, f"{linea1}\n{linea2}\n{linea3}\n" + "-"*50)
+                pdf.ln(2)
+            
+            nombre_pdf = f"agenda_quevedo_{tiempo['fecha']}.pdf"
+            pdf.output(nombre_pdf)
+            
+            with open(nombre_pdf, "rb") as f:
+                st.download_button("⬇️ DESCARGAR REPORTE AHORA", f, file_name=nombre_pdf)
     else:
-        st.info("No hay citas pendientes.")
+        st.info("No hay citas pendientes en su agenda.") 
+
 # ==========================================
 # 11. MÓDULO DASHBOARD (EL CEREBRO DEL SISTEMA)
 # ==========================================
