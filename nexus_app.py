@@ -379,7 +379,74 @@ elif menu == "💊 Botiquín":
                     else:
                         st.error("⚠️ Sin stock disponible")
     else:
-        st.info("No hay medicamentos registrados aún.")
+        st.info("No hay medicamentos registrados aún.") 
+        # ==========================================
+# 11. MÓDULO: AGENDA DE CITAS - LUIS RAFAEL QUEVEDO
+# ==========================================
+elif menu == "📅 Agenda":
+    st.title("📅 Agenda de Citas - Luis Rafael Quevedo")
+    
+    # --- FORMULARIO DE REGISTRO ---
+    with st.expander("➕ PROGRAMAR NUEVA CITA", expanded=True):
+        col1, col2 = st.columns(2)
+        f_cita = col1.date_input("Fecha de la Cita:", value=tiempo['fecha_dt'])
+        h_cita = col2.time_input("Hora de la Cita:")
+        asunto = st.text_input("Médico o Especialidad:").upper()
+        lugar = st.text_input("Centro Médico / Dirección:").upper()
+        
+        if st.button("💾 GUARDAR CITA", use_container_width=True):
+            if asunto:
+                conn.execute("INSERT INTO agenda (fecha, hora, asunto, lugar) VALUES (?,?,?,?)",
+                             (str(f_cita), str(h_cita), asunto, lugar))
+                conn.commit()
+                st.success("✅ Cita guardada correctamente.")
+                st.rerun()
+
+    # --- LISTADO Y FUNCIONES INTELIGENTES ---
+    st.markdown("---")
+    df_a = pd.read_sql_query("SELECT * FROM agenda ORDER BY fecha, hora ASC", conn)
+    
+    if not df_a.empty:
+        for _, cita in df_a.iterrows():
+            with st.container():
+                c1, c2, c3 = st.columns([3, 1, 1])
+                
+                # Info Cita
+                info_texto = f"📅 {cita['fecha']} | ⏰ {cita['hora']}\n📍 {cita['asunto']} - {cita['lugar']}"
+                c1.markdown(f"**{cita['asunto']}**\n\n{cita['fecha']} a las {cita['hora']}")
+                
+                # Botón WhatsApp (Inteligencia de Aviso)
+                msg_wa = f"Recordatorio para Luis Rafael Quevedo: Cita de {cita['asunto']} el {cita['fecha']} a las {cita['hora']} en {cita['lugar']}."
+                if c2.button("📱 WA", key=f"wa_{cita['id']}"):
+                    enviar_whatsapp(msg_wa)
+                
+                # Botón Eliminar
+                if c3.button("🗑️", key=f"del_{cita['id']}"):
+                    conn.execute("DELETE FROM agenda WHERE id = ?", (cita['id'],))
+                    conn.commit()
+                    st.rerun()
+                st.markdown("---")
+
+        # --- GENERADOR DE PDF ---
+        if st.button("📄 DESCARGAR REPORTE PDF (LUIS RAFAEL QUEVEDO)", use_container_width=True):
+            from fpdf import FPDF
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", 'B', 16)
+            pdf.cell(200, 10, "REPORTE DE AGENDA MÉDICA", ln=True, align='C')
+            pdf.set_font("Arial", '', 12)
+            pdf.cell(200, 10, "Titular: LUIS RAFAEL QUEVEDO", ln=True, align='C')
+            pdf.ln(10)
+            
+            for _, c in df_a.iterrows():
+                pdf.multi_cell(0, 10, f"FECHA: {c['fecha']} | HORA: {c['hora']}\nASUNTO: {c['asunto']}\nLUGAR: {c['lugar']}\n" + "-"*30)
+            
+            pdf_output = f"agenda_quevedo_{tiempo['fecha']}.pdf"
+            pdf.output(pdf_output)
+            with open(pdf_output, "rb") as f:
+                st.download_button("⬇️ CLIC AQUÍ PARA DESCARGAR PDF", f, file_name=pdf_output)
+    else:
+        st.info("No hay citas pendientes.")
 # ==========================================
 # 11. MÓDULO DASHBOARD (EL CEREBRO DEL SISTEMA)
 # ==========================================
