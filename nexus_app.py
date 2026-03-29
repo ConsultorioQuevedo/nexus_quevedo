@@ -523,13 +523,19 @@ if menu == "🏠 Dashboard":
         # Regla Inteligente de Salud
         estado_salud = "ÓPTIMO" if 70 <= ultimo_v <= 130 else "REVISAR"
         col_s1.metric("ÚLTIMA GLUCOSA", f"{ultimo_v} mg/dL", f"{ultimo_v - promedio_v:.1f} vs prom")
-        
-    # Obtener datos de Finanzas para el Dashboard
+  # --- Obtener datos de Finanzas para el Dashboard (CORREGIDO) ---
+try:
     df_fin = pd.read_sql_query(f"SELECT tipo, monto FROM finanzas WHERE mes = '{tiempo['mes']}'", conn)
-    if not df_fin.empty:
-        gastos_totales = df_fin[df_fin['tipo'] == 'GASTO']['monto'].sum()
-        col_s2.metric("GASTOS DEL MES", f"RD$ {gastos_totales:,.2f}")
-    
+except:
+    # Si la tabla no existe o hay error, creamos un marco vacío para que no falle
+    df_fin = pd.DataFrame(columns=['tipo', 'monto'])
+
+if not df_fin.empty:
+    gastos_totales = df_fin[df_fin['tipo'] == 'GASTO']['monto'].sum()
+else:
+    gastos_totales = 0.0
+
+col_s2.metric("GASTOS DEL MES", f"RD$ {gastos_totales:,.2f}") 
     col_s3.metric("SISTEMA", "ACTIVO", "Protección 1628")
 
     st.markdown("---")
