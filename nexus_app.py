@@ -336,7 +336,7 @@ elif menu == "💊 BOTIQUÍN":
         # Regla Inteligente: Detectar si queda poco de algo
         bajo_stock = df_m[df_m['stock_actual'] <= 5]
         if not bajo_stock.empty:
-            for _, fila in bajo_stock.iterrows():
+            for _, med in bajo_stock.iterrows():
                 st.error(f"⚠️ **ALERTA DE REPOSICIÓN:** Sr. Quevedo, le quedan solo {fila['stock_actual']} dosis de {fila['nombre']}. Debería comprar más pronto.")
 
     # --- CAPA 2: REGISTRO DE NUEVA MEDICINA ---
