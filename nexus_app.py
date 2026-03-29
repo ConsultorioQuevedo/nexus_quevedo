@@ -396,7 +396,7 @@ for i, row in df_g.iterrows():
                     <div style='color: {col}; font-size: 0.8em; font-weight: bold;'>{est}: {msn}</div>
                 </div>
             """, unsafe_allow_html=True)
-if:
+  if:
         st.info("No hay registros todavía.")
 # --- 10. MÓDULO: BOTIQUÍN (GESTIÓN DE MEDICAMENTOS) ---
 elif opcion == "💊 BOTIQUÍN":
