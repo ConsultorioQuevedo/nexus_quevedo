@@ -238,10 +238,10 @@ if len(df_g) > 3:
             st.write(f"**Sistema de Recomendación:** La tendencia actual es al **{tendencia}**. Basado en esto, te recomiendo monitorear tu próxima comida.")
 
             # --- 3. WHATSAPP Y PDF ---
-             st.markdown("---")
-             col_pdf, col_wa = st.columns(2)
-        with col_pdf:
-     if st.button("📄 GENERAR PDF"):
+            st.markdown("---")
+            col_pdf, col_wa = st.columns(2)
+            with col_pdf:
+               if st.button("📄 GENERAR PDF"):
                     pdf = FPDF()
                     pdf.add_page()
                     pdf.set_font("Arial", 'B', 14)
