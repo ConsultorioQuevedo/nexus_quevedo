@@ -241,7 +241,7 @@ if len(df_g) > 3:
             st.markdown("---")
             col_pdf, col_wa = st.columns(2)
 
-        with col_pdf:
+          with col_pdf:
             if st.button("📄 GENERAR PDF"):
                 pdf = FPDF()
                 pdf.add_page()
