@@ -657,6 +657,7 @@ if menu == "🏠 Dashboard":
     st.subheader("🧠 Análisis Predictivo (IA)")
     
     # --- BLINDAJE DE SEGURIDAD PARA LUIS RAFAEL ---
+    conn = sqlite3.connect('nexus_data.db', check_same_thread=False)
     try:
         df_ml = pd.read_sql_query("SELECT valor FROM glucosa ORDER BY id DESC LIMIT 10", conn)
     except:
