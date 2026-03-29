@@ -463,8 +463,8 @@ elif opcion == "💊 BOTIQUÍN":
         
         # Opción de Limpieza Masiva
             st.markdown("<br>", unsafe_allow_html=True)
-         with st.expander("🚨 Zona de Peligro"):
-            if st.checkbox("Confirmar vaciado total"):
+            with st.expander("🚨 Zona de Peligro"):
+              if st.checkbox("Confirmar vaciado total"):
                 if st.button("🔥 BORRAR TODO EL BOTIQUÍN"):
                     conn.execute("DELETE FROM medicamentos")
                     conn.commit()
