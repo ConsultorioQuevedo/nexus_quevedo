@@ -366,7 +366,7 @@ with col_pdf:
                     st.download_button(label="📥 DESCARGAR REPORTE", data=pdf_data, file_name=f"Reporte_Quevedo_{tiempo['fecha']}.pdf", mime="application/pdf")
                 except Exception as e:
                     st.error(f"Error PDF: {e}")
-        with col_wa:
+         with col_wa:
             num_wa = st.text_input("WhatsApp (Ej: 1809...):")
             if st.button("📲 COMPARTIR ÚLTIMO"):
                 if num_wa:
