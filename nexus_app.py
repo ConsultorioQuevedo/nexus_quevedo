@@ -325,57 +325,57 @@ if menu == "📝 Bitácora":
 # ==========================================================
 # 10. MÓDULO: BOTIQUÍN INTELIGENTE - LUIS RAFAEL QUEVEDO
 # ==========================================================
-elif menu == "💊 BOTIQUÍN":
-    st.title("💊 Gestión de Medicamentos y Stock")
-    st.subheader("Control Maestro: Sr. Quevedo")
-
-    # --- CAPA 1: INTELIGENCIA DE STOCK (PREDICCIÓN) ---
-    df_m = pd.read_sql_query("SELECT * FROM medicamentos", conn)
+    elif menu == "💊 BOTIQUÍN":
+        st.title("💊 Gestión de Medicamentos y Stock")
+        st.subheader("Control Maestro: Sr. Quevedo")
     
-    if not df_m.empty:
-        # Regla Inteligente: Detectar si queda poco de algo
-        bajo_stock = df_m[df_m['stock_actual'] <= 5]
-        if not bajo_stock.empty:
-            for _, med in bajo_stock.iterrows():
-                st.error(f"⚠️ **ALERTA DE REPOSICIÓN:** Sr. Quevedo, le quedan solo {fila['stock_actual']} dosis de {fila['nombre']}. Debería comprar más pronto.")
-
-    # --- CAPA 2: REGISTRO DE NUEVA MEDICINA ---
-    with st.expander("➕ AGREGAR MEDICAMENTO AL PLAN", expanded=False):
-        c1, c2 = st.columns(2)
-        n_med = c1.text_input("Nombre del Medicamento:", placeholder="Ej: Enalapril")
-        d_med = c2.text_input("Dosis:", placeholder="Ej: 10mg")
+        # --- CAPA 1: INTELIGENCIA DE STOCK (PREDICCIÓN) ---
+        df_m = pd.read_sql_query("SELECT * FROM medicamentos", conn)
         
-        c3, c4 = st.columns(2)
-        h_med = c3.text_input("Horario (HH:MM):", value="08:00")
-        s_med = c4.number_input("Cantidad Inicial (Pastillas):", min_value=1, value=30)
-        
-        if st.button("💾 REGISTRAR EN BOTIQUÍN", use_container_width=True):
-            conn.execute("""INSERT INTO medicamentos (nombre, dosis, horario, stock_inicial, stock_actual) 
-                         VALUES (?,?,?,?,?)""", (n_med, d_med, h_med, s_med, s_med))
-            conn.commit()
-            st.success(f"✅ {n_med} añadido al Plan Maestro.")
-            st.rerun()
-
-    # --- CAPA 3: PANEL DE CONTROL ELEGANTE ---
-    st.markdown("---")
-    if not df_m.empty:
-        st.markdown("### 📋 Inventario Actual")
-        for _, med in df_m.iterrows():
-            with st.container():
-                col1, col2, col3 = st.columns([3, 2, 1])
-                col1.markdown(f"**{med['nombre']}** ({med['dosis']}) - ⏰ {med['horario']}")
-                
-                # Barra de progreso visual para el stock
-                porcentaje = (med['stock_actual'] / med['stock_inicial'])
-                col2.progress(porcentaje)
-                
-    if col3.button("💊 TOMAR", key=f"toma_{med['id']}"):
-            nuevo_stock = fila['stock_actual'] - 1
-            conn.execute("UPDATE medicamentos SET stock_actual = ? WHERE id = ?", (nuevo_stock, fila['id']))
-            conn.execute("INSERT INTO registro_medico (fecha, medicamento, hora_toma, cumplimiento) VALUES (?,?,?,?)",
-                         (str(tiempo['fecha']), fila['nombre'], tiempo['hora'], "SÍ"))
-            conn.commit()
-            st.rerun()   
+        if not df_m.empty:
+            # Regla Inteligente: Detectar si queda poco de algo
+            bajo_stock = df_m[df_m['stock_actual'] <= 5]
+            if not bajo_stock.empty:
+                for _, med in bajo_stock.iterrows():
+                    st.error(f"⚠️ **ALERTA DE REPOSICIÓN:** Sr. Quevedo, le quedan solo {fila['stock_actual']} dosis de {fila['nombre']}. Debería comprar más pronto.")
+    
+        # --- CAPA 2: REGISTRO DE NUEVA MEDICINA ---
+        with st.expander("➕ AGREGAR MEDICAMENTO AL PLAN", expanded=False):
+            c1, c2 = st.columns(2)
+            n_med = c1.text_input("Nombre del Medicamento:", placeholder="Ej: Enalapril")
+            d_med = c2.text_input("Dosis:", placeholder="Ej: 10mg")
+            
+            c3, c4 = st.columns(2)
+            h_med = c3.text_input("Horario (HH:MM):", value="08:00")
+            s_med = c4.number_input("Cantidad Inicial (Pastillas):", min_value=1, value=30)
+            
+            if st.button("💾 REGISTRAR EN BOTIQUÍN", use_container_width=True):
+                conn.execute("""INSERT INTO medicamentos (nombre, dosis, horario, stock_inicial, stock_actual) 
+                             VALUES (?,?,?,?,?)""", (n_med, d_med, h_med, s_med, s_med))
+                conn.commit()
+                st.success(f"✅ {n_med} añadido al Plan Maestro.")
+                st.rerun()
+    
+        # --- CAPA 3: PANEL DE CONTROL ELEGANTE ---
+        st.markdown("---")
+        if not df_m.empty:
+            st.markdown("### 📋 Inventario Actual")
+            for _, med in df_m.iterrows():
+                with st.container():
+                    col1, col2, col3 = st.columns([3, 2, 1])
+                    col1.markdown(f"**{med['nombre']}** ({med['dosis']}) - ⏰ {med['horario']}")
+                    
+                    # Barra de progreso visual para el stock
+                    porcentaje = (med['stock_actual'] / med['stock_inicial'])
+                    col2.progress(porcentaje)
+                    
+        if col3.button("💊 TOMAR", key=f"toma_{med['id']}"):
+                nuevo_stock = fila['stock_actual'] - 1
+                conn.execute("UPDATE medicamentos SET stock_actual = ? WHERE id = ?", (nuevo_stock, fila['id']))
+                conn.execute("INSERT INTO registro_medico (fecha, medicamento, hora_toma, cumplimiento) VALUES (?,?,?,?)",
+                             (str(tiempo['fecha']), fila['nombre'], tiempo['hora'], "SÍ"))
+                conn.commit()
+                st.rerun()   
 # ==========================================
 # 11. MÓDULO DASHBOARD (EL CEREBRO DEL SISTEMA)
 # ==========================================
