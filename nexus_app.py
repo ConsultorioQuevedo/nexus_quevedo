@@ -325,7 +325,7 @@ if menu == "📝 Bitácora":
 # ==========================================================
 # 10. MÓDULO: BOTIQUÍN INTELIGENTE - LUIS RAFAEL QUEVEDO
 # ==========================================================
-    elif menu == "💊 BOTIQUÍN":
+elif menu == "💊 BOTIQUÍN":
         st.title("💊 Gestión de Medicamentos y Stock")
         st.subheader("Control Maestro: Sr. Quevedo")
     
