@@ -335,9 +335,12 @@ elif opcion == "🩺 SALUD & GLUCOSA":
         st.markdown("---")
         col_pdf, col_wa, col_del = st.columns(3)
 
-        with col_pdf:
+with col_pdf:
             if st.button("📄 GENERAR REPORTE PDF"):
                 try:
+                    # ESTA ES LA SOLUCIÓN: Volver a leer la base de datos justo al hacer clic
+                    df_actualizado = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", conn)
+                    
                     pdf = FPDF()
                     pdf.add_page()
                     pdf.set_font("Arial", 'B', 16)
@@ -345,11 +348,14 @@ elif opcion == "🩺 SALUD & GLUCOSA":
                     pdf.set_font("Arial", 'B', 12)
                     pdf.cell(200, 10, txt=f"PACIENTE: LUIS RAFAEL QUEVEDO", ln=True, align='C')
                     pdf.ln(10)
-                    # Tabla sencilla
+                    
+                    # Encabezados de tabla
                     pdf.set_font("Arial", 'B', 10)
                     pdf.cell(40, 8, "FECHA", 1); pdf.cell(40, 8, "MOMENTO", 1); pdf.cell(30, 8, "VALOR", 1); pdf.cell(80, 8, "NOTA", 1, 1)
+                    
                     pdf.set_font("Arial", size=9)
-                    for _, r in df_g.head(20).iterrows():
+                    # USAMOS EL DE DATOS ACTUALIZADOS
+                    for _, r in df_actualizado.head(20).iterrows():
                         pdf.cell(40, 8, str(r['fecha']), 1)
                         pdf.cell(40, 8, str(r['momento']), 1)
                         pdf.cell(30, 8, f"{r['valor']} mg/dL", 1)
@@ -360,7 +366,6 @@ elif opcion == "🩺 SALUD & GLUCOSA":
                     st.download_button(label="📥 DESCARGAR REPORTE", data=pdf_data, file_name=f"Reporte_Quevedo_{tiempo['fecha']}.pdf", mime="application/pdf")
                 except Exception as e:
                     st.error(f"Error PDF: {e}")
-
         with col_wa:
             num_wa = st.text_input("WhatsApp (Ej: 1809...):")
             if st.button("📲 COMPARTIR ÚLTIMO"):
