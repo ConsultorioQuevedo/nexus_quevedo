@@ -399,7 +399,7 @@ for i, row in df_g.iterrows():
 else:
         st.info("No hay registros todavía.")
 # --- 10. MÓDULO: BOTIQUÍN (GESTIÓN DE MEDICAMENTOS) ---
-      elif opcion == "💊 BOTIQUÍN":
+elif opcion == "💊 BOTIQUÍN":
     st.title("💊 Inventario de Medicamentos - NEXUS PRO")
     st.markdown("---")
     
