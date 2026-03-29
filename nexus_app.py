@@ -476,6 +476,7 @@ elif opcion == "💊 BOTIQUÍN":
     conn.close()
 # ==========================================
 # ==========================================
+# ==========================================
 # 11. MÓDULO: 🗓️ AGENDA DE CITAS
 # ==========================================
 elif opcion == "🗓️ AGENDA":
@@ -483,7 +484,7 @@ elif opcion == "🗓️ AGENDA":
     st.markdown("---")
     
     # --- ARREGLO DE SEGURIDAD PARA EL CALENDARIO ---
-    # Extraemos solo la fecha (día/mes/año) sin la hora para que no de error
+    # Extraemos solo la fecha (día/mes/año) sin la hora para evitar el error de la línea 492
     fecha_limpia = f_obj.date() 
 
     # 1. FORMULARIO PARA AGENDAR
@@ -492,10 +493,9 @@ elif opcion == "🗓️ AGENDA":
         col_a, col_b = st.columns(2)
         
         with col_a:
-            # Usamos .upper() para mantener el orden profesional que le gusta
+            # Todo en mayúsculas para el orden profesional del Sr. Quevedo
             doc = st.text_input("DOCTOR O ESPECIALIDAD:").upper()
-            
-            # USAMOS fecha_limpia AQUÍ PARA EVITAR EL ERROR
+            # Usamos la fecha limpia para que el calendario funcione perfecto
             fec_c = st.date_input("FECHA DE LA CITA:", value=fecha_limpia)
             
         with col_b:
@@ -503,11 +503,11 @@ elif opcion == "🗓️ AGENDA":
         
         if st.form_submit_button("💾 GUARDAR CITA EN AGENDA"):
             if doc and mot:
-                # Usamos la conexión 'db' que definimos para salud
+                # Usamos la conexión 'db' que es la maestra de salud
                 db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", 
                            (doc, str(fec_c), mot))
                 db.commit()
-                st.success(f"✅ Cita con {doc} guardada.")
+                st.success(f"✅ Cita con {doc} guardada correctamente.")
                 st.rerun()
             else:
                 st.error("⚠️ Por favor, complete el nombre del Doctor y el Motivo.")
@@ -515,54 +515,47 @@ elif opcion == "🗓️ AGENDA":
     st.markdown("---")
     st.subheader("📌 Citas Programadas")
 
-    # Mostrar la tabla de citas para que sepa qué tiene pendiente
+    # 2. LISTADO VISUAL Y BORRADO
     try:
-        df_citas = pd.read_sql_query("SELECT id, doctor, fecha, motivo FROM citas ORDER BY fecha ASC", db)
-        if not df_citas.empty:
-            st.dataframe(df_citas, use_container_width=True)
-            
-            # Opción para borrar una cita si ya pasó o se canceló
-            with st.expander("🗑️ Cancelar o Borrar una Cita"):
-                id_borrar = st.number_input("Ingrese el ID de la cita a quitar:", min_value=1, step=1)
-                if st.button("Confirmar Eliminación de Cita"):
-                    db.execute(f"DELETE FROM citas WHERE id = {id_borrar}")
-                    db.commit()
-                    st.success("Cita eliminada.")
-                    st.rerun()
-        else:
-            st.info("No hay citas programadas en este momento.")
-    except:
-        st.warning("Aún no hay registros en la agenda.")
-    # 2. LISTADO Y BORRADO
-    try:
-        df_citas = pd.read_sql_query("SELECT * FROM citas ORDER BY fecha ASC", conn)
+        # Leemos las citas directamente de la base de datos maestra
+        df_citas = pd.read_sql_query("SELECT * FROM citas ORDER BY fecha ASC", db)
         
         if not df_citas.empty:
             for i, row in df_citas.iterrows():
-                # Comprobamos si la cita ya pasó para ponerle un color diferente
-                cita_pasada = str(row['fecha']) < tiempo['fecha']
-                fondo = "#1a1c1e" if not cita_pasada else "#0d1117"
-                opacidad = "1.0" if not cita_pasada else "0.5"
+                # Comparamos fechas para saber si la cita ya pasó (formato texto YYYY-MM-DD)
+                fecha_hoy_str = fecha_limpia.strftime("%Y-%m-%d")
+                cita_pasada = str(row['fecha']) < fecha_hoy_str
+                
+                # Colores para distinguir citas nuevas de las viejas
+                fondo = "#ffffff" if not cita_pasada else "#f1f5f9"
+                borde = "#3b82f6" if not cita_pasada else "#94a3b8"
+                texto_color = "#1e293b" if not cita_pasada else "#64748b"
 
                 st.markdown(f"""
-                <div style='background-color: {fondo}; padding: 15px; border-radius: 10px; border-left: 5px solid #58a6ff; opacity: {opacidad}; margin-bottom: 10px;'>
-                    <div style='display: flex; justify-content: space-between;'>
-                        <span><b>📅 {row['fecha']}</b></span>
-                        <span style='color: #58a6ff;'>Dr: {row['doctor']}</span>
+                <div style='background-color: {fondo}; padding: 15px; border-radius: 12px; 
+                            border-left: 6px solid {borde}; margin-bottom: 12px; 
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: {texto_color};'>
+                    <div style='display: flex; justify-content: space-between; align-items: center;'>
+                        <span style='font-size: 1.1em;'><b>📅 FECHA: {row['fecha']}</b></span>
+                        <span style='font-weight: bold; color: {borde};'>DR: {row['doctor']}</span>
                     </div>
-                    <p style='margin-top: 10px; font-size: 0.9em;'>📝 {row['motivo']}</p>
+                    <div style='margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px;'>
+                        <p style='margin: 0;'><b>📝 MOTIVO:</b> {row['motivo']}</p>
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                if st.button(f"🗑️ Eliminar Cita", key=f"del_cita_{row['id']}"):
-                    conn.execute("DELETE FROM citas WHERE id = ?", (row['id'],))
-                    conn.commit()
+                # Botón de eliminación personalizado para cada cita
+                if st.button(f"🗑️ Eliminar Cita de {row['doctor']}", key=f"del_cita_{row['id']}"):
+                    db.execute("DELETE FROM citas WHERE id = ?", (row['id'],))
+                    db.commit()
+                    st.success("Cita eliminada de la agenda.")
                     st.rerun()
         else:
-            st.info("No tiene citas pendientes.")
+            st.info("No tiene citas programadas en este momento.")
+            
     except Exception as e:
-        st.error(f"Error en Agenda: {e}")
-
+        st.error(f"Aviso del Sistema: Aún no hay registros en la agenda o la tabla se está creando.")
 # ==========================================
 # 12. MÓDULO: 📝 BITÁCORA PROFESIONAL
 # ==========================================
