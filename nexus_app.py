@@ -475,19 +475,19 @@ elif opcion == "💊 BOTIQUÍN":
     conn.close()
 # ==========================================
 # ==========================================
-# ==========================================
+# =========================================================
 # 11. MÓDULO: 🗓️ AGENDA DE CITAS
-# ==========================================
-elif opcion == "🗓️ AGENDA":
+# =========================================================
+elif menu == "🗓️ AGENDA":  # Asegúrese de que coincida con el nombre en su barra lateral
     st.title("📅 Gestión de Citas Médicas")
     st.markdown("---")
     
-# SOLUCIÓN DEFINITIVA PARA LA LÍNEA 488
-from datetime import date
-try:
-    fecha_limpia = date.today() 
-except:
-    fecha_limpia = date(2024, 1, 1) # Fecha de respaldo por si falla lo anterior
+    # Preparamos la fecha actual de forma segura
+    from datetime import date
+    try:
+        fecha_limpia = date.today() 
+    except:
+        fecha_limpia = date(2026, 1, 1)
 
     # 1. FORMULARIO PARA AGENDAR
     with st.form("f_cita_nueva", clear_on_submit=True):
@@ -495,9 +495,7 @@ except:
         col_a, col_b = st.columns(2)
         
         with col_a:
-            # Todo en mayúsculas para el orden profesional del Sr. Quevedo
             doc = st.text_input("DOCTOR O ESPECIALIDAD:").upper()
-            # Usamos la fecha limpia para que el calendario funcione perfecto
             fec_c = st.date_input("FECHA DE LA CITA:", value=fecha_limpia)
             
         with col_b:
@@ -505,7 +503,6 @@ except:
         
         if st.form_submit_button("💾 GUARDAR CITA EN AGENDA"):
             if doc and mot:
-                # Usamos la conexión 'db' que es la maestra de salud
                 db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", 
                            (doc, str(fec_c), mot))
                 db.commit()
@@ -519,24 +516,20 @@ except:
 
     # 2. LISTADO VISUAL Y BORRADO
     try:
-        # Leemos las citas directamente de la base de datos maestra
         df_citas = pd.read_sql_query("SELECT * FROM citas ORDER BY fecha ASC", db)
         
         if not df_citas.empty:
             for i, row in df_citas.iterrows():
-                # Comparamos fechas para saber si la cita ya pasó (formato texto YYYY-MM-DD)
                 fecha_hoy_str = fecha_limpia.strftime("%Y-%m-%d")
                 cita_pasada = str(row['fecha']) < fecha_hoy_str
                 
-                # Colores para distinguir citas nuevas de las viejas
                 fondo = "#ffffff" if not cita_pasada else "#f1f5f9"
                 borde = "#3b82f6" if not cita_pasada else "#94a3b8"
-                texto_color = "#1e293b" if not cita_pasada else "#64748b"
 
                 st.markdown(f"""
                 <div style='background-color: {fondo}; padding: 15px; border-radius: 12px; 
                             border-left: 6px solid {borde}; margin-bottom: 12px; 
-                            box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: {texto_color};'>
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: #1e293b;'>
                     <div style='display: flex; justify-content: space-between; align-items: center;'>
                         <span style='font-size: 1.1em;'><b>📅 FECHA: {row['fecha']}</b></span>
                         <span style='font-weight: bold; color: {borde};'>DR: {row['doctor']}</span>
@@ -547,20 +540,20 @@ except:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Botón de eliminación personalizado para cada cita
                 if st.button(f"🗑️ Eliminar Cita de {row['doctor']}", key=f"del_cita_{row['id']}"):
                     db.execute("DELETE FROM citas WHERE id = ?", (row['id'],))
                     db.commit()
-                    st.success("Cita eliminada de la agenda.")
+                    st.success("Cita eliminada.")
                     st.rerun()
         else:
-            st.info("No tiene citas programadas en este momento.")
+            st.info("No tiene citas programadas.")
             
-    except Exception as e:
-        st.error(f"Aviso del Sistema: Aún no hay registros en la agenda o la tabla se está creando.")
-# ==========================================
+    except Exception:
+        st.error("Aviso: La tabla de citas se está sincronizando...")
+
+# =========================================================
 # 12. MÓDULO: 📝 BITÁCORA PROFESIONAL
-# ==========================================
+# =========================================================
 elif menu == "📝 BITÁCORA":
     st.title("📝 Bitácora de Notas")
     st.markdown("---")
@@ -571,10 +564,8 @@ elif menu == "📝 BITÁCORA":
     c1, c2 = st.columns(2)
     with c1:
         if st.button("💾 GUARDAR NOTA"):
-            if nota_nueva:
-                # Usamos encoding utf-8 para que acepte tildes
+            if nota_nueva.strip():
                 with open("bitacora_quevedo.txt", "a", encoding="utf-8") as f:
-                    # Usamos f_rd y h_rd que son sus variables reales de tiempo
                     f.write(f"[{f_rd} {h_rd}]: {nota_nueva}\n\n")
                     f.write("-" * 30 + "\n")
                 st.success("✅ Nota guardada.")
@@ -583,45 +574,48 @@ elif menu == "📝 BITÁCORA":
     with c2:
         if st.button("📄 EXPORTAR A PDF"):
             try:
-                from fpdf import FPDF # Asegúrese de tener fpdf en requirements
-                with open("bitacora_quevedo.txt", "r", encoding="utf-8") as f:
-                    contenido = f.read()
-                
-                if contenido:
-                    pdf = FPDF()
-                    pdf.add_page()
-                    pdf.set_font("Arial", 'B', 16)
-                    pdf.cell(200, 10, txt="NEXUS PRO - BITÁCORA PERSONAL", ln=True, align='C')
-                    pdf.set_font("Arial", size=11)
-                    pdf.ln(10)
-                    # El replace es para evitar errores de símbolos raros en PDF
-                    pdf.multi_cell(0, 7, txt=contenido.encode('latin-1', 'replace').decode('latin-1'))
+                from fpdf import FPDF
+                import os
+                if os.path.exists("bitacora_quevedo.txt"):
+                    with open("bitacora_quevedo.txt", "r", encoding="utf-8") as f:
+                        contenido = f.read()
                     
-                    pdf_data = pdf.output(dest='S').encode('latin-1')
-                    st.download_button(label="📥 DESCARGAR PDF", data=pdf_data, 
-                                     file_name=f"Bitacora_Quevedo.pdf", mime="application/pdf")
+                    if contenido:
+                        pdf = FPDF()
+                        pdf.add_page()
+                        pdf.set_font("Arial", 'B', 16)
+                        pdf.cell(200, 10, txt="NEXUS PRO - BITÁCORA", ln=True, align='C')
+                        pdf.set_font("Arial", size=11)
+                        pdf.ln(10)
+                        pdf.multi_cell(0, 7, txt=contenido.encode('latin-1', 'replace').decode('latin-1'))
+                        
+                        pdf_data = pdf.output(dest='S').encode('latin-1')
+                        st.download_button(label="📥 DESCARGAR PDF", data=pdf_data, 
+                                         file_name="Bitacora_Quevedo.pdf", mime="application/pdf")
                 else:
-                    st.warning("La bitácora está vacía.")
-            except Exception as e:
-                st.error("Para exportar PDF necesita instalar la librería 'fpdf'.")
+                    st.warning("Bitácora vacía.")
+            except:
+                st.error("Error al generar PDF. Verifique la librería 'fpdf'.")
 
     st.markdown("---")
-    st.subheader("📖 Vista Previa del Archivo")
+    st.subheader("📖 Vista Previa")
     try:
-        with open("bitacora_quevedo.txt", "r", encoding="utf-8") as f:
-            notas = f.read()
+        import os
+        if os.path.exists("bitacora_quevedo.txt"):
+            with open("bitacora_quevedo.txt", "r", encoding="utf-8") as f:
+                notas = f.read()
             if notas:
                 st.text_area("Contenido actual:", notas, height=300)
                 if st.checkbox("🔓 Habilitar Borrado Total"):
                     if st.button("🔥 VACIAR BITÁCORA"):
-                        with open("bitacora_quevedo.txt", "w", encoding="utf-8") as f:
-                            f.write("")
+                        open("bitacora_quevedo.txt", "w").close()
                         st.rerun()
-            else:
-                st.info("No hay notas todavía.")
-    except FileNotFoundError:
+        else:
+            st.info("No hay notas todavía.")
+    except:
         st.caption("Esperando primer registro...")
 
 # Pie de página final
 st.markdown("---")
+
 st.caption(f"NEXUS PRO v4.5 | {tiempo['fecha']} | Luis Rafael Quevedo")
