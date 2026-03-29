@@ -377,7 +377,7 @@ with col_pdf:
                         msg = f"Reporte Sr. Quevedo: {u['fecha']} - {u['momento']}: {u['valor']} mg/dL. Nota: {u.get('notas', '')}"
                         link = f"https://wa.me/{num_wa}?text={msg.replace(' ', '%20')}"
                         st.markdown(f"[✅ ENVIAR POR WHATSAPP]({link})")
-               with col_del:
+            with col_del:
                 if st.checkbox("🔓 Activar Borrado"):
                    if st.button("🗑️ Borrar Último"):
                     conn.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)")
