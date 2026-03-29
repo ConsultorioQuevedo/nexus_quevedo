@@ -38,31 +38,49 @@ def obtener_tiempo():
 tiempo = obtener_tiempo()
 
 # ==========================================
-# 3. CONEXIÓN A BASE DE DATOS UNIFICADA
-# ==========================================
+# ============================================================
+# 3. CONEXIÓN A BASE DE DATOS UNIFICADA (NEXUS PRO)
+# ============================================================
 def inicializar_db():
+    # Conexión con seguridad para subprocesos
     conn = sqlite3.connect("sistema_quevedo_pro.db", check_same_thread=False)
     c = conn.cursor()
-    # Tabla Finanzas
-    c.execute('''CREATE TABLE IF NOT EXISTS finanzas 
-                (id INTEGER PRIMARY KEY, fecha TEXT, mes TEXT, tipo TEXT, categoria TEXT, detalle TEXT, monto REAL)''')
-    # Tabla Glucosa
-    c.execute('''CREATE TABLE IF NOT EXISTS glucosa 
-                (id INTEGER PRIMARY KEY, fecha TEXT, hora TEXT, momento TEXT, valor INTEGER, nota TEXT)''')
-    # Tabla Medicamentos (Plan Maestro)
-    c.execute('''CREATE TABLE IF NOT EXISTS medicamentos 
-                (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT, horario TEXT)''')
-    # Tabla Registro de Tomas (Cumplimiento)
-    c.execute('''CREATE TABLE IF NOT EXISTS registro_medico 
-                (id INTEGER PRIMARY KEY, fecha TEXT, medicamento TEXT, hora_confirmada TEXT)''')
-    # Tabla Agenda
-    c.execute('''CREATE TABLE IF NOT EXISTS citas 
-                (id INTEGER PRIMARY KEY, doctor TEXT, fecha TEXT, motivo TEXT)''')
+
+    # --- TABLA FINANZAS (Con Categoría para Predicción) ---
+    c.execute('''CREATE TABLE IF NOT EXISTS finanzas
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                  fecha TEXT, mes TEXT, tipo TEXT, 
+                  categoria TEXT, monto REAL, nota TEXT)''')
+
+    # --- TABLA GLUCOSA (Con Estado para Machine Learning) ---
+    c.execute('''CREATE TABLE IF NOT EXISTS glucosa
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                  fecha TEXT, hora TEXT, momento TEXT, 
+                  valor INTEGER, estado TEXT, notas TEXT)''')
+
+    # --- TABLA MEDICAMENTOS (Plan Maestro de Stock) ---
+    c.execute('''CREATE TABLE IF NOT EXISTS medicamentos
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                  nombre TEXT, dosis TEXT, horario TEXT, 
+                  stock_inicial INTEGER, stock_actual INTEGER)''')
+
+    # --- TABLA REGISTRO MÉDICO (Cumplimiento de Tomas) ---
+    c.execute('''CREATE TABLE IF NOT EXISTS registro_medico
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                  fecha TEXT, medicamento TEXT, hora_toma TEXT, 
+                  cumplimiento TEXT)''')
+
+    # --- TABLA AGENDA (Citas y Alertas de Proximidad) ---
+    c.execute('''CREATE TABLE IF NOT EXISTS citas
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                  fecha TEXT, doctor TEXT, motivo TEXT, 
+                  recordatorio TEXT)''')
+
     conn.commit()
     return conn
 
+# Inicializamos la conexión global
 conn = inicializar_db()
-
 # ==========================================
 # 4. CONTROL DE ACCESO
 # ==========================================
