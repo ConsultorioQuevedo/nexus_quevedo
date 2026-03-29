@@ -383,26 +383,25 @@ with col_pdf:
                     conn.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)")
                     conn.commit()
                     st.rerun()
-            
-            st.subheader("📊 Historial con Semáforos")
-            if not df_g.empty:
-                for i, row in df_g.iterrows():
-                    est, col, msn = analizar_glucosa_full(row['valor'], row['momento'])
-                    st.markdown(f"""
-                        <div style='background-color: #161b22; padding: 15px; margin-bottom: 8px; border-radius: 10px; border-left: 5px solid {col};'>
-                            <div style='display: flex; justify-content: space-between;'>
-                                <span><b>{row['fecha']}</b> | {row['momento']}</span>
-                                <span style='color: {col}; font-weight: bold;'>{row['valor']} mg/dL</span>
-                            </div>
-                            <div style='color: #8b949e; font-size: 0.9em; margin-top: 5px;'><i>{row.get('notas', '')}</i></div>
-                            <div style='color: {col}; font-size: 0.8em; font-weight: bold;'>{est}: {msn}</div>
-            </div>
-        """, unsafe_allow_html=True)
- # --- 10. MÓDULO: BOTIQUÍN (GESTIÓN DE MEDICAMENTOS) --- 
+            # --- MOSTRAR EL HISTORIAL ---
+        st.subheader("📊 Historial con Semáforos")
+        for i, row in df_g.iterrows():
+            est, col, msn = analizar_glucosa_full(row['valor'], row['momento'])
+            st.markdown(f"""
+                <div style='background-color: #161b22; padding: 15px; margin-bottom: 8px; border-radius: 10px; border-left: 5px solid {col};'>
+                    <div style='display: flex; justify-content: space-between;'>
+                        <span><b>{row['fecha']}</b> | {row['momento']}</span>
+                        <span style='color: {col}; font-weight: bold;'>{row['valor']} mg/dL</span>
+                    </div>
+                    <div style='color: #8b949e; font-size: 0.9em; margin-top: 5px;'><i>{row['notas']}</i></div>
+                    <div style='color: {col}; font-size: 0.8em; font-weight: bold;'>{est}: {msn}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+# --- 10. MÓDULO: BOTIQUÍN (GESTIÓN DE MEDICAMENTOS) ---
 elif opcion == "💊 BOTIQUÍN":
-     st.title("💊 Inventario de Medicamentos - NEXUS PRO")
-     st.markdown("---")
-    
+    st.title("💊 Inventario de Medicamentos - NEXUS PRO")
+    st.markdown("---")
 
     # --- ASEGURAR QUE LA TABLA EXISTA (PREVENCIÓN DE ERRORES) ---
     conn_init = sqlite3.connect("control_quevedo.db")
