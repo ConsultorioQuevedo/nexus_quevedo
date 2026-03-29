@@ -106,8 +106,7 @@ with st.sidebar:
     st.write(f"⏰ {tiempo['hora']}")
     st.markdown("---")
     menu = st.radio("SELECCIONE MÓDULO:", 
-                   ["🏠 Dashboard", "💰 Finanzas", "🩺 Glucosa & Salud", "💊 Botiquín", "🗓️ Agenda", "📝 Bitácora"])
-    
+                   ["🏠 Dashboard", "📅 Agenda", "💊 Botiquín", "💰 Finanzas", "🩺 Glucosa & Salud", "📝 Bitácora"])
     if st.button("🚪 Cerrar Sesión"):
         del st.session_state["autenticado"]
         st.rerun()
