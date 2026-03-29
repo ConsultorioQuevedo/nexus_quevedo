@@ -656,29 +656,39 @@ if menu == "🏠 Dashboard":
     st.markdown("---")
     st.subheader("🧠 Análisis Predictivo (IA)")
     
-    df_ml = pd.read_sql_query("SELECT valor FROM glucosa ORDER BY id DESC LIMIT 10", conn)
+    # --- BLINDAJE DE SEGURIDAD PARA LUIS RAFAEL ---
+    try:
+        df_ml = pd.read_sql_query("SELECT valor FROM glucosa ORDER BY id DESC LIMIT 10", conn)
+    except:
+        # Si hay error en la base de datos, creamos una tabla vacía de seguridad
+        df_ml = pd.DataFrame(columns=['valor'])
     
-    if not df_ml.empty:
-        pred, tendencia = motor_prediccion_ml(df_ml)
-        
-        c_ml1, c_ml2 = st.columns(2)
-        
-        with c_ml1:
-            if pred:
-                color_pred = "🔴" if pred > 140 else "🟢"
-                st.metric("PREDICCIÓN PRÓXIMA LECTURA", f"{pred:.1f} mg/dL", 
-                          delta=f"{tendencia:.2f} tendencia", delta_color="inverse")
-                st.write(f"{color_pred} El sistema proyecta un cambio basado en tus últimos 10 registros.")
-        
-        with c_ml2:
-            st.markdown("**Sistema de Recomendación:**")
-            if tendencia > 0.5:
-                st.warning("⚠️ Tus niveles muestran una tendencia ALCISTA. Considera aumentar la actividad física.")
-            elif tendencia < -0.5:
-                st.info("📉 Tus niveles muestran una tendencia BAJISTA. Verifica si necesitas ajustar la dosis.")
-            else:
-                st.success("⚖️ Tendencia ESTABLE. Sigue con tu régimen actual.")
-
+    # Solo entramos si hay datos para procesar
+    if not df_ml.empty and len(df_ml) >= 2:
+        try:
+            pred, tendencia = motor_prediccion_ml(df_ml)
+            
+            c_ml1, c_ml2 = st.columns(2)
+            
+            with c_ml1:
+                if pred:
+                    color_pred = "🔴" if pred > 140 else "🟢"
+                    st.metric("PREDICCIÓN PRÓXIMA LECTURA", f"{pred:.1f} mg/dL", 
+                              delta=f"{tendencia:.2f} tendencia", delta_color="inverse")
+                    st.write(f"{color_pred} El sistema proyecta un cambio basado en tus últimos 10 registros.")
+            
+            with c_ml2:
+                st.markdown("**Sistema de Recomendación:**")
+                if tendencia > 0.5:
+                    st.warning("⚠️ Tus niveles muestran una tendencia ALCISTA. Considera aumentar la actividad física.")
+                elif tendencia < -0.5:
+                    st.info("📉 Tus niveles muestran una tendencia BAJISTA. Verifica si necesitas ajustar la dosis.")
+                else:
+                    st.success("⚖️ Tendencia ESTABLE. Sigue con tu régimen actual.")
+        except:
+            st.info("💡 La inteligencia está analizando sus datos. Ingrese más registros para mayor precisión.")
+    else:
+        st.info("📊 Sr. Quevedo, se necesitan al menos 2 registros de glucosa para activar el Análisis Predictivo.")
 # ==========================================
 # 13. GENERADOR DE REPORTES PDF (MÓDULO UNIFICADO)
 # ==========================================
