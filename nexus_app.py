@@ -367,7 +367,7 @@ with col_pdf:
                 except Exception as e:
                     st.error(f"Error PDF: {e}")
             with col_wa:
-            num_wa = st.text_input("WhatsApp (Ej: 1809...):")
+               num_wa = st.text_input("WhatsApp (Ej: 1809...):")
             if st.button("📲 COMPARTIR ÚLTIMO"):
                 if num_wa:
                     u = df_g.iloc[0]
