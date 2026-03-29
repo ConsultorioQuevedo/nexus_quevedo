@@ -475,29 +475,38 @@ elif opcion == "💊 BOTIQUÍN":
         st.info("El botiquín está vacío. Registre sus medicinas arriba.")
     conn.close()
 # ==========================================
+# ==========================================
 # 11. MÓDULO: 🗓️ AGENDA DE CITAS
 # ==========================================
 elif opcion == "🗓️ AGENDA":
     st.title("📅 Gestión de Citas Médicas")
     st.markdown("---")
     
+    # --- ARREGLO DE SEGURIDAD PARA EL CALENDARIO ---
+    # Extraemos solo la fecha (día/mes/año) sin la hora para que no de error
+    fecha_limpia = f_obj.date() 
+
     # 1. FORMULARIO PARA AGENDAR
     with st.form("f_cita_nueva", clear_on_submit=True):
         st.subheader("🗓️ Agendar Nueva Consulta")
         col_a, col_b = st.columns(2)
+        
         with col_a:
             # Usamos .upper() para mantener el orden profesional que le gusta
             doc = st.text_input("DOCTOR O ESPECIALIDAD:").upper()
-            # f_obj es el objeto datetime que creamos en el Bloque 1
-            fec_c = st.date_input("FECHA DE LA CITA:", value=f_obj)
+            
+            # USAMOS fecha_limpia AQUÍ PARA EVITAR EL ERROR
+            fec_c = st.date_input("FECHA DE LA CITA:", value=fecha_limpia)
+            
         with col_b:
             mot = st.text_area("MOTIVO O ESTUDIOS PENDIENTES:").upper()
         
         if st.form_submit_button("💾 GUARDAR CITA EN AGENDA"):
             if doc and mot:
-                conn.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", 
+                # Usamos la conexión 'db' que definimos para salud
+                db.execute("INSERT INTO citas (doctor, fecha, motivo) VALUES (?,?,?)", 
                            (doc, str(fec_c), mot))
-                conn.commit()
+                db.commit()
                 st.success(f"✅ Cita con {doc} guardada.")
                 st.rerun()
             else:
@@ -506,6 +515,24 @@ elif opcion == "🗓️ AGENDA":
     st.markdown("---")
     st.subheader("📌 Citas Programadas")
 
+    # Mostrar la tabla de citas para que sepa qué tiene pendiente
+    try:
+        df_citas = pd.read_sql_query("SELECT id, doctor, fecha, motivo FROM citas ORDER BY fecha ASC", db)
+        if not df_citas.empty:
+            st.dataframe(df_citas, use_container_width=True)
+            
+            # Opción para borrar una cita si ya pasó o se canceló
+            with st.expander("🗑️ Cancelar o Borrar una Cita"):
+                id_borrar = st.number_input("Ingrese el ID de la cita a quitar:", min_value=1, step=1)
+                if st.button("Confirmar Eliminación de Cita"):
+                    db.execute(f"DELETE FROM citas WHERE id = {id_borrar}")
+                    db.commit()
+                    st.success("Cita eliminada.")
+                    st.rerun()
+        else:
+            st.info("No hay citas programadas en este momento.")
+    except:
+        st.warning("Aún no hay registros en la agenda.")
     # 2. LISTADO Y BORRADO
     try:
         df_citas = pd.read_sql_query("SELECT * FROM citas ORDER BY fecha ASC", conn)
