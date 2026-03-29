@@ -371,7 +371,7 @@ elif menu == "💊 BOTIQUÍN":
                 
      if col3.button("💊 TOMAR", key=f"toma_{med['id']}"):
             nuevo_stock = fila['stock_actual'] - 1
-            conn.execute("UPDATE medicamentos SET stock_actual = ? WHERE id = ?", (nuevo_stock, med['id']))
+            conn.execute("UPDATE medicamentos SET stock_actual = ? WHERE id = ?", (nuevo_stock, fila['id']))
             conn.execute("INSERT INTO registro_medico (fecha, medicamento, hora_toma, cumplimiento) VALUES (?,?,?,?)",
                          (str(tiempo['fecha']), fila['nombre'], tiempo['hora'], "SÍ"))
             conn.commit()
