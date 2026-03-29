@@ -231,7 +231,7 @@ else:
     st.info("ℹ️ Luis Rafael, necesito al menos 4 registros para calcular su tendencia.") 
 
         # Machine Learning Simple (Predicción de Tendencia)
-        if len(df_g) > 3:
+if len(df_g) > 3:
             # Calculamos si el azúcar va subiendo o bajando comparando los últimos 3
             promedio_ultimos = df_g['valor'].tail(3).mean()
             tendencia = "ALZA 📈" if v > promedio_ultimos else "BAJA 📉"
