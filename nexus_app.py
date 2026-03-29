@@ -395,7 +395,7 @@ with col_del:
                 </div>
             """, unsafe_allow_html=True)
 else:
-        st.info("No hay registros todavía.")
+    st.info("No hay registros todavía.")
 
 # --- 10. MÓDULO: BOTIQUÍN (GESTIÓN DE MEDICAMENTOS) ---
 elif opcion == "💊 BOTIQUÍN":
