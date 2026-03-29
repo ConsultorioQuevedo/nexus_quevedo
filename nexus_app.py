@@ -379,7 +379,7 @@ with col_pdf:
                         st.markdown(f"[✅ ENVIAR POR WHATSAPP]({link})")
             with col_del:
                 if st.checkbox("🔓 Activar Borrado"):
-                if st.button("🗑️ Borrar Último"):
+                   if st.button("🗑️ Borrar Último"):
                     conn.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)")
                     conn.commit()
                      st.rerun()
