@@ -369,7 +369,7 @@ elif menu == "💊 BOTIQUÍN":
                 porcentaje = (med['stock_actual'] / med['stock_inicial'])
                 col2.progress(porcentaje)
                 
-     if col3.button("💊 TOMAR", key=f"toma_{med['id']}"):
+    if col3.button("💊 TOMAR", key=f"toma_{med['id']}"):
             nuevo_stock = fila['stock_actual'] - 1
             conn.execute("UPDATE medicamentos SET stock_actual = ? WHERE id = ?", (nuevo_stock, fila['id']))
             conn.execute("INSERT INTO registro_medico (fecha, medicamento, hora_toma, cumplimiento) VALUES (?,?,?,?)",
