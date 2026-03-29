@@ -128,76 +128,96 @@ def enviar_whatsapp(mensaje):
     return url
 
 # ==========================================
-# 7. LÓGICA DEL MÓDULO DE SALUD (GLUCOSA)
+# 7 SECCIÓN: GLUCOSA & SALUD (NEXUS AI)
 # ==========================================
 if menu == "🩺 Glucosa & Salud":
-    st.title("🩺 Control Inteligente de Salud")
-    
-    with st.container():
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.title("🩺 Control de Glucosa con Inteligencia Artificial")
+    st.markdown(f"**Paciente:** Luis Rafael Quevedo | **Fecha:** {tiempo['fecha']}")
+
+    # --- 1. ENTRADA DE DATOS (TECLADO NUMÉRICO Y LIMPIEZA) ---
+    with st.expander("📝 REGISTRAR NUEVA LECTURA", expanded=True):
         c1, c2, c3 = st.columns([1, 1, 2])
-        with c1:
-            valor = st.number_input("Valor (mg/dL):", min_value=0, step=1)
-        with c2:
-            momento = st.selectbox("Momento:", ["Ayunas", "Post-Almuerzo", "Cena", "Antes de dormir"])
-        with c3:
-            nota = st.text_input("Nota o síntoma:").upper()
         
-        if st.button("💾 REGISTRAR Y ANALIZAR"):
-            conn.execute("INSERT INTO glucosa (fecha, hora, momento, valor, nota) VALUES (?,?,?,?,?)",
-                        (tiempo['fecha'], tiempo['hora'], momento, valor, nota))
-            conn.commit()
-            st.success("Registro guardado con éxito.")
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+        with c1:
+            # Al ser 'number_input' con 'step=1', el celular abre el teclado de números automáticamente
+            valor_g = st.number_input("Nivel (mg/dL):", min_value=0, max_value=500, step=1, key="input_glucosa")
+        with c2:
+            momento_g = st.selectbox("Momento:", ["Ayunas", "Post-Almuerzo", "Post-Cena", "Antes de dormir"])
+        with c3:
+            nota_g = st.text_input("Nota (Síntomas/Comida):", placeholder="Ej: Comí arroz con habichuela...").upper()
 
-    # --- ANÁLISIS CON REGLAS INTELIGENTES Y ML ---
-    df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC LIMIT 20", conn)
-    
+        col_btn1, col_btn2 = st.columns([1, 1])
+        with col_btn1:
+            if st.button("💾 GUARDAR REGISTRO"):
+                if valor_g > 0:
+                    conn.execute("INSERT INTO glucosa (fecha, hora, momento, valor, nota) VALUES (?,?,?,?,?)",
+                                (tiempo['fecha'], tiempo['hora'], momento_g, valor_g, nota_g))
+                    conn.commit()
+                    st.success("✅ ¡Guardado!")
+                    st.rerun()
+                else:
+                    st.warning("⚠️ Por favor, introduce un valor.")
+        with col_btn2:
+            if st.button("🧹 LIMPIAR TODO"):
+                st.rerun() # Esto borra lo que escribiste y refresca la pantalla
+
+    st.markdown("---")
+
+    # --- 2. ANÁLISIS DE DATOS (REGLAS INTELIGENTES E IA) ---
+    df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id ASC", conn)
+
     if not df_g.empty:
-        # 1. Reglas Inteligentes (Semaforización)
-        ultimo_v = df_g['valor'].iloc[0]
-        if ultimo_v < 70:
-            st.error(f"🚨 ALERTA: Hipoglucemia ({ultimo_v}). Ingiere algo con azúcar rápido.")
-        elif 70 <= ultimo_v <= 130:
-            st.success(f"✅ EXCELENTE: Tu nivel de {ultimo_v} está en el rango óptimo.")
-        elif 131 <= ultimo_v <= 180:
-            st.warning(f"⚠️ PRECAUCIÓN: Nivel elevado ({ultimo_v}). Revisa tu dieta.")
-        else:
-            st.error(f"🔴 CRÍTICO: Nivel muy alto ({ultimo_v}). Consulta a tu médico.")
+        # Último valor registrado
+        ultimo = df_g.iloc[-1]
+        v = ultimo['valor']
+        m = ultimo['momento']
 
-        # 2. Predicción de Tendencia (Machine Learning Simple)
+        # Reglas Inteligentes (If/Else Avanzado)
+        st.subheader("🤖 Análisis de la IA")
+        if m == "Ayunas":
+            if v < 70: color, msg = "🔵 CRÍTICO (BAJO)", "Hipoglucemia detectada. Ingiere algo dulce de inmediato."
+            elif v <= 100: color, msg = "🟢 EXCELENTE", "Tu nivel en ayunas es perfecto."
+            elif v <= 125: color, msg = "🟡 PRE-DIABETES", "Nivel algo elevado. Cuida las harinas hoy."
+            else: color, msg = "🔴 ALERTA ALTA", "Nivel muy alto. Llama a tu médico si persiste."
+        else: # Si es después de comer
+            if v > 180: color, msg = "🔴 ALTA POST-PRANDIAL", "Nivel muy alto después de comer. Camina 15 minutos."
+            else: color, msg = "🟢 NORMAL", "Tu cuerpo está procesando bien el azúcar."
+        
+        st.markdown(f"### {color}")
+        st.info(msg)
+
+        # Machine Learning Simple (Predicción de Tendencia)
         if len(df_g) > 3:
-            st.subheader("🔮 Predicción de Tendencia")
-            # Usamos el índice como tiempo para ver si sube o baja
-            y = df_g['valor'].values[::-1] # Invertir para que sea cronológico
-            x = list(range(len(y)))
-            # Calculamos la pendiente (Trend)
-            df_g['Trend'] = df_g['valor'].rolling(window=3).mean()
-            
-            promedio = df_g['valor'].mean()
-            st.info(f"Su promedio actual es de **{promedio:.1f} mg/dL**. La tendencia indica que su próximo nivel podría rondar los **{y[-1] + (y[-1]-y[-2]):.1f} mg/dL** si sigue el patrón actual.")
+            # Calculamos si el azúcar va subiendo o bajando comparando los últimos 3
+            promedio_ultimos = df_g['valor'].tail(3).mean()
+            tendencia = "ALZA 📈" if v > promedio_ultimos else "BAJA 📉"
+            st.write(f"**Sistema de Recomendación:** La tendencia actual es al **{tendencia}**. Basado en esto, te recomiendo monitorear tu próxima comida.")
 
-        # --- VISUALIZACIÓN ---
-        fig = px.line(df_g, x='id', y='valor', title="Evolución de Glucosa", 
-                     markers=True, template="plotly_dark", color_discrete_sequence=['#00d4ff'])
-        st.plotly_chart(fig, use_container_width=True)
-
-        # --- BOTONES DE EXPORTACIÓN ---
+        # --- 3. WHATSAPP Y PDF ---
         st.markdown("---")
         col_pdf, col_wa = st.columns(2)
-        
-        with col_pdf:
-            if st.button("📄 GENERAR REPORTE PDF"):
-                archivo = generar_pdf_glucosa(df_g)
-                with open(archivo, "rb") as f:
-                    st.download_button("📥 Descargar PDF", f, file_name=archivo)
-        
-        with col_wa:
-            texto_wa = f"Hola Dr., aquí mi reporte de Glucosa del {tiempo['fecha']}. Último valor: {ultimo_v} mg/dL ({momento})."
-            st.markdown(f"[📲 Enviar por WhatsApp]({enviar_whatsapp(texto_wa)})")
 
-        st.dataframe(df_g[["fecha", "hora", "momento", "valor", "nota"]], use_container_width=True)
+        with col_pdf:
+            if st.button("📄 GENERAR PDF"):
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", 'B', 14)
+                pdf.cell(200, 10, f"REPORTE DE GLUCOSA - SR. QUEVEDO", ln=True, align='C')
+                pdf.set_font("Arial", size=11)
+                for _, fila in df_g.tail(10).iterrows():
+                    pdf.cell(190, 10, f"{fila['fecha']} | {fila['momento']} | {fila['valor']} mg/dL", 1, 1)
+                pdf.output("reporte_salud.pdf")
+                with open("reporte_salud.pdf", "rb") as f:
+                    st.download_button("📥 Descargar Reporte", f, file_name="reporte_salud.pdf")
+
+        with col_wa:
+            # Botón de WhatsApp con mensaje automático
+            msg_wa = f"Hola Dr., mi último nivel de glucosa fue {v} mg/dL en {m}. ({tiempo['fecha']})"
+            msg_url = f"https://wa.me/18290000000?text={msg_wa.replace(' ', '%20')}"
+            st.markdown(f'<a href="{msg_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer;">📲 ENVIAR A WHATSAPP</button></a>', unsafe_allow_html=True)
+
+        # Mostrar tabla histórica
+        st.dataframe(df_g[["fecha", "hora", "momento", "valor", "nota"]].tail(10), use_container_width=True)
 # ==========================================
 # 8. MÓDULO DE FINANZAS (CON IA DE AHORRO)
 # ==========================================
