@@ -255,7 +255,7 @@ if len(df_g) > 3:
 
             with col_wa:
             # Botón de WhatsApp con mensaje automático
-            msg_wa = f"Hola Dr., mi último nivel de glucosa fue {v} mg/dL en {m}. ({tiempo['fecha']})"
+              msg_wa = f"Hola Dr., mi último nivel de glucosa fue {v} mg/dL en {m}. ({tiempo['fecha']})"
             msg_url = f"https://wa.me/18290000000?text={msg_wa.replace(' ', '%20')}"
             st.markdown(f'<a href="{msg_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer;">📲 ENVIAR A WHATSAPP</button></a>', unsafe_allow_html=True)
 
