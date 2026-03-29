@@ -395,12 +395,12 @@ with col_pdf:
                                 <span style='color: {col}; font-weight: bold;'>{row['valor']} mg/dL</span>
                             </div>
                             <div style='color: #8b949e; font-size: 0.9em; margin-top: 5px;'><i>{row.get('notas', '')}</i></div>
-                            <div style='color: {col}; font-size: 0.8em; font-weight: bold; margin-top: 5px;'>ESTADO: {est}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.info("No hay registros todavía.")
-                    
+                            <div style='color: {col}; font-size: 0.8em; font-weight: bold;'>{est}: {msn}</div>
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.info("No hay registros todavía.")
+
 # --- 10. MÓDULO: BOTIQUÍN (GESTIÓN DE MEDICAMENTOS) ---
 elif opcion == "💊 BOTIQUÍN":
     st.title("💊 Inventario de Medicamentos - NEXUS PRO")
