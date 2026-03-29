@@ -535,7 +535,7 @@ if not df_fin.empty:
 else:
     gastos_totales = 0.0
 
-col_s2.metric("GASTOS DEL MES", f"RD$ {gastos_totales:,.2f}") 
+    col_s2.metric("GASTOS DEL MES", f"RD$ {gastos_totales:,.2f}") 
     col_s3.metric("SISTEMA", "ACTIVO", "Protección 1628")
 
     st.markdown("---")
