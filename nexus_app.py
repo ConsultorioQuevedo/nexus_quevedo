@@ -398,7 +398,6 @@ with col_pdf:
                             <div style='color: {col}; font-size: 0.8em; font-weight: bold;'>{est}: {msn}</div>
             </div>
         """, unsafe_allow_html=True)
-    else:
         st.info("No hay registros todavía.")
 
 # --- 10. MÓDULO: BOTIQUÍN (GESTIÓN DE MEDICAMENTOS) ---
