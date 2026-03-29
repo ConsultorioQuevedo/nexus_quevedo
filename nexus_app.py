@@ -385,7 +385,7 @@ with col_pdf:
                     st.rerun()
             # --- MOSTRAR EL HISTORIAL ---
             st.subheader("📊 Historial con Semáforos")
-        for i, row in df_g.iterrows():
+         for i, row in df_g.iterrows():
             est, col, msn = analizar_glucosa_full(row['valor'], row['momento'])
             st.markdown(f"""
                 <div style='background-color: #161b22; padding: 15px; margin-bottom: 8px; border-radius: 10px; border-left: 5px solid {col};'>
