@@ -375,7 +375,7 @@ elif menu == "💊 BOTIQUÍN":
                     conn.execute("UPDATE medicamentos SET stock_actual = ? WHERE id = ?", (nuevo_stock, med['id']))
                     # Registrar la toma para el historial médico
                     conn.execute("INSERT INTO registro_medico (fecha, medicamento, hora_toma, cumplimiento) VALUES (?,?,?,?)",
-                                 (str(tiempo['fecha_dt']), med['nombre'], tiempo['hora'], "SÍ"))
+                                 (str(tiempo['fecha]), med['nombre'], tiempo['hora'], "SÍ"))
                     conn.commit()
                     st.rerun()    
 # ==========================================
