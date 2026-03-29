@@ -260,7 +260,7 @@ if len(df_g) > 3:
             st.markdown(f'<a href="{msg_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer;">📲 ENVIAR A WHATSAPP</button></a>', unsafe_allow_html=True)
 
         # Mostrar tabla histórica
-        st.dataframe(df_g[["fecha", "hora", "momento", "valor", "nota"]].tail(10), use_container_width=True)
+            st.dataframe(df_g[["fecha", "hora", "momento", "valor", "nota"]].tail(10), use_container_width=True)
 # ==========================================
 # 8. MÓDULO DE FINANZAS (CON IA DE AHORRO)
 # ==========================================
