@@ -398,7 +398,7 @@ elif menu == "📅 Agenda":
     # --- FORMULARIO DE REGISTRO ---
     with st.expander("➕ PROGRAMAR NUEVA CITA", expanded=True):
         col1, col2 = st.columns(2)
-        f_cita = col1.date_input("Fecha de la Cita:", value=tiempo['fecha_dt'])
+        f_cita = col1.date_input("Fecha de la Cita:", value=tiempo['fecha_'])
         h_cita = col2.time_input("Hora de la Cita:")
         asunto = st.text_input("Médico o Especialidad:").upper()
         lugar = st.text_input("Centro Médico / Dirección:").upper()
