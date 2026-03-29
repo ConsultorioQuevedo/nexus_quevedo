@@ -237,21 +237,21 @@ if len(df_g) > 3:
             tendencia = "ALZA 📈" if v > promedio_ultimos else "BAJA 📉"
             st.write(f"**Sistema de Recomendación:** La tendencia actual es al **{tendencia}**. Basado en esto, te recomiendo monitorear tu próxima comida.")
 
-        # --- 3. WHATSAPP Y PDF ---
-            st.markdown("---")
-            col_pdf, col_wa = st.columns(2)
-    with col_pdf:
- if st.button("📄 GENERAR PDF"):
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", 'B', 14)
-                pdf.cell(200, 10, f"REPORTE DE GLUCOSA - SR. QUEVEDO", ln=True, align='C')
-                pdf.set_font("Arial", size=11)
-                for _, fila in df_g.tail(10).iterrows():
-                    pdf.cell(190, 10, f"{fila['fecha']} | {fila['momento']} | {fila['valor']} mg/dL", 1, 1)
-                pdf.output("reporte_salud.pdf")
-                with open("reporte_salud.pdf", "rb") as f:
-                    st.download_button("📥 Descargar Reporte", f, file_name="reporte_salud.pdf")
+            # --- 3. WHATSAPP Y PDF ---
+                st.markdown("---")
+                col_pdf, col_wa = st.columns(2)
+        with col_pdf:
+     if st.button("📄 GENERAR PDF"):
+                    pdf = FPDF()
+                    pdf.add_page()
+                    pdf.set_font("Arial", 'B', 14)
+                    pdf.cell(200, 10, f"REPORTE DE GLUCOSA - SR. QUEVEDO", ln=True, align='C')
+                    pdf.set_font("Arial", size=11)
+                    for _, fila in df_g.tail(10).iterrows():
+                        pdf.cell(190, 10, f"{fila['fecha']} | {fila['momento']} | {fila['valor']} mg/dL", 1, 1)
+                    pdf.output("reporte_salud.pdf")
+                    with open("reporte_salud.pdf", "rb") as f:
+                        st.download_button("📥 Descargar Reporte", f, file_name="reporte_salud.pdf")
 
         with col_wa:
             # Botón de WhatsApp con mensaje automático
