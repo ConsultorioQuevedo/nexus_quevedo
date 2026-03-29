@@ -438,17 +438,19 @@ elif opcion == "💊 BOTIQUÍN":
     st.markdown("---")
     st.subheader("📋 Medicinas en Inventario")
 
-    # --- LISTADO CON BOTÓN DE BORRAR ---
+# --- LISTADO CON BOTÓN DE BORRAR ---
     conn = sqlite3.connect("control_quevedo.db")
     # Verificamos si hay datos
     df_meds = pd.read_sql_query("SELECT * FROM medicamentos ORDER BY nombre ASC", conn)
     
     if not df_meds.empty:
         # Mostramos una tabla resumen primero para vista rápida
-       fecha_limpia = f_obj         
-       st.markdown("#### ⚙️ Gestionar Medicinas")
+        from datetime import date
+        fecha_limpia = date.today()        
+        st.markdown("#### ⚙️ Gestionar Medicinas")
+
         # Mostramos cada medicina con su propio botón de eliminar
-    for i, row in df_meds.iterrows():
+        for i, row in df_meds.iterrows():
             with st.container():
                 col_info, col_del = st.columns([4, 1])
                 with col_info:
@@ -462,9 +464,9 @@ elif opcion == "💊 BOTIQUÍN":
                 st.markdown("<hr style='margin:5px; border:0.5px solid #30363d;'>", unsafe_allow_html=True)
         
         # Opción de Limpieza Masiva
-            st.markdown("<br>", unsafe_allow_html=True)
-            with st.expander("🚨 Zona de Peligro"):
-              if st.checkbox("Confirmar vaciado total"):
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.expander("🚨 Zona de Peligro"):
+            if st.checkbox("Confirmar vaciado total"):
                 if st.button("🔥 BORRAR TODO EL BOTIQUÍN"):
                     conn.execute("DELETE FROM medicamentos")
                     conn.commit()
@@ -472,10 +474,8 @@ elif opcion == "💊 BOTIQUÍN":
                     st.rerun()
     else:
         st.info("El botiquín está vacío. Registre sus medicinas arriba.")
-    conn.close()
-# ==========================================
-# ==========================================
-# =========================================================
+    conn.close()   
+======================
 # 11. MÓDULO: 🗓️ AGENDA DE CITAS
 # =========================================================
 elif opcion == "🗓️ AGENDA":
