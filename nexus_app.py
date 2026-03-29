@@ -253,7 +253,7 @@ if len(df_g) > 3:
                     with open("reporte_salud.pdf", "rb") as f:
                         st.download_button("📥 Descargar Reporte", f, file_name="reporte_salud.pdf")
 
-        with col_wa:
+            with col_wa:
             # Botón de WhatsApp con mensaje automático
             msg_wa = f"Hola Dr., mi último nivel de glucosa fue {v} mg/dL en {m}. ({tiempo['fecha']})"
             msg_url = f"https://wa.me/18290000000?text={msg_wa.replace(' ', '%20')}"
