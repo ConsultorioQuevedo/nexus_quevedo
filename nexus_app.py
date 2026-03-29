@@ -561,7 +561,7 @@ except:
 # ==========================================
 # 12. MÓDULO: 📝 BITÁCORA PROFESIONAL
 # ==========================================
- elif opcion == "📝 BITÁCORA":
+   elif opcion == "📝 BITÁCORA":
     st.title("📝 Bitácora de Notas")
     st.markdown("---")
     
