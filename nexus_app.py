@@ -482,9 +482,12 @@ elif opcion == "🗓️ AGENDA":
     st.title("📅 Gestión de Citas Médicas")
     st.markdown("---")
     
-    # --- ARREGLO DE SEGURIDAD PARA EL CALENDARIO ---
-    # Extraemos solo la fecha (día/mes/año) sin la hora para evitar el error de la línea 492
-    fecha_limpia = f_obj.date() 
+# SOLUCIÓN DEFINITIVA PARA LA LÍNEA 488
+from datetime import date
+try:
+    fecha_limpia = date.today() 
+except:
+    fecha_limpia = date(2024, 1, 1) # Fecha de respaldo por si falla lo anterior
 
     # 1. FORMULARIO PARA AGENDAR
     with st.form("f_cita_nueva", clear_on_submit=True):
