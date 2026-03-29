@@ -561,7 +561,8 @@ except:
 # ==========================================
 # 12. MÓDULO: 📝 BITÁCORA PROFESIONAL
 # ==========================================
-elif opcion == "📝 BITÁCORA":
+# --- MÓDULO: BITÁCORA ---
+elif menu == "📝 BITÁCORA":
     st.title("📝 Bitácora de Notas")
     st.markdown("---")
     
@@ -574,7 +575,8 @@ elif opcion == "📝 BITÁCORA":
             if nota_nueva:
                 # Usamos encoding utf-8 para que acepte tildes
                 with open("bitacora_quevedo.txt", "a", encoding="utf-8") as f:
-                    f.write(f"[{tiempo['fecha']} {tiempo['hora']}]: {nota_nueva}\n\n")
+                    # Usamos f_rd y h_rd que son sus variables reales de tiempo
+                    f.write(f"[{f_rd} {h_rd}]: {nota_nueva}\n\n")
                     f.write("-" * 30 + "\n")
                 st.success("✅ Nota guardada.")
                 st.rerun()
@@ -582,6 +584,7 @@ elif opcion == "📝 BITÁCORA":
     with c2:
         if st.button("📄 EXPORTAR A PDF"):
             try:
+                from fpdf import FPDF # Asegúrese de tener fpdf en requirements
                 with open("bitacora_quevedo.txt", "r", encoding="utf-8") as f:
                     contenido = f.read()
                 
@@ -600,8 +603,8 @@ elif opcion == "📝 BITÁCORA":
                                      file_name=f"Bitacora_Quevedo.pdf", mime="application/pdf")
                 else:
                     st.warning("La bitácora está vacía.")
-            except FileNotFoundError:
-                st.error("Aún no hay archivo de notas.")
+            except Exception as e:
+                st.error("Para exportar PDF necesita instalar la librería 'fpdf'.")
 
     st.markdown("---")
     st.subheader("📖 Vista Previa del Archivo")
