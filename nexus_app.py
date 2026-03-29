@@ -366,7 +366,7 @@ with col_pdf:
                     st.download_button(label="📥 DESCARGAR REPORTE", data=pdf_data, file_name=f"Reporte_Quevedo_{tiempo['fecha']}.pdf", mime="application/pdf")
                 except Exception as e:
                     st.error(f"Error PDF: {e}")
-         with col_wa:
+  with col_wa:
             num_wa = st.text_input("WhatsApp (Ej: 1809...):")
             if st.button("📲 COMPARTIR ÚLTIMO"):
                 if num_wa:
@@ -375,7 +375,7 @@ with col_pdf:
                     link = f"https://wa.me/{num_wa}?text={msg.replace(' ', '%20')}"
                     st.markdown(f"[✅ ENVIAR POR WHATSAPP]({link})")
 
-        with col_del:
+ with col_del:
             if st.checkbox("🔓 Activar Borrado"):
                 if st.button("🗑️ Borrar Último"):
                     conn.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)")
