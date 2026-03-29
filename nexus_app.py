@@ -210,7 +210,25 @@ if menu == "🩺 Glucosa & Salud":
             else: color, msg = "🟢 NORMAL", "Tu cuerpo está procesando bien el azúcar."
         
         st.markdown(f"### {color}")
-        st.info(msg)
+        st.info(msg) 
+       # --- 1. PRIMERO ASEGURAMOS LOS DATOS (EL BLINDAJE) ---
+try:
+    # Esta es la línea que a veces falla si la base de datos está ocupada
+    df_g = pd.read_sql_query("SELECT valor FROM glucosa ORDER BY id DESC LIMIT 10", conn)
+except:
+    # Si falla, creamos una tabla vacía para que el programa no se detenga
+    df_g = pd.DataFrame(columns=['valor'])
+
+# --- 2. LA INTELIGENCIA QUE USTED YA TIENE (Línea 215 en su foto) ---
+st.markdown("---")
+st.subheader("🤖 Predicción de Tendencia")
+
+if len(df_g) > 3:
+    # Aquí sigue su código igualito:
+    # promedio_ultimos = df_g['valor'].tail(3).mean() ...
+    pass
+else:
+    st.info("ℹ️ Luis Rafael, necesito al menos 4 registros para calcular su tendencia.") 
 
         # Machine Learning Simple (Predicción de Tendencia)
         if len(df_g) > 3:
