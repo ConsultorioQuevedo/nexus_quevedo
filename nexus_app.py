@@ -352,51 +352,56 @@ with col_pdf:
                     # Encabezados de tabla
                     pdf.set_font("Arial", 'B', 10)
                     pdf.cell(40, 8, "FECHA", 1); pdf.cell(40, 8, "MOMENTO", 1); pdf.cell(30, 8, "VALOR", 1); pdf.cell(80, 8, "NOTA", 1, 1)
-                    
                     pdf.set_font("Arial", size=9)
-                    # USAMOS EL DE DATOS ACTUALIZADOS
-                    for _, r in df_actualizado.head(20).iterrows():
+                    # USAMOS EL DATASET QUE ESTAMOS VIENDO EN PANTALLA
+                    for _, r in df_g.head(20).iterrows():
                         pdf.cell(40, 8, str(r['fecha']), 1)
                         pdf.cell(40, 8, str(r['momento']), 1)
                         pdf.cell(30, 8, f"{r['valor']} mg/dL", 1)
-                        nota_pdf = str(r['nota'])[:40].encode('latin-1', 'replace').decode('latin-1')
+                        # CORRECCIÓN: Usamos 'notas' para que coincida con la base de datos
+                        texto_nota = str(r.get('notas', r.get('nota', '')))
+                        nota_pdf = texto_nota[:40].encode('latin-1', 'replace').decode('latin-1')
                         pdf.cell(80, 8, nota_pdf, 1, 1)
                     
                     pdf_data = pdf.output(dest='S').encode('latin-1')
                     st.download_button(label="📥 DESCARGAR REPORTE", data=pdf_data, file_name=f"Reporte_Quevedo_{tiempo['fecha']}.pdf", mime="application/pdf")
                 except Exception as e:
                     st.error(f"Error PDF: {e}")
-            with col_wa:
-               num_wa = st.text_input("WhatsApp (Ej: 1809...):")
-            if st.button("📲 COMPARTIR ÚLTIMO"):
-                if num_wa:
-                    u = df_g.iloc[0]
-                    msg = f"Reporte Sr. Quevedo: {u['fecha']} - {u['momento']}: {u['valor']} mg/dL. Nota: {u['nota']}"
-                    link = f"https://wa.me/{num_wa}?text={msg.replace(' ', '%20')}"
-                    st.markdown(f"[✅ ENVIAR POR WHATSAPP]({link})")
 
-with col_del:
+            with col_wa:
+                num_wa = st.text_input("WhatsApp (Ej: 1809...):")
+                if st.button("📲 COMPARTIR ÚLTIMO"):
+                    if num_wa and not df_g.empty:
+                        u = df_g.iloc[0]
+                        # CORRECCIÓN: Sincronizado a 'notas'
+                        msg = f"Reporte Sr. Quevedo: {u['fecha']} - {u['momento']}: {u['valor']} mg/dL. Nota: {u.get('notas', '')}"
+                        link = f"https://wa.me/{num_wa}?text={msg.replace(' ', '%20')}"
+                        st.markdown(f"[✅ ENVIAR POR WHATSAPP]({link})")
+
+        with col_del:
             if st.checkbox("🔓 Activar Borrado"):
                 if st.button("🗑️ Borrar Último"):
                     conn.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)")
                     conn.commit()
                     st.rerun()
+            
             st.subheader("📊 Historial con Semáforos")
-            for i, row in df_g.iterrows():
-              est, col, msn = analizar_glucosa_full(row['valor'], row['momento'])
-              st.markdown(f"""
-                <div style='background-color: #161b22; padding: 15px; margin-bottom: 8px; border-radius: 10px; border-left: 5px solid {col};'>
-                    <div style='display: flex; justify-content: space-between;'>
-                        <span><b>{row['fecha']}</b> | {row['momento']}</span>
-                        <span style='color: {col}; font-weight: bold;'>{row['valor']} mg/dL</span>
-                    </div>
-                    <div style='color: #8b949e; font-size: 0.9em; margin-top: 5px;'><i>{row['notas']}</i></div>
-                    <div style='color: {col}; font-size: 0.8em; font-weight: bold; margin-top: 5px;'>ESTADO: {est}</div>
-                </div>
-            """, unsafe_allow_html=True)
-else:
-    st.info("No hay registros todavía.")
-
+            if not df_g.empty:
+                for i, row in df_g.iterrows():
+                    est, col, msn = analizar_glucosa_full(row['valor'], row['momento'])
+                    st.markdown(f"""
+                        <div style='background-color: #161b22; padding: 15px; margin-bottom: 8px; border-radius: 10px; border-left: 5px solid {col};'>
+                            <div style='display: flex; justify-content: space-between;'>
+                                <span><b>{row['fecha']}</b> | {row['momento']}</span>
+                                <span style='color: {col}; font-weight: bold;'>{row['valor']} mg/dL</span>
+                            </div>
+                            <div style='color: #8b949e; font-size: 0.9em; margin-top: 5px;'><i>{row.get('notas', '')}</i></div>
+                            <div style='color: {col}; font-size: 0.8em; font-weight: bold; margin-top: 5px;'>ESTADO: {est}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("No hay registros todavía.")
+                    
 # --- 10. MÓDULO: BOTIQUÍN (GESTIÓN DE MEDICAMENTOS) ---
 elif opcion == "💊 BOTIQUÍN":
     st.title("💊 Inventario de Medicamentos - NEXUS PRO")
