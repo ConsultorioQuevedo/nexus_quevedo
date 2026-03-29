@@ -9,7 +9,7 @@ from fpdf import FPDF
 # ==========================================
 # 1. CONFIGURACIÓN Y ESTILO (LA CARROCERÍA)
 # ==========================================
-st.set_page_config(page_title="SISTEMA QUEVEDO PRO", layout="wide")
+st.set_page_config(page_title="SISTEMA QUEVEDO ", layout="wide")
 
 st.markdown("""
     <style>
