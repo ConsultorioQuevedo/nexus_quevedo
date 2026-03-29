@@ -11,7 +11,7 @@ import urllib.parse
 # ==========================================
 # 1. CONFIGURACIÓN DE PÁGINA Y ESTILO
 # ==========================================
-st.set_page_config(page_title="SISTEMA QUEVEDO PRO", layout="wide")
+st.set_page_config(page_title="SISTEMA QUEVEDO ", layout="wide")
 
 st.markdown("""
     <style>
@@ -50,7 +50,7 @@ def inicializar_db():
     c.execute('''CREATE TABLE IF NOT EXISTS finanzas
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   fecha TEXT, mes TEXT, tipo TEXT, 
-                  categoria TEXT, monto REAL, nota TEXT)''')
+                  categoria TEXT, monto REAL, nota TEXT)''') 
 
     # --- TABLA GLUCOSA (Con Estado para Machine Learning) ---
     c.execute('''CREATE TABLE IF NOT EXISTS glucosa
@@ -62,7 +62,16 @@ def inicializar_db():
     c.execute('''CREATE TABLE IF NOT EXISTS medicamentos
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   nombre TEXT, dosis TEXT, horario TEXT, 
-                  stock_inicial INTEGER, stock_actual INTEGER)''')
+                  stock_inicial INTEGER, stock_actual INTEGER)''') 
+    
+    conn.execute("""CREATE TABLE IF NOT EXISTS agenda (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha TEXT,
+        hora TEXT,
+        asunto TEXT,
+        lugar TEXT
+    )
+""")
 
     # --- TABLA REGISTRO MÉDICO (Cumplimiento de Tomas) ---
     c.execute('''CREATE TABLE IF NOT EXISTS registro_medico
