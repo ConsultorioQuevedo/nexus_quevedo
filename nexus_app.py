@@ -394,7 +394,7 @@ with col_del:
                     <div style='color: {col}; font-size: 0.8em; font-weight: bold; margin-top: 5px;'>ESTADO: {est}</div>
                 </div>
             """, unsafe_allow_html=True)
- else:
+else:
     st.info("No hay registros todavía.")
 
 # --- 10. MÓDULO: BOTIQUÍN (GESTIÓN DE MEDICAMENTOS) ---
