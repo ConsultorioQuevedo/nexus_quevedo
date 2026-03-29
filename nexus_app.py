@@ -446,7 +446,7 @@ elif opcion == "💊 BOTIQUÍN":
     if not df_meds.empty:
         # Mostramos una tabla resumen primero para vista rápida
        fecha_limpia = f_obj         
-        st.markdown("#### ⚙️ Gestionar Medicinas")
+       st.markdown("#### ⚙️ Gestionar Medicinas")
         # Mostramos cada medicina con su propio botón de eliminar
         for i, row in df_meds.iterrows():
             with st.container():
