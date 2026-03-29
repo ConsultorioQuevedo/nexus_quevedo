@@ -381,7 +381,7 @@ with col_del:
                     conn.execute("DELETE FROM glucosa WHERE id = (SELECT MAX(id) FROM glucosa)")
                     conn.commit()
                     st.rerun()
-           st.subheader("📊 Historial con Semáforos")
+            st.subheader("📊 Historial con Semáforos")
         for i, row in df_g.iterrows():
             est, col, msn = analizar_glucosa_full(row['valor'], row['momento'])
             st.markdown(f"""
