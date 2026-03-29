@@ -398,8 +398,7 @@ with col_pdf:
                             <div style='color: {col}; font-size: 0.8em; font-weight: bold;'>{est}: {msn}</div>
             </div>
         """, unsafe_allow_html=True)
-
-     # --- 10. MÓDULO: BOTIQUÍN (GESTIÓN DE MEDICAMENTOS) --- 
+ # --- 10. MÓDULO: BOTIQUÍN (GESTIÓN DE MEDICAMENTOS) --- 
 elif opcion == "💊 BOTIQUÍN":
      st.title("💊 Inventario de Medicamentos - NEXUS PRO")
      st.markdown("---")
