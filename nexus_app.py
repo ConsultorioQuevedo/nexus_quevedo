@@ -399,8 +399,8 @@ with col_pdf:
             </div>
         """, unsafe_allow_html=True)
 
-     # --- 10. MÓDULO: BOTIQUÍN (GESTIÓN DE MEDICAMENTOS) ---
-  elif opcion == "💊 BOTIQUÍN":
+     # --- 10. MÓDULO: BOTIQUÍN (GESTIÓN DE MEDICAMENTOS) --- 
+elif opcion == "💊 BOTIQUÍN":
      st.title("💊 Inventario de Medicamentos - NEXUS PRO")
      st.markdown("---")
     
