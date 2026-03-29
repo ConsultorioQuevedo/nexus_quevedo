@@ -478,8 +478,8 @@ elif opcion == "💊 BOTIQUÍN":
 # =========================================================
 # 11. MÓDULO: 🗓️ AGENDA DE CITAS
 # =========================================================
-elif menu == "🗓️ AGENDA":  # Asegúrese de que coincida con el nombre en su barra lateral
-    st.title("📅 Gestión de Citas Médicas")
+elif opcion == "🗓️ AGENDA":
+    st.title("🗓️ Mi Agenda de Citas")
     st.markdown("---")
     
     # Preparamos la fecha actual de forma segura
