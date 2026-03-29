@@ -474,8 +474,8 @@ elif opcion == "💊 BOTIQUÍN":
                     st.rerun()
     else:
         st.info("El botiquín está vacío. Registre sus medicinas arriba.")
-    conn.close()   
-======================
+        conn.close()   
+
 # 11. MÓDULO: 🗓️ AGENDA DE CITAS
 # =========================================================
 elif opcion == "🗓️ AGENDA":
