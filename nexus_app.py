@@ -275,7 +275,6 @@ if menu == "💊 Botiquín":
     except:
         df_m = pd.DataFrame()
 
-    # --- AGREGAR MEDICINA ---
 with st.expander("➕ AGREGAR MEDICAMENTO AL PLAN", expanded=False):
     c1, c2 = st.columns(2)
     n_med = c1.text_input("Nombre del Medicamento:", placeholder="Ej: Enalapril")
@@ -308,16 +307,7 @@ with st.expander("➕ AGREGAR MEDICAMENTO AL PLAN", expanded=False):
             except Exception as e:
                 st.error(f"Error al guardar: {e}")
         else:
-            st.warning("⚠️ Por favor, ingrese el nombre del medicamento.")   
-
-                # Botón ELIMINAR
-if col4.button("🗑️", key=f"del_med_{fila['id']}"):
-                    conn.execute("DELETE FROM medicamentos WHERE id = ?", (fila['id'],))
-                    conn.commit()
-st.rerun()
-st.markdown("---")
-               else:
-        st.info("No hay medicamentos registrados.")
+            st.warning("⚠️ Por favor, ingrese el nombre del medicamento.")    # --- AGREGAR MEDICINA ---
 
 # =========================================================
 # 11. MÓDULO: AGENDA DE CITAS - LUIS RAFAEL QUEVEDO
