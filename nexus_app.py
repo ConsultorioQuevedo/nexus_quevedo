@@ -536,10 +536,41 @@ with st.sidebar:
             st.download_button("📥 DESCARGAR REPORTE TOTAL", f, file_name="Reporte_Completo_Quevedo.pdf")
 
 # ==========================================
-# CIERRE DE CONEXIÓN (IMPORTANTE)
+# 14. SECCIÓN FINAL: FIRMA Y CIERRE SEGURO
+# ==========================================
+st.markdown("---")
+col_f1, col_f2 = st.columns([3, 1])
+
+with col_f1:
+    # Firma oficial con estilo profesional
+    st.markdown(f"""
+        <div style="background-color:#1e1e1e; padding:20px; border-radius:15px; border-left: 6px solid #00d4ff; border-right: 1px solid #333;">
+            <p style="margin:0; color:#888; font-size:12px; letter-spacing: 2px;">PROPIEDAD INTELECTUAL</p>
+            <h2 style="margin:0; color:white; font-family: sans-serif;">NEXUS PRO © 2026</h2>
+            <p style="margin:5px 0 0 0; color:#00d4ff; font-weight:bold; font-size:16px;">
+                Autor Principal: Luis Rafael Quevedo
+            </p>
+            <p style="margin:2px 0 0 0; color:#555; font-size:11px;">
+                Desarrollo en colaboración con Gemini AI | Sistema de Gestión de Alta Precisión
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
+with col_f2:
+    # Un pequeño toque visual de estatus
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.status("SISTEMA ONLINE", state="complete")
+    st.caption(f"ID Sesión: {tiempo['fecha'].replace('-', '')}")
+
+# --- NOTIFICACIÓN DE BIENVENIDA ---
+st.toast(f"Bienvenido, Sr. Quevedo. Panel de control listo.", icon="🛡️")
+
+# ==========================================
+# EL ÚNICO CIERRE DE CONEXIÓN (AL FINAL)
 # ==========================================
 try:
-    conn.close()
-except:
+    if 'conn' in locals():
+        conn.close()
+except Exception as e:
+    # Silenciamos cualquier error de cierre si la conexión ya no existe
     pass
-            
