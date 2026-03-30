@@ -389,15 +389,33 @@ elif menu == "💊 Botiquín":
         h_med = c3.text_input("Horario (HH:MM):", value="08:00")
         s_med = c4.number_input("Cantidad Inicial (Pastillas):", min_value=1, value=30)
         
-        if st.button("💾 REGISTRAR EN BOTIQUÍN", use_container_width=True):
+if st.button("💾 REGISTRAR EN BOTIQUÍN", use_container_width=True):
             if n_med:
+                # 1. Conexión segura
                 conn = sqlite3.connect('nexus_data.db', check_same_thread=False)
+                
+                # 2. Blindaje: Crea la tabla si por algún motivo no existe
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS medicamentos (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        nombre TEXT,
+                        dosis TEXT,
+                        horario TEXT,
+                        stock_inicial REAL,
+                        stock_actual REAL
+                    )
+                """)
+                
+                # 3. Inserción de los datos
                 conn.execute("INSERT INTO medicamentos (nombre, dosis, horario, stock_inicial, stock_actual) VALUES (?,?,?,?,?)",
                              (n_med, d_med, h_med, s_med, s_med))
+                
+                # 4. Guardado y cierre
                 conn.commit()
+                conn.close()
+                
                 st.success(f"✅ {n_med} registrado con éxito.")
                 st.rerun()
-
     # --- CAPA 3: PANEL DE CONTROL ---
     st.markdown("---")
     if not df_m.empty:
