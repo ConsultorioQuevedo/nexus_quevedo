@@ -276,14 +276,14 @@ if menu == "💊 Botiquín":
         df_m = pd.DataFrame()
 
     # --- AGREGAR MEDICINA ---
-    with st.expander("➕ AGREGAR MEDICAMENTO AL PLAN", expanded=False):
-    c1, c2 = st.columns(2)
-    n_med = c1.text_input("Nombre del Medicamento:", placeholder="Ej: Enalapril")
-    d_med = c2.text_input("Dosis:", placeholder="Ej: 10mg").upper()
-
-    c3, c4 = st.columns(2)
-    h_med = c3.text_input("Horario (HH:MM):", value="08:00")
-    s_med = c4.number_input("Cantidad Inicial (Pastillas):", min_value=1, value=30)
+        with st.expander("➕ AGREGAR MEDICAMENTO AL PLAN", expanded=False):
+               c1, c2 = st.columns(2)
+              n_med = c1.text_input("Nombre del Medicamento:", placeholder="Ej: Enalapril")
+              d_med = c2.text_input("Dosis:", placeholder="Ej: 10mg").upper()
+    
+             c3, c4 = st.columns(2)
+        h_med = c3.text_input("Horario (HH:MM):", value="08:00")
+        s_med = c4.number_input("Cantidad Inicial (Pastillas):", min_value=1, value=30)
 
     if st.button("💾 REGISTRAR EN BOTIQUÍN", use_container_width=True):
         if n_med:
