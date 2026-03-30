@@ -311,7 +311,7 @@ with st.expander("➕ AGREGAR MEDICAMENTO AL PLAN", expanded=False):
             st.warning("⚠️ Por favor, ingrese el nombre del medicamento.")   
 
                 # Botón ELIMINAR
-                if col4.button("🗑️", key=f"del_med_{fila['id']}"):
+   if col4.button("🗑️", key=f"del_med_{fila['id']}"):
                     conn.execute("DELETE FROM medicamentos WHERE id = ?", (fila['id'],))
                     conn.commit()
                     st.rerun()
