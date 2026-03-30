@@ -199,87 +199,51 @@ if menu == "🩺 Glucosa & Salud":
             st.warning("Registro eliminado.")
             st.rerun() 
            # ==========================================
-# 8. MÓDULO DE FINANZAS (CON IA DE AHORRO)
 # ==========================================
-if menu == "💰 Finanzas":
-    st.title("💰 Gestión Financiera - Sr. Quevedo")
-    
-    # --- 1. REGISTRO UNIFICADO ---
-    with st.expander("➕ REGISTRAR INGRESO O GASTO", expanded=True):
-        c1, c2 = st.columns(2)
-        with c1:
-            tipo = st.selectbox("Tipo de Movimiento:", ["GASTO", "INGRESO"])
-            monto = st.number_input("Monto (RD$):", min_value=0.0, step=100.0)
-        with c2:
-            cat = st.selectbox("Categoría:", ["Pensión/Sueldo", "Salud", "Supermercado", "Servicios", "Negocio", "Otros"])
-            det = st.text_input("Detalle/Concepto:").upper()
-            
-        if st.button("💾 GUARDAR EN MI CUENTA", use_container_width=True):
-            if monto > 0 and det:
-                try:
-                    conn.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, nota, monto) VALUES (?,?,?,?,?,?)",
-                                (tiempo['fecha'], tiempo['mes'], tipo, cat, det, monto))
-                    conn.commit()
-                    st.success(f"✅ Registrado: {det} por RD$ {monto:,.2f}")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error al guardar: {e}")
-            else:
-                st.warning("⚠️ Complete el detalle y el monto.")
+# 14. SECCIÓN FINAL: FIRMA Y CIERRE SEGURO
+# ==========================================
+st.markdown("---")
+col_f1, col_f2 = st.columns([3, 1])
 
-    # --- 2. CÁLCULOS Y MÉTRICAS ---
-    df_f = pd.read_sql_query(f"SELECT * FROM finanzas WHERE mes = '{tiempo['mes']}'", conn)
-    
-    if not df_f.empty:
-        ingresos = df_f[df_f['tipo'] == 'INGRESO']['monto'].sum()
-        gastos = df_f[df_f['tipo'] == 'GASTO']['monto'].sum()
-        balance = ingresos - gastos
-        
-        c1, c2, c3 = st.columns(3)
-        c1.metric("INGRESOS TOTALES", f"RD$ {ingresos:,.2f}")
-        c2.metric("GASTOS TOTALES", f"RD$ {gastos:,.2f}", delta=f"-{gastos:,.2f}", delta_color="inverse")
-        c3.metric("BALANCE NETO", f"RD$ {balance:,.2f}")
+with col_f1:
+    # Firma oficial con estilo profesional - NEXUS PRO 2026
+    st.markdown(f"""
+        <div style="background-color:#1e1e1e; padding:20px; border-radius:15px; border-left: 6px solid #00d4ff; border-right: 1px solid #333;">
+            <p style="margin:0; color:#888; font-size:12px; letter-spacing: 2px;">PROPIEDAD INTELECTUAL</p>
+            <h2 style="margin:0; color:white; font-family: sans-serif;">NEXUS PRO © 2026</h2>
+            <p style="margin:5px 0 0 0; color:#00d4ff; font-weight:bold; font-size:16px;">
+                Autor Principal: Luis Rafael Quevedo
+            </p>
+            <p style="margin:2px 0 0 0; color:#555; font-size:11px;">
+                Desarrollo en colaboración con Gemini AI | Sistema de Gestión de Alta Precisión
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
 
-        # --- 3. ASISTENTE DE AHORRO E IA ---
-        st.markdown("---")
-        st.subheader("💡 Análisis de Gastos")
-        
-        # Barra de Presupuesto (Asumiendo que el presupuesto es el total de ingresos)
-        if ingresos > 0:
-            porcentaje_gasto = (gastos / ingresos)
-            st.write(f"**Uso del Presupuesto:** {porcentaje_gasto:.1%}")
-            st.progress(min(porcentaje_gasto, 1.0))
-            
-            if porcentaje_gasto > 0.8:
-                st.error("⚠️ ALERTA: Has gastado más del 80% de tus ingresos. ¡Cuidado!")
-            else:
-                st.success("✅ Estabilidad: Gastos bajo control.")
+with col_f2:
+    # Estado del sistema y ID de sesión
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.status("SISTEMA ONLINE", state="complete")
+    # Usamos un try para evitar errores si 'tiempo' no está definido aún
+    try:
+        id_sesion = tiempo['fecha'].replace('-', '')
+        st.caption(f"ID Sesión: {id_sesion}")
+    except:
+        st.caption("ID Sesión: ACTIVA")
 
-        # --- 4. EXPORTAR PDF Y BORRADO ---
-        col_pdf, col_del = st.columns(2)
-        with col_pdf:
-            if st.button("📄 GENERAR REPORTE PDF"):
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", 'B', 14)
-                pdf.cell(200, 10, f"REPORTE FINANCIERO - {tiempo['mes']}", ln=True, align='C')
-                pdf.set_font("Arial", size=10)
-                for _, r in df_f.iterrows():
-                    pdf.cell(190, 8, f"{r['fecha']} | {r['tipo']} | {r['categoria']} | RD$ {r['monto']:,.2f}", 1, 1)
-                pdf.output("finanzas_quevedo.pdf")
-                with open("finanzas_quevedo.pdf", "rb") as f:
-                    st.download_button("📥 Descargar Reporte", f, file_name=f"Finanzas_{tiempo['mes']}.pdf")
-        
-        with col_del:
-            if st.button("🗑️ BORRAR ÚLTIMO MOVIMIENTO"):
-                ultimo_id = df_f.iloc[-1]['id']
-                conn.execute(f"DELETE FROM finanzas WHERE id = {ultimo_id}")
-                conn.commit()
-                st.warning("Última transacción eliminada.")
-                st.rerun()
+# --- NOTIFICACIÓN DE BIENVENIDA ---
+st.toast(f"Bienvenido, Sr. Quevedo. Panel de control listo.", icon="🛡️")
 
-        st.dataframe(df_f[["fecha", "tipo", "categoria", "nota", "monto"]].tail(10), use_container_width=True)
-
+# ==========================================
+# CIERRE DE CONEXIÓN SEGURO (FINAL DEL SCRIPT)
+# ==========================================
+try:
+    # Solo intentamos cerrar si la variable 'conn' existe y no es nula
+    if 'conn' in globals() or 'conn' in locals():
+        conn.close()
+except:
+    # Si ya está cerrada, no hacemos nada (evita pantallas rojas)
+    pass
 # ==========================================
 # 9. MÓDULO DE BITÁCORA (CON WHATSAPP)
 # ==========================================
