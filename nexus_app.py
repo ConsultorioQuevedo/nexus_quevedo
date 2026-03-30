@@ -276,14 +276,14 @@ if menu == "💊 Botiquín":
         df_m = pd.DataFrame()
 
     # --- AGREGAR MEDICINA ---
-    with st.expander("➕ AGREGAR MEDICAMENTO AL PLAN", expanded=False):
-         c1, c2 = st.columns(2)
-          n_med = c1.text_input("Nombre del Medicamento:", placeholder="Ej: Enalapril")
-          d_med = c2.text_input("Dosis:", placeholder="Ej: 10mg").upper()
-    
-             c3, c4 = st.columns(2)
-        h_med = c3.text_input("Horario (HH:MM):", value="08:00")
-        s_med = c4.number_input("Cantidad Inicial (Pastillas):", min_value=1, value=30)
+with st.expander("➕ AGREGAR MEDICAMENTO AL PLAN", expanded=False):
+    c1, c2 = st.columns(2)
+    n_med = c1.text_input("Nombre del Medicamento:", placeholder="Ej: Enalapril")
+    d_med = c2.text_input("Dosis:", placeholder="Ej: 10mg").upper()
+
+    c3, c4 = st.columns(2)
+    h_med = c3.text_input("Horario (HH:MM):", value="08:00")
+    s_med = c4.number_input("Cantidad Inicial (Pastillas):", min_value=1, value=30)
 
     if st.button("💾 REGISTRAR EN BOTIQUÍN", use_container_width=True):
         if n_med:
@@ -308,34 +308,7 @@ if menu == "💊 Botiquín":
             except Exception as e:
                 st.error(f"Error al guardar: {e}")
         else:
-            st.warning("⚠️ Por favor, ingrese el nombre del medicamento.")
-    # --- PANEL DE CONTROL DE INVENTARIO ---
-    st.markdown("---")
-    if not df_m.empty:
-        st.markdown("### 📋 Inventario Actual")
-        for _, fila in df_m.iterrows():
-            with st.container():
-                col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
-                
-                # Info
-                col1.markdown(f"**{fila['nombre']}** ({fila['dosis']})\n⏰ {fila['horario']}")
-                
-                # Barra de Stock
-                porcentaje = max(0.0, min(1.0, fila['stock_actual'] / fila['stock_inicial']))
-                col2.progress(porcentaje)
-                col2.caption(f"Quedan: {int(fila['stock_actual'])} de {int(fila['stock_inicial'])}")
-                
-                # Botón TOMAR
-                if col3.button("💊 TOMAR", key=f"toma_{fila['id']}"):
-                    if fila['stock_actual'] > 0:
-                        nuevo_stock = fila['stock_actual'] - 1
-                        conn.execute("UPDATE medicamentos SET stock_actual = ? WHERE id = ?", (nuevo_stock, fila['id']))
-                        conn.execute("INSERT INTO registro_medico (fecha, medicamento, hora_toma, cumplimiento) VALUES (?,?,?,?)",
-                                     (tiempo['fecha'], fila['nombre'], tiempo['hora'], "SÍ"))
-                        conn.commit()
-                        st.rerun()
-                    else:
-                        st.error("Sin stock")
+            st.warning("⚠️ Por favor, ingrese el nombre del medicamento.")   
 
                 # Botón ELIMINAR
                 if col4.button("🗑️", key=f"del_med_{fila['id']}"):
