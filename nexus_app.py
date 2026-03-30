@@ -35,7 +35,7 @@ with conectar_db() as conn:
 # --- ESTRUCTURA DE NAVEGACIÓN ---
 st.sidebar.title("🚀 SISTEMA QUEVEDO")
 menu = st.sidebar.selectbox("SELECCIONE MÓDULO:", 
-    ["🏠 Dashboard", "💰 Finanzas & Presupuesto", "🩺 Glucosa & Salud", "💊 Botiquín", "📅 Agenda"])
+    ["🏠Quevedo", "💰 Finanzas & Presupuesto", "🩺 Glucosa & Salud", "💊 Botiquín", "📅 Agenda"])
 
 st.title(f"🚀 {menu}")
 st.write(f"📅 {datetime.date.today().strftime('%d/%m/%Y')} | Usuario: Sr. Quevedo")
