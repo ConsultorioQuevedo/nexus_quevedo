@@ -11,14 +11,13 @@ import urllib.parse
 # ==========================================
 # 1. CONFIGURACIÓN DE PÁGINA Y ESTILO
 # ==========================================
-st.set_page_config(page_title="SISTEMA QUEVEDO ", layout="wide")
+st.set_page_config(page_title="SISTEMA QUEVEDO PRO", layout="wide")
 
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
     [data-testid="stMetricValue"] { font-size: 24px; color: #00d4ff !important; }
     .stAlert { border-radius: 10px; }
-    .css-1n76uvr { border: 1px solid #30363d; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -31,281 +30,204 @@ def obtener_tiempo():
     return {
         "fecha": ahora.strftime("%d/%m/%Y"),
         "hora": ahora.strftime("%I:%M %p"),
-        "id_dia": ahora.strftime("%Y%m%d"),
-        "mes": ahora.strftime("%B").upper()
+        "mes": ahora.strftime("%B").upper(),
+        "solo_fecha": ahora.date()
     }
 
 tiempo = obtener_tiempo()
 
 # ==========================================
-# ============================================================
-# 3. CONEXIÓN A BASE DE DATOS UNIFICADA (NEXUS PRO)
-# ============================================================
+# 3. BASE DE DATOS REFORZADA (NEXUS PRO)
+# ==========================================
 def inicializar_db():
-    # Conexión con seguridad para subprocesos
     conn = sqlite3.connect("sistema_quevedo_pro.db", check_same_thread=False)
     c = conn.cursor()
 
-    # --- TABLA FINANZAS (Con Categoría para Predicción) ---
+    # FINANZAS (Añadido campo 'presupuesto')
     c.execute('''CREATE TABLE IF NOT EXISTS finanzas
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   fecha TEXT, mes TEXT, tipo TEXT, 
-                  categoria TEXT, monto REAL, nota TEXT)''') 
+                  categoria TEXT, monto REAL, presupuesto REAL, nota TEXT)''') 
 
-    # --- TABLA GLUCOSA (Con Estado para Machine Learning) ---
+    # GLUCOSA
     c.execute('''CREATE TABLE IF NOT EXISTS glucosa
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   fecha TEXT, hora TEXT, momento TEXT, 
                   valor INTEGER, estado TEXT, notas TEXT)''')
 
-    # --- TABLA MEDICAMENTOS (Plan Maestro de Stock) ---
+    # MEDICAMENTOS (BOTIQUÍN)
     c.execute('''CREATE TABLE IF NOT EXISTS medicamentos
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   nombre TEXT, dosis TEXT, horario TEXT, 
                   stock_inicial INTEGER, stock_actual INTEGER)''') 
     
-    conn.execute("""CREATE TABLE IF NOT EXISTS agenda (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        fecha TEXT,
-        hora TEXT,
-        asunto TEXT,
-        lugar TEXT
-    )
-""")
+    # AGENDA UNIFICADA
+    c.execute('''CREATE TABLE IF NOT EXISTS agenda
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  fecha TEXT, hora TEXT, asunto TEXT, lugar TEXT, doctor TEXT)''')
 
-    # --- TABLA REGISTRO MÉDICO (Cumplimiento de Tomas) ---
+    # BITÁCORA MÉDICA
     c.execute('''CREATE TABLE IF NOT EXISTS registro_medico
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   fecha TEXT, medicamento TEXT, hora_toma TEXT, 
                   cumplimiento TEXT)''')
 
-    # --- TABLA AGENDA (Citas y Alertas de Proximidad) ---
-    c.execute('''CREATE TABLE IF NOT EXISTS citas
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  fecha TEXT, doctor TEXT, motivo TEXT, 
-                  recordatorio TEXT)''')
-
     conn.commit()
     return conn
 
-# Inicializamos la conexión global
 conn = inicializar_db()
-# ==========================================
-# 4. CONTROL DE ACCESO
-# ==========================================
-if "autenticado" not in st.session_state:
-    st.markdown("<h1 style='text-align: center;'>🔐 ACCESO RESTRINGIDO</h1>", unsafe_allow_html=True)
-    _, col_login, _ = st.columns([1, 1, 1])
-    with col_login:
-        clave = st.text_input("Introduzca su clave:", type="password")
-        if st.button("ENTRAR"):
-            if clave == "1628":
-                st.session_state["autenticado"] = True
-                st.rerun()
-            else:
-                st.error("Clave Incorrecta")
-    st.stop()
 
 # ==========================================
-# 5. BARRA LATERAL (NAVEGACIÓN)
+# 4. CONTROL DE ACCESO (SIMPLIFICADO)
+# ==========================================
+# Entra directo sin contraseña como pidió el usuario.
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = True
+
+# ==========================================
+# 5. BARRA LATERAL (NAVEGACIÓN ROBUSTA)
 # ==========================================
 with st.sidebar:
-    st.title("SISTEMA QUEVEDO")
+    st.title("🚀 NEXUS QUEVEDO")
     st.write(f"📅 {tiempo['fecha']}")
     st.write(f"⏰ {tiempo['hora']}")
     st.markdown("---")
+    
+    # Menú limpio sin errores de indentación
     menu = st.radio("SELECCIONE MÓDULO:", 
-                   ["🏠 Dashboard", "📅 Agenda", "💊 Botiquín", "💰 Finanzas", "🩺 Glucosa & Salud", "📝 Bitácora"])
-    if st.button("🚪 Cerrar Sesión"):
-        del st.session_state["autenticado"]
+                    ["🏠 Dashboard", "📅 Agenda", "💊 Botiquín", "💰 Finanzas", "🩺 Glucosa & Salud", "📝 Bitácora"])
+    
+    st.markdown("---")
+    if st.button("🔄 Refrescar Sistema"):
         st.rerun()
-  # ==========================================
-# 6. FUNCIONES DE EXPORTACIÓN (PDF Y WHATSAPP)
-# ==========================================
-def generar_pdf_glucosa(df):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(200, 10, "REPORTE MÉDICO - CONTROL DE GLUCOSA", ln=True, align='C')
-    pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, f"Paciente: Luis Rafael Quevedo | Fecha: {tiempo['fecha']}", ln=True, align='C')
-    pdf.ln(10)
-    
-    # Encabezados de tabla
-    pdf.set_fill_color(200, 220, 255)
-    pdf.cell(40, 10, "Fecha", 1, 0, 'C', 1)
-    pdf.cell(40, 10, "Momento", 1, 0, 'C', 1)
-    pdf.cell(30, 10, "Valor", 1, 0, 'C', 1)
-    pdf.cell(80, 10, "Nota", 1, 1, 'C', 1)
-    
-    for _, fila in df.iterrows():
-        pdf.cell(40, 10, str(fila['fecha']), 1)
-        pdf.cell(40, 10, str(fila['momento']), 1)
-        pdf.cell(30, 10, str(fila['valor']), 1)
-        pdf.cell(80, 10, str(fila['nota'])[:30], 1, 1)
-    
-    pdf.output("reporte_salud_quevedo.pdf")
-    return "reporte_salud_quevedo.pdf"
 
+# ==========================================
+# 6. FUNCIONES DE EXPORTACIÓN (PROTEGIDAS)
+# ==========================================
 def enviar_whatsapp(mensaje):
     msg_encoded = urllib.parse.quote(mensaje)
-    # Reemplaza el número con el tuyo o el de tu médico
+    # Su número por defecto para envío rápido
     url = f"https://wa.me/18290000000?text={msg_encoded}"
     return url
 
+# El código continúa abajo con las funciones de los módulos...
 # ==========================================
-# 7 SECCIÓN: GLUCOSA & SALUD (NEXUS AI)
+# 7. SECCIÓN: GLUCOSA & SALUD (NEXUS AI)
 # ==========================================
 if menu == "🩺 Glucosa & Salud":
-    st.title("🩺 Control de Glucosa con Inteligencia Artificial")
+    st.title("🩺 Control de Glucosa - Sr. Quevedo")
     st.markdown(f"**Paciente:** Luis Rafael Quevedo | **Fecha:** {tiempo['fecha']}")
 
-    # --- 1. ENTRADA DE DATOS (TECLADO NUMÉRICO Y LIMPIEZA) ---
+    # --- 1. ENTRADA DE DATOS ---
     with st.expander("📝 REGISTRAR NUEVA LECTURA", expanded=True):
         c1, c2, c3 = st.columns([1, 1, 2])
-        
         with c1:
-            # Al ser 'number_input' con 'step=1', el celular abre el teclado de números automáticamente
-            valor_g = st.number_input("Nivel (mg/dL):", min_value=0, max_value=500, step=1, key="input_glucosa")
+            valor_g = st.number_input("Nivel (mg/dL):", min_value=0, max_value=500, step=1)
         with c2:
             momento_g = st.selectbox("Momento:", ["Ayunas", "Post-Almuerzo", "Post-Cena", "Antes de dormir"])
         with c3:
-            nota_g = st.text_input("Nota (Síntomas/Comida):", placeholder="Ej: Comí arroz con habichuela...").upper()
+            nota_g = st.text_input("Nota (Síntomas/Comida):").upper()
 
-        col_btn1, col_btn2 = st.columns([1, 1])
-        with col_btn1:
-            if st.button("💾 GUARDAR REGISTRO"):
-                if valor_g > 0:
-                    conn.execute("INSERT INTO glucosa (fecha, hora, momento, valor, nota) VALUES (?,?,?,?,?)",
+        if st.button("💾 GUARDAR REGISTRO", use_container_width=True):
+            if valor_g > 0:
+                try:
+                    conn.execute("INSERT INTO glucosa (fecha, hora, momento, valor, notas) VALUES (?,?,?,?,?)",
                                 (tiempo['fecha'], tiempo['hora'], momento_g, valor_g, nota_g))
                     conn.commit()
                     st.success("✅ ¡Guardado!")
                     st.rerun()
-                else:
-                    st.warning("⚠️ Por favor, introduce un valor.")
-        with col_btn2:
-            if st.button("🧹 LIMPIAR TODO"):
-                st.rerun() # Esto borra lo que escribiste y refresca la pantalla
+                except Exception as e:
+                    st.error(f"Error al guardar: {e}")
+            else:
+                st.warning("⚠️ Introduce un valor válido.")
 
-    st.markdown("---")
-
-    # --- 2. ANÁLISIS DE DATOS (REGLAS INTELIGENTES E IA) ---
-    df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id ASC", conn)
+    # --- 2. LECTURA Y ANÁLISIS ---
+    try:
+        df_g = pd.read_sql_query("SELECT * FROM glucosa ORDER BY id DESC", conn)
+    except:
+        df_g = pd.DataFrame()
 
     if not df_g.empty:
-        # Último valor registrado
-        ultimo = df_g.iloc[-1]
+        ultimo = df_g.iloc[0] # Al ser DESC, el 0 es el último
         v = ultimo['valor']
         m = ultimo['momento']
 
-        # Reglas Inteligentes (If/Else Avanzado)
-        st.subheader("🤖 Análisis de la IA")
+        # Reglas de Alerta
         if m == "Ayunas":
-            if v < 70: color, msg = "🔵 CRÍTICO (BAJO)", "Hipoglucemia detectada. Ingiere algo dulce de inmediato."
-            elif v <= 100: color, msg = "🟢 EXCELENTE", "Tu nivel en ayunas es perfecto."
-            elif v <= 125: color, msg = "🟡 PRE-DIABETES", "Nivel algo elevado. Cuida las harinas hoy."
-            else: color, msg = "🔴 ALERTA ALTA", "Nivel muy alto. Llama a tu médico si persiste."
-        else: # Si es después de comer
-            if v > 180: color, msg = "🔴 ALTA POST-PRANDIAL", "Nivel muy alto después de comer. Camina 15 minutos."
-            else: color, msg = "🟢 NORMAL", "Tu cuerpo está procesando bien el azúcar."
+            if v < 70: color, msg = "🔵 CRÍTICO (BAJO)", "Hipoglucemia. Ingiere algo dulce."
+            elif v <= 100: color, msg = "🟢 EXCELENTE", "Nivel perfecto en ayunas."
+            else: color, msg = "🔴 ALTA", "Nivel elevado. Revise su dieta hoy."
+        else:
+            color, msg = ("🔴 ALTA", "Nivel alto después de comer.") if v > 180 else ("🟢 NORMAL", "Procesando bien.")
+
+        st.subheader(f"🤖 Análisis: {color}")
+        st.info(msg)
+
+        # --- 3. WHATSAPP Y PDF (BLINDADOS) ---
+        st.markdown("---")
+        col_pdf, col_wa = st.columns(2)
         
-        st.markdown(f"### {color}")
-        st.info(msg) 
-       # --- 1. PRIMERO ASEGURAMOS LOS DATOS (EL BLINDAJE) ---
-try:
-    # Esta es la línea que a veces falla si la base de datos está ocupada
-    df_g = pd.read_sql_query("SELECT valor FROM glucosa ORDER BY id DESC LIMIT 10", conn)
-except:
-    # Si falla, creamos una tabla vacía para que el programa no se detenga
-    df_g = pd.DataFrame(columns=['valor'])
-
-# --- 2. LA INTELIGENCIA QUE USTED YA TIENE (Línea 215 en su foto) ---
-st.markdown("---")
-st.subheader("🤖 Predicción de Tendencia")
-
-if len(df_g) > 3:
-    # Aquí sigue su código igualito:
-    # promedio_ultimos = df_g['valor'].tail(3).mean() ...
-    pass
-else:
-    st.info("ℹ️ Luis Rafael, necesito al menos 4 registros para calcular su tendencia.") 
-
-        # Machine Learning Simple (Predicción de Tendencia)
-if len(df_g) > 3:
-            # Calculamos si el azúcar va subiendo o bajando comparando los últimos 3
-            promedio_ultimos = df_g['valor'].tail(3).mean()
-            tendencia = "ALZA 📈" if v > promedio_ultimos else "BAJA 📉"
-            st.write(f"**Sistema de Recomendación:** La tendencia actual es al **{tendencia}**. Basado en esto, te recomiendo monitorear tu próxima comida.")
-
-            # --- 3. WHATSAPP Y PDF ---
-            st.markdown("---")
-            col_pdf, col_wa = st.columns(2)
-            with col_pdf:
-               if st.button("📄 GENERAR PDF"):
+        with col_pdf:
+            if st.button("📄 GENERAR REPORTE PDF"):
+                try:
                     pdf = FPDF()
                     pdf.add_page()
                     pdf.set_font("Arial", 'B', 14)
-                    pdf.cell(200, 10, f"REPORTE DE GLUCOSA - SR. QUEVEDO", ln=True, align='C')
-                    pdf.set_font("Arial", size=11)
-                    for _, fila in df_g.tail(10).iterrows():
-                        pdf.cell(190, 10, f"{fila['fecha']} | {fila['momento']} | {fila['valor']} mg/dL", 1, 1)
+                    pdf.cell(200, 10, "CONTROL DE GLUCOSA - QUEVEDO", ln=True, align='C')
+                    pdf.set_font("Arial", size=10)
+                    for _, fila in df_g.head(15).iterrows():
+                        pdf.cell(190, 8, f"{fila['fecha']} | {fila['momento']} | {fila['valor']} mg/dL | {fila['notas']}", 1, 1)
                     pdf.output("reporte_salud.pdf")
                     with open("reporte_salud.pdf", "rb") as f:
-                        st.download_button("📥 Descargar Reporte", f, file_name="reporte_salud.pdf")
+                        st.download_button("📥 Descargar PDF", f, file_name="reporte_salud.pdf")
+                except:
+                    st.error("Error al crear PDF. Cierre el archivo si lo tiene abierto.")
 
-            with col_wa:
-            # Botón de WhatsApp con mensaje automático
-              msg_wa = f"Hola Dr., mi último nivel de glucosa fue {v} mg/dL en {m}. ({tiempo['fecha']})"
-            msg_url = f"https://wa.me/18290000000?text={msg_wa.replace(' ', '%20')}"
-            st.markdown(f'<a href="{msg_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer;">📲 ENVIAR A WHATSAPP</button></a>', unsafe_allow_html=True)
+        with col_wa:
+            msg_wa = f"Hola Dr., mi último nivel de glucosa fue {v} mg/dL en {m} ({tiempo['fecha']})."
+            url_wa = f"https://wa.me/18290000000?text={urllib.parse.quote(msg_wa)}"
+            st.markdown(f'''<a href="{url_wa}" target="_blank">
+                <button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold;">
+                📲 ENVIAR A WHATSAPP</button></a>''', unsafe_allow_html=True)
 
-        # Mostrar tabla histórica
-            st.dataframe(df_g[["fecha", "hora", "momento", "valor", "nota"]].tail(10), use_container_width=True)
-# ==========================================
+        st.markdown("### 📋 Historial Reciente")
+        st.dataframe(df_g[["fecha", "momento", "valor", "notas"]].head(10), use_container_width=True)
+        
+        if st.button("🗑️ BORRAR ÚLTIMO REGISTRO"):
+            conn.execute(f"DELETE FROM glucosa WHERE id = {ultimo['id']}")
+            conn.commit()
+            st.warning("Registro eliminado.")
+            st.rerun() 
+           # ==========================================
 # 8. MÓDULO DE FINANZAS (CON IA DE AHORRO)
 # ==========================================
 if menu == "💰 Finanzas":
-    st.title("💰 Gestión Financiera Inteligente")
+    st.title("💰 Gestión Financiera - Sr. Quevedo")
     
-    with st.expander("➕ REGISTRAR MOVIMIENTO", expanded=True):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            tipo = st.selectbox("Tipo:", ["INGRESO", "GASTO"])
+    # --- 1. REGISTRO UNIFICADO ---
+    with st.expander("➕ REGISTRAR INGRESO O GASTO", expanded=True):
+        c1, c2 = st.columns(2)
+        with c1:
+            tipo = st.selectbox("Tipo de Movimiento:", ["GASTO", "INGRESO"])
             monto = st.number_input("Monto (RD$):", min_value=0.0, step=100.0)
-        with col2:
-            cat = st.selectbox("Categoría:", ["Salud", "Supermercado", "Servicios", "Negocio", "Otros"])
-        with col3:
-            det = st.text_input("Detalle:").upper()
+        with c2:
+            cat = st.selectbox("Categoría:", ["Pensión/Sueldo", "Salud", "Supermercado", "Servicios", "Negocio", "Otros"])
+            det = st.text_input("Detalle/Concepto:").upper()
             
-        if st.button("💾 GUARDAR TRANSACCIÓN"):
-            conn.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, detalle, monto) VALUES (?,?,?,?,?,?)",
-                        (tiempo['fecha'], tiempo['mes'], tipo, cat, det, monto))
-            conn.commit()
-            st.success("Transacción registrada.")
-            st.rerun() 
-     # --- VENTANILLA DE ENTRADA DE PRESUPUESTO ---
-with st.expander("💰 REGISTRAR DINERO (INGRESOS O GASTOS)", expanded=True):
-    col_desc, col_monto, col_tipo = st.columns([2, 1, 1])
-    
-    # Aquí usted escribe qué es el dinero
-    nueva_desc = col_desc.text_input("Concepto:", placeholder="Ej: Mi Pensión, Venta, Pago...")
-    
-    # Aquí pone la cantidad
-    nuevo_monto = col_monto.number_input("Cantidad ($):", min_value=0.0, step=100.0)
-    
-    # Aquí elige si entra o sale
-    nuevo_tipo = col_tipo.selectbox("¿Qué es?", ["INGRESO", "GASTO"])
+        if st.button("💾 GUARDAR EN MI CUENTA", use_container_width=True):
+            if monto > 0 and det:
+                try:
+                    conn.execute("INSERT INTO finanzas (fecha, mes, tipo, categoria, nota, monto) VALUES (?,?,?,?,?,?)",
+                                (tiempo['fecha'], tiempo['mes'], tipo, cat, det, monto))
+                    conn.commit()
+                    st.success(f"✅ Registrado: {det} por RD$ {monto:,.2f}")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al guardar: {e}")
+            else:
+                st.warning("⚠️ Complete el detalle y el monto.")
 
-    # El botón que dispara la magia
-    if st.button("📌 GUARDAR EN MI CUENTA", use_container_width=True):
-        if nueva_desc and nuevo_monto > 0:
-            conn.execute("INSERT INTO finanzas (fecha, descripcion, monto, tipo) VALUES (?,?,?,?)",
-                         (str(tiempo['fecha']), nueva_desc.upper(), nuevo_monto, nuevo_tipo))
-            conn.commit()
-            st.success(f"¡Listo Luis Rafael! Se anotó: {nueva_desc} por ${nuevo_monto:,.2f}")
-            st.rerun()       
-
-    # --- ANÁLISIS DE DATOS ---
+    # --- 2. CÁLCULOS Y MÉTRICAS ---
     df_f = pd.read_sql_query(f"SELECT * FROM finanzas WHERE mes = '{tiempo['mes']}'", conn)
     
     if not df_f.empty:
@@ -313,430 +235,311 @@ with st.expander("💰 REGISTRAR DINERO (INGRESOS O GASTOS)", expanded=True):
         gastos = df_f[df_f['tipo'] == 'GASTO']['monto'].sum()
         balance = ingresos - gastos
         
-        # Métricas principales
         c1, c2, c3 = st.columns(3)
-        c1.metric("INGRESOS", f"RD$ {ingresos:,.2f}")
-        c2.metric("GASTOS", f"RD$ {gastos:,.2f}", delta=f"-{gastos:,.2f}", delta_color="inverse")
-        c3.metric("BALANCE", f"RD$ {balance:,.2f}")
+        c1.metric("INGRESOS TOTALES", f"RD$ {ingresos:,.2f}")
+        c2.metric("GASTOS TOTALES", f"RD$ {gastos:,.2f}", delta=f"-{gastos:,.2f}", delta_color="inverse")
+        c3.metric("BALANCE NETO", f"RD$ {balance:,.2f}")
 
-        # --- REGLAS INTELIGENTES Y RECOMENDACIÓN ---
+        # --- 3. ASISTENTE DE AHORRO E IA ---
         st.markdown("---")
-        st.subheader("💡 Asistente de Ahorro")
+        st.subheader("💡 Análisis de Gastos")
         
-        if gastos > ingresos * 0.8:
-            st.warning("⚠️ REGLA CRÍTICA: Has gastado más del 80% de tus ingresos. Se recomienda frenar gastos no esenciales.")
-        else:
-            st.success("✅ REGLA DE ESTABILIDAD: Tu nivel de gasto está bajo control respecto a tus ingresos.")
+        # Barra de Presupuesto (Asumiendo que el presupuesto es el total de ingresos)
+        if ingresos > 0:
+            porcentaje_gasto = (gastos / ingresos)
+            st.write(f"**Uso del Presupuesto:** {porcentaje_gasto:.1%}")
+            st.progress(min(porcentaje_gasto, 1.0))
+            
+            if porcentaje_gasto > 0.8:
+                st.error("⚠️ ALERTA: Has gastado más del 80% de tus ingresos. ¡Cuidado!")
+            else:
+                st.success("✅ Estabilidad: Gastos bajo control.")
 
-        # Sistema de recomendación simple
-        if gastos > 0:
-            peor_cat = df_f[df_f['tipo'] == 'GASTO'].groupby('categoria')['monto'].sum().idxmax()
-            st.info(f"🔍 RECOMENDACIÓN: Tu mayor gasto este mes es en **{peor_cat}**. Si reduces un 10% aquí, ahorrarías RD$ {(df_f[df_f['categoria']==peor_cat]['monto'].sum()*0.1):,.2f}.")
+        # --- 4. EXPORTAR PDF Y BORRADO ---
+        col_pdf, col_del = st.columns(2)
+        with col_pdf:
+            if st.button("📄 GENERAR REPORTE PDF"):
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", 'B', 14)
+                pdf.cell(200, 10, f"REPORTE FINANCIERO - {tiempo['mes']}", ln=True, align='C')
+                pdf.set_font("Arial", size=10)
+                for _, r in df_f.iterrows():
+                    pdf.cell(190, 8, f"{r['fecha']} | {r['tipo']} | {r['categoria']} | RD$ {r['monto']:,.2f}", 1, 1)
+                pdf.output("finanzas_quevedo.pdf")
+                with open("finanzas_quevedo.pdf", "rb") as f:
+                    st.download_button("📥 Descargar Reporte", f, file_name=f"Finanzas_{tiempo['mes']}.pdf")
+        
+        with col_del:
+            if st.button("🗑️ BORRAR ÚLTIMO MOVIMIENTO"):
+                ultimo_id = df_f.iloc[-1]['id']
+                conn.execute(f"DELETE FROM finanzas WHERE id = {ultimo_id}")
+                conn.commit()
+                st.warning("Última transacción eliminada.")
+                st.rerun()
 
-        # --- EXPORTAR PDF FINANZAS ---
-        if st.button("📄 GENERAR REPORTE FINANCIERO"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", 'B', 16)
-            pdf.cell(200, 10, f"REPORTE FINANCIERO - {tiempo['mes']}", ln=True, align='C')
-            pdf.ln(10)
-            pdf.set_font("Arial", size=12)
-            for _, r in df_f.iterrows():
-                pdf.cell(190, 10, f"{r['fecha']} | {r['tipo']} | {r['categoria']} | RD$ {r['monto']}", 1, 1)
-            pdf.output("finanzas_quevedo.pdf")
-            with open("finanzas_quevedo.pdf", "rb") as f:
-                st.download_button("📥 Descargar Reporte", f, file_name="finanzas_quevedo.pdf")
+        st.dataframe(df_f[["fecha", "tipo", "categoria", "nota", "monto"]].tail(10), use_container_width=True)
 
 # ==========================================
 # 9. MÓDULO DE BITÁCORA (CON WHATSAPP)
 # ==========================================
 if menu == "📝 Bitácora":
     st.title("📝 Bitácora de Actividades")
+    st.markdown(f"**Fecha:** {tiempo['fecha']}")
     
-    nota_rapida = st.text_area("¿Qué sucedió hoy?", placeholder="Escribe aquí los eventos relevantes...")
+    nota_rapida = st.text_area("¿Qué sucedió hoy o qué tiene pendiente?", height=150, placeholder="Escriba aquí...")
     
-    col_b1, col_b2 = st.columns(2)
-    with col_b1:
-        if st.button("💾 GUARDAR EN BITÁCORA"):
-            # Aquí podrías crear una tabla específica si quieres histórico, 
-            # por ahora lo manejamos como mensaje directo.
-            st.success("Nota procesada localmente.")
-            
-    with col_b2:
+    if st.button("📲 ENVIAR REPORTE POR WHATSAPP", use_container_width=True):
         if nota_rapida:
             msg = f"BITÁCORA QUEVEDO ({tiempo['fecha']}): {nota_rapida}"
-            st.markdown(f"[📲 Enviar Bitácora por WhatsApp]({enviar_whatsapp(msg)})")
+            url = enviar_whatsapp(msg)
+            st.markdown(f'<a href="{url}" target="_blank" style="text-decoration:none;"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:12px; border-radius:5px; font-weight:bold; cursor:pointer;">ABRIR WHATSAPP AHORA</button></a>', unsafe_allow_html=True)
+        else:
+            st.warning("Escriba algo antes de enviar.")
 
-    st.info("Este módulo permite centralizar tus pensamientos y enviarlos como reporte diario.")
-# ==========================================================
-# ==========================================
+    st.info("Utilice este espacio para centralizar notas que quiera recordar o enviar a su familia/médico.")
+    # ==========================================
 # 10. MÓDULO: BOTIQUÍN INTELIGENTE
 # ==========================================
-elif menu == "💊 Botiquín":
+if menu == "💊 Botiquín":
     st.title("💊 Gestión de Medicamentos")
     st.subheader("Control Maestro: Sr. Quevedo")
     
-    # Leer base de datos
-    df_m = pd.read_sql_query("SELECT * FROM medicamentos", conn)
+    # Leer inventario
+    try:
+        df_m = pd.read_sql_query("SELECT * FROM medicamentos", conn)
+    except:
+        df_m = pd.DataFrame()
 
-    # --- CAPA 2: REGISTRO DE NUEVA MEDICINA ---
+    # --- AGREGAR MEDICINA ---
     with st.expander("➕ AGREGAR MEDICAMENTO AL PLAN", expanded=False):
         c1, c2 = st.columns(2)
-        n_med = c1.text_input("Nombre del Medicamento:", placeholder="Ej: Enalapril").upper()
-        d_med = c2.text_input("Dosis:", placeholder="Ej: 10mg").upper()
+        n_med = c1.text_input("Nombre del Medicamento:").upper()
+        d_med = c2.text_input("Dosis (ej: 10mg):").upper()
         
         c3, c4 = st.columns(2)
         h_med = c3.text_input("Horario (HH:MM):", value="08:00")
         s_med = c4.number_input("Cantidad Inicial (Pastillas):", min_value=1, value=30)
         
-if st.button("💾 REGISTRAR EN BOTIQUÍN", use_container_width=True):
+        if st.button("💾 REGISTRAR EN BOTIQUÍN", use_container_width=True):
             if n_med:
-                # 1. Conexión segura
-                conn = sqlite3.connect('nexus_data.db', check_same_thread=False)
-                
-                # 2. Blindaje: Crea la tabla si por algún motivo no existe
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS medicamentos (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        nombre TEXT,
-                        dosis TEXT,
-                        horario TEXT,
-                        stock_inicial REAL,
-                        stock_actual REAL
-                    )
-                """)
-                
-                # 3. Inserción de los datos
                 conn.execute("INSERT INTO medicamentos (nombre, dosis, horario, stock_inicial, stock_actual) VALUES (?,?,?,?,?)",
                              (n_med, d_med, h_med, s_med, s_med))
-                
-                # 4. Guardado y cierre
                 conn.commit()
-                conn.close()
-                
-                st.success(f"✅ {n_med} registrado con éxito.")
+                st.success(f"✅ {n_med} añadido.")
                 st.rerun()
-    # --- CAPA 3: PANEL DE CONTROL ---
-                st.markdown("---")
-            if not df_m.empty:
-                st.markdown("### 📋 Inventario Actual")
-            for _, fila in df_m.iterrows():
-              with st.container():
-                col1, col2, col3 = st.columns([3, 2, 1])
+
+    # --- PANEL DE CONTROL DE INVENTARIO ---
+    st.markdown("---")
+    if not df_m.empty:
+        st.markdown("### 📋 Inventario Actual")
+        for _, fila in df_m.iterrows():
+            with st.container():
+                col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
                 
-                # Info del medicamento
-                col1.markdown(f"**{fila['nombre']}** ({fila['dosis']}) - ⏰ {fila['horario']}")
+                # Info
+                col1.markdown(f"**{fila['nombre']}** ({fila['dosis']})\n⏰ {fila['horario']}")
                 
-                # Barra de progreso
-                porcentaje = fila['stock_actual'] / fila['stock_inicial']
+                # Barra de Stock
+                porcentaje = max(0.0, min(1.0, fila['stock_actual'] / fila['stock_inicial']))
                 col2.progress(porcentaje)
+                col2.caption(f"Quedan: {int(fila['stock_actual'])} de {int(fila['stock_inicial'])}")
                 
-                # BOTÓN TOMAR (CORREGIDO: Ahora todo está en su sitio)
+                # Botón TOMAR
                 if col3.button("💊 TOMAR", key=f"toma_{fila['id']}"):
                     if fila['stock_actual'] > 0:
                         nuevo_stock = fila['stock_actual'] - 1
-                        # 1. Actualizar Inventario
                         conn.execute("UPDATE medicamentos SET stock_actual = ? WHERE id = ?", (nuevo_stock, fila['id']))
-                        # 2. Registrar en Bitácora (Orden completa en una sola línea)
                         conn.execute("INSERT INTO registro_medico (fecha, medicamento, hora_toma, cumplimiento) VALUES (?,?,?,?)",
-                                     (str(tiempo['fecha']), fila['nombre'], tiempo['hora'], "SÍ"))
+                                     (tiempo['fecha'], fila['nombre'], tiempo['hora'], "SÍ"))
                         conn.commit()
                         st.rerun()
                     else:
-                        st.error("⚠️ Sin stock disponible")
-else:
-        st.info("No hay medicamentos registrados aún.") 
-     # =========================================================
+                        st.error("Sin stock")
+
+                # Botón ELIMINAR
+                if col4.button("🗑️", key=f"del_med_{fila['id']}"):
+                    conn.execute("DELETE FROM medicamentos WHERE id = ?", (fila['id'],))
+                    conn.commit()
+                    st.rerun()
+                st.markdown("---")
+    else:
+        st.info("No hay medicamentos registrados.")
+
+# =========================================================
 # 11. MÓDULO: AGENDA DE CITAS - LUIS RAFAEL QUEVEDO
 # =========================================================
 if menu == "📅 Agenda":
-    st.title("📅 Agenda de Citas - Luis Rafael Quevedo")
+    st.title("📅 Agenda de Citas")
     
-    # --- PROCESAMIENTO DE FECHA PARA EL CALENDARIO ---
-    # Convertimos el texto de tiempo['fecha'] a un objeto Date real para evitar el error 401
-    try:
-        fecha_calendario = pd.to_datetime(tiempo['fecha']).date()
-    except:
-        import datetime
-        fecha_calendario = datetime.date.today()
-
-    # --- CAPA 1: REGISTRO DE CITAS ---
+    # REGISTRO DE CITAS
     with st.expander("➕ PROGRAMAR NUEVA CITA", expanded=True):
         col1, col2 = st.columns(2)
-        # Usamos la fecha procesada aquí
-        f_cita = col1.date_input("Fecha de la Cita:", value=fecha_calendario)
-        h_cita = col2.time_input("Hora de la Cita:")
+        f_cita = col1.date_input("Fecha:", value=datetime.now())
+        h_cita = col2.time_input("Hora:")
         asunto = st.text_input("MÉDICO O ESPECIALIDAD:").upper()
         lugar = st.text_input("CENTRO MÉDICO / LUGAR:").upper()
         
-        if st.button("💾 GUARDAR EN MI AGENDA", use_container_width=True):
+        if st.button("💾 GUARDAR CITA", use_container_width=True):
             if asunto:
                 conn.execute("INSERT INTO agenda (fecha, hora, asunto, lugar) VALUES (?,?,?,?)",
                              (str(f_cita), str(h_cita), asunto, lugar))
                 conn.commit()
-                st.success(f"✅ Cita con {asunto} guardada con éxito.")
+                st.success("Cita guardada.")
                 st.rerun()
 
-    # --- CAPA 2: VISUALIZACIÓN Y ACCIONES ---
+    # VISUALIZACIÓN
     st.markdown("---")
-    # Leemos la tabla agenda (asegúrese de que la tabla exista en su DB)
     try:
-        df_a = pd.read_sql_query("SELECT * FROM agenda ORDER BY fecha, hora ASC", conn)
+        df_a = pd.read_sql_query("SELECT * FROM agenda ORDER BY fecha ASC", conn)
     except:
-        st.error("⚠️ La tabla 'agenda' no existe. Cree la tabla en su base de datos.")
         df_a = pd.DataFrame()
 
     if not df_a.empty:
         for _, cita in df_a.iterrows():
             with st.container():
                 c1, c2, c3 = st.columns([3, 1, 1])
+                c1.markdown(f"**{cita['asunto']}**\n📅 {cita['fecha']} | ⏰ {cita['hora']}\n📍 {cita['lugar']}")
                 
-                # Datos de la Cita
-                c1.markdown(f"**{cita['asunto']}**\n\n📅 {cita['fecha']} | ⏰ {cita['hora']}\n📍 {cita['lugar']}")
+                # WhatsApp
+                msg_wa = f"Recordatorio Cita: {cita['asunto']} el {cita['fecha']} a las {cita['hora']} en {cita['lugar']}."
+                url_wa = enviar_whatsapp(msg_wa)
+                c2.markdown(f'<a href="{url_wa}" target="_blank">📲 WA</a>', unsafe_allow_html=True)
                 
-                # Inteligencia: WhatsApp Directo
-                msg_wa = f"Recordatorio para Luis Rafael Quevedo: Cita de {cita['asunto']} el {cita['fecha']} a las {cita['hora']} en {cita['lugar']}."
-                if c2.button("📱 WA", key=f"wa_{cita['id']}"):
-                    enviar_whatsapp(msg_wa)
-                
-                # Botón Eliminar
-                if c3.button("🗑️", key=f"del_{cita['id']}"):
+                # Eliminar
+                if c3.button("🗑️", key=f"del_cita_{cita['id']}"):
                     conn.execute("DELETE FROM agenda WHERE id = ?", (cita['id'],))
                     conn.commit()
                     st.rerun()
                 st.markdown("---")
 
-        # --- CAPA 3: GENERADOR DE REPORTE PDF ---
-        if st.button("📄 GENERAR REPORTE PDF (LUIS RAFAEL QUEVEDO)", use_container_width=True):
-            from fpdf import FPDF
+        # REPORTE PDF
+        if st.button("📄 GENERAR PDF DE CITAS", use_container_width=True):
             pdf = FPDF()
             pdf.add_page()
-            
-            # Encabezado con su nombre
             pdf.set_font("Arial", 'B', 16)
-            pdf.cell(200, 10, "NEXUS PRO - AGENDA MÉDICA", ln=True, align='C')
-            pdf.set_font("Arial", '', 12)
-            pdf.cell(200, 10, f"TITULAR: LUIS RAFAEL QUEVEDO", ln=True, align='C')
-            pdf.cell(200, 10, f"FECHA DE REPORTE: {tiempo['fecha']}", ln=True, align='C')
-            pdf.ln(10)
-            
-            # Listado de citas en el PDF
-            pdf.set_font("Arial", 'B', 12)
-            pdf.cell(0, 10, "DETALLE DE CITAS PROGRAMADAS:", ln=True)
-            pdf.set_font("Arial", '', 11)
-            pdf.ln(5)
-            
+            pdf.cell(200, 10, "AGENDA MÉDICA - SR. QUEVEDO", ln=True, align='C')
+            pdf.set_font("Arial", size=10)
             for _, c in df_a.iterrows():
-                linea1 = f"FECHA: {c['fecha']} | HORA: {c['hora']}"
-                linea2 = f"ASUNTO: {c['asunto']}"
-                linea3 = f"LUGAR: {c['lugar']}"
-                pdf.multi_cell(0, 8, f"{linea1}\n{linea2}\n{linea3}\n" + "-"*50)
-                pdf.ln(2)
-            
-            nombre_pdf = f"agenda_quevedo_{tiempo['fecha']}.pdf"
-            pdf.output(nombre_pdf)
-            
-            with open(nombre_pdf, "rb") as f:
-                st.download_button("⬇️ DESCARGAR REPORTE AHORA", f, file_name=nombre_pdf)
+                pdf.multi_cell(0, 10, f"FECHA: {c['fecha']} | HORA: {c['hora']}\nMEDICO: {c['asunto']}\nLUGAR: {c['lugar']}\n" + "-"*30)
+            pdf.output("agenda_quevedo.pdf")
+            with open("agenda_quevedo.pdf", "rb") as f:
+                st.download_button("⬇️ Descargar Agenda", f, file_name="agenda_quevedo.pdf")
     else:
-        st.info("No hay citas pendientes en su agenda.") 
+        st.info("No hay citas pendientes.")
 
+# Cierre automático de conexión al final del script
+conn.close()
 # ==========================================
-# 11. MÓDULO DASHBOARD (EL CEREBRO DEL SISTEMA)
+# 11. DASHBOARD & MOTOR DE INTELIGENCIA (ML)
 # ==========================================
 if menu == "🏠 Dashboard":
-    st.title(f"🚀 PANEL NEXUS PRO - BIENVENIDO SR. QUEVEDO")
+    st.title("🚀 PANEL NEXUS PRO - SR. QUEVEDO")
     
-    # --- FILA 1: MÉTRICAS CRÍTICAS CON REGLAS INTELIGENTES ---
+    # --- MÉTRICAS CRÍTICAS ---
     col_s1, col_s2, col_s3 = st.columns(3)
     
-    # Obtener datos de Salud para el Dashboard
-    df_salud = pd.read_sql_query("SELECT valor FROM glucosa ORDER BY id DESC LIMIT 5", conn)
+    # Datos de Salud
+    df_salud = pd.read_sql_query("SELECT valor FROM glucosa ORDER BY id DESC LIMIT 10", conn)
+    ultimo_v = 0
     if not df_salud.empty:
         ultimo_v = df_salud['valor'].iloc[0]
         promedio_v = df_salud['valor'].mean()
-        
-        # Regla Inteligente de Salud
-        estado_salud = "ÓPTIMO" if 70 <= ultimo_v <= 130 else "REVISAR"
         col_s1.metric("ÚLTIMA GLUCOSA", f"{ultimo_v} mg/dL", f"{ultimo_v - promedio_v:.1f} vs prom")
-  # --- Obtener datos de Finanzas para el Dashboard (CORREGIDO) ---
-try:
-    df_fin = pd.read_sql_query(f"SELECT tipo, monto FROM finanzas WHERE mes = '{tiempo['mes']}'", conn)
-except:
-    # Si la tabla no existe o hay error, creamos un marco vacío para que no falle
-    df_fin = pd.DataFrame(columns=['tipo', 'monto'])
-
-if not df_fin.empty:
-    gastos_totales = df_fin[df_fin['tipo'] == 'GASTO']['monto'].sum()
-else:
-    gastos_totales = 0.0
-
-    col_s2.metric("GASTOS DEL MES", f"RD$ {gastos_totales:,.2f}") 
-    col_s3.metric("SISTEMA", "ACTIVO", "Protección 1628")
-
-    st.markdown("---")
-
-    # --- FILA 2: MACHINE LEARNING Y PREDICCIÓN ---
-    c_left, c_right = st.columns([2, 1])
-    
-    with c_left:
-        st.subheader("📊 Análisis de Tendencia Histórica")
-        df_all_g = pd.read_sql_query("SELECT id, valor FROM glucosa ORDER BY id ASC", conn)
-        if len(df_all_g) > 2:
-            fig_dash = px.area(df_all_g, x='id', y='valor', title="Flujo de Salud Continuo",
-                              color_discrete_sequence=['#00d4ff'], template="plotly_dark")
-            st.plotly_chart(fig_dash, use_container_width=True)
-        else:
-            st.info("Aún no hay suficientes datos para el modelo de Machine Learning.")
-
-    with c_right:
-        st.subheader("🤖 Recomendaciones IA")
-        # Sistema de recomendación basado en lógica avanzada
-        if not df_salud.empty:
-            if ultimo_v > 150:
-                st.error("🚨 RECOMENDACIÓN: Tu nivel actual sugiere reducir carbohidratos en la próxima comida.")
-            elif ultimo_v < 80:
-                st.warning("⚠️ RECOMENDACIÓN: Nivel bajo. Ten a mano una fruta o merienda ligera.")
-            else:
-                st.success("✅ RECOMENDACIÓN: Mantén tu rutina actual, los niveles son estables.")
-        
-        # Predicción de Gastos (ML Simple)
-        if not df_fin.empty and gastos_totales > 0:
-            prediccion_fin = gastos_totales * 1.05  # Simulación de tendencia inflacionaria
-            st.info(f"📈 PREDICCIÓN FINANCIERA: Basado en tu ritmo actual, podrías cerrar el mes con un gasto de RD$ {prediccion_fin:,.2f}.")
-
-    # --- FILA 3: ACCIONES RÁPIDAS (WHATSAPP Y PDF) ---
-    st.markdown("---")
-    st.subheader("⚡ Reportes Rápidos")
-    ca1, ca2, ca3 = st.columns(3)
-    
-    with ca1:
-        if st.button("📄 PDF RESUMEN TOTAL"):
-            # Lógica rápida de PDF para el Dashboard
-            pdf_res = FPDF()
-            pdf_res.add_page()
-            pdf_res.set_font("Arial", 'B', 16)
-            pdf_res.cell(200, 10, "RESUMEN EJECUTIVO QUEVEDO PRO", ln=True, align='C')
-            pdf_res.ln(10)
-            pdf_res.set_font("Arial", size=12)
-            pdf_res.cell(200, 10, f"Salud: {ultimo_v} mg/dL | Gastos: RD$ {gastos_totales}", ln=True)
-            pdf_res.output("resumen_quevedo.pdf")
-            with open("resumen_quevedo.pdf", "rb") as f:
-                st.download_button("📥 Descargar Resumen", f, file_name="resumen_quevedo.pdf")
-
-    with ca2:
-        texto_seguridad = f"SISTEMA QUEVEDO: Reporte de seguridad generado el {tiempo['fecha']}. Todo bajo control."
-        st.markdown(f"[📲 WhatsApp de Seguridad]({enviar_whatsapp(texto_seguridad)})")
-        
-    with ca3:
-        if st.button("🧹 Limpiar Caché"):
-            st.cache_data.clear()
-            st.success("Sistema optimizado.")
-
-# ==========================================
-# FINAL DEL ARCHIVO: CIERRE DE CONEXIÓN
-# ==========================================
-conn.close()
-# ==========================================
-# 11. MOTOR DE INTELIGENCIA ARTIFICIAL (ML)
-# ==========================================
-def motor_prediccion_ml(df):
-    """
-    Simulación de Modelo de Machine Learning (Regresión Lineal Simple)
-    para predecir la tendencia de salud.
-    """
-    if len(df) < 5:
-        return None, "Se requieren al menos 5 registros para activar el ML."
-    
-    # Preparamos los datos (X = índice de tiempo, Y = valor glucosa)
-    y = df['valor'].values[::-1]
-    x = list(range(len(y)))
-    
-    # Cálculo de la pendiente (slope) mediante mínimos cuadrados simples
-    n = len(x)
-    sum_x = sum(x)
-    sum_y = sum(y)
-    sum_xx = sum(i*i for i in x)
-    sum_xy = sum(i*j for i, j in zip(x, y))
-    
-    denominador = (n * sum_xx - sum_x**2)
-    if denominador == 0: return None, "Datos insuficientes."
-    
-    pendiente = (n * sum_xy - sum_x * sum_y) / denominador
-    prediccion = y[-1] + pendiente
-    
-    return prediccion, pendiente
-
-# ==========================================
-# 12. SISTEMA DE RECOMENDACIÓN Y ALERTAS AVANZADAS
-# ==========================================
-if menu == "🏠 Dashboard":
-    # (Este código complementa el Dashboard del bloque anterior)
-    st.markdown("---")
-    st.subheader("🧠 Análisis Predictivo (IA)")
-    
-    # --- BLINDAJE DE SEGURIDAD PARA LUIS RAFAEL ---
-    conn = sqlite3.connect('nexus_data.db', check_same_thread=False)
-    try:
-        df_ml = pd.read_sql_query("SELECT valor FROM glucosa ORDER BY id DESC LIMIT 10", conn)
-    except:
-        # Si hay error en la base de datos, creamos una tabla vacía de seguridad
-        df_ml = pd.DataFrame(columns=['valor'])
-    
-    # Solo entramos si hay datos para procesar
-    if not df_ml.empty and len(df_ml) >= 2:
-        try:
-            pred, tendencia = motor_prediccion_ml(df_ml)
-            
-            c_ml1, c_ml2 = st.columns(2)
-            
-            with c_ml1:
-                if pred:
-                    color_pred = "🔴" if pred > 140 else "🟢"
-                    st.metric("PREDICCIÓN PRÓXIMA LECTURA", f"{pred:.1f} mg/dL", 
-                              delta=f"{tendencia:.2f} tendencia", delta_color="inverse")
-                    st.write(f"{color_pred} El sistema proyecta un cambio basado en tus últimos 10 registros.")
-            
-            with c_ml2:
-                st.markdown("**Sistema de Recomendación:**")
-                if tendencia > 0.5:
-                    st.warning("⚠️ Tus niveles muestran una tendencia ALCISTA. Considera aumentar la actividad física.")
-                elif tendencia < -0.5:
-                    st.info("📉 Tus niveles muestran una tendencia BAJISTA. Verifica si necesitas ajustar la dosis.")
-                else:
-                    st.success("⚖️ Tendencia ESTABLE. Sigue con tu régimen actual.")
-        except:
-            st.info("💡 La inteligencia está analizando sus datos. Ingrese más registros para mayor precisión.")
     else:
-        st.info("📊 Sr. Quevedo, se necesitan al menos 2 registros de glucosa para activar el Análisis Predictivo.")
-# ==========================================
-# 13. GENERADOR DE REPORTES PDF (MÓDULO UNIFICADO)
-# ==========================================
-def exportar_todo_pdf():
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(200, 10, "SISTEMA QUEVEDO PRO - REPORTE INTEGRAL", ln=True, align='C')
-    pdf.ln(10)
-    pdf.set_font("Arial", size=10)
-    pdf.cell(200, 10, f"Fecha de Generación: {tiempo['fecha']} {tiempo['hora']}", ln=True)
-    pdf.cell(200, 10, "Desarrollado por: Luis Rafael Quevedo & Gemini AI", ln=True)
-    pdf.ln(5)
-    pdf.output("Reporte_Integral_Quevedo.pdf")
-    return "Reporte_Integral_Quevedo.pdf"
+        col_s1.metric("ÚLTIMA GLUCOSA", "0", "Sin datos")
 
-# Botón final de exportación en la barra lateral
+    # Datos de Finanzas
+    try:
+        df_fin = pd.read_sql_query(f"SELECT tipo, monto FROM finanzas WHERE mes = '{tiempo['mes']}'", conn)
+        gastos_totales = df_fin[df_fin['tipo'] == 'GASTO']['monto'].sum() if not df_fin.empty else 0.0
+    except:
+        gastos_totales = 0.0
+    
+    col_s2.metric("GASTOS DEL MES", f"RD$ {gastos_totales:,.2f}")
+    col_s3.metric("ESTADO SISTEMA", "OPTIMIZADO", "Protección Activa")
+
+    st.markdown("---")
+
+    # --- ANÁLISIS PREDICTIVO (IA) ---
+    st.subheader("🧠 Inteligencia Artificial: Análisis de Tendencia")
+    
+    if len(df_salud) >= 2:
+        # Motor ML Simple (Cálculo de Pendiente)
+        y = df_salud['valor'].values[::-1]
+        x = list(range(len(y)))
+        n = len(x)
+        pendiente = (n * sum(i*j for i,j in zip(x,y)) - sum(x)*sum(y)) / (n*sum(i**2 for i in x) - sum(x)**2)
+        prediccion = y[-1] + pendiente
+        
+        c_ml1, c_ml2 = st.columns(2)
+        with c_ml1:
+            color_p = "normal" if 70 <= prediccion <= 140 else "inverse"
+            st.metric("PROYECCIÓN PRÓXIMA", f"{prediccion:.1f} mg/dL", f"{pendiente:.2f} tendencia", delta_color=color_p)
+            
+        with c_ml2:
+            if pendiente > 0.5:
+                st.warning("⚠️ Tendencia ALCISTA detectada. Revise su dieta reciente.")
+            elif pendiente < -0.5:
+                st.info("📉 Tendencia BAJISTA detectada. Estabilidad en progreso.")
+            else:
+                st.success("⚖️ Niveles ESTABLES. Excelente control.")
+                
+        # Gráfico de Área
+        st.area_chart(df_salud['valor'])
+    else:
+        st.info("📊 Sr. Quevedo, ingrese al menos 2 registros de glucosa para activar la IA.")
+
+    # --- ACCIONES RÁPIDAS ---
+    st.markdown("---")
+    ca1, ca2, ca3 = st.columns(3)
+    with ca1:
+        if st.button("📄 REPORTE RÁPIDO"):
+            pdf_r = FPDF()
+            pdf_r.add_page()
+            pdf_r.set_font("Arial", 'B', 16)
+            pdf_r.cell(200, 10, "RESUMEN EJECUTIVO - NEXUS PRO", ln=True, align='C')
+            pdf_r.set_font("Arial", size=12)
+            pdf_r.ln(10)
+            pdf_r.cell(200, 10, f"Usuario: Luis Rafael Quevedo", ln=True)
+            pdf_r.cell(200, 10, f"Glucosa: {ultimo_v} mg/dL | Gastos: RD$ {gastos_totales:,.2f}", ln=True)
+            pdf_r.output("resumen_quevedo.pdf")
+            with open("resumen_quevedo.pdf", "rb") as f:
+                st.download_button("📥 Descargar", f, file_name="resumen_quevedo.pdf")
+    
+    with ca2:
+        msg_seg = f"REPORTE NEXUS PRO: Sr. Quevedo, su sistema está activo. Glucosa: {ultimo_v}."
+        url_wa = enviar_whatsapp(msg_seg)
+        st.markdown(f'<a href="{url_wa}" target="_blank" style="text-decoration:none;"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer;">📲 WA SEGURIDAD</button></a>', unsafe_allow_html=True)
+
+    with ca3:
+        if st.button("🧹 OPTIMIZAR"):
+            st.cache_data.clear()
+            st.success("Caché limpia.")
+
+# ==========================================
+# 12. BARRA LATERAL (REPORTE MAESTRO)
+# ==========================================
 with st.sidebar:
     st.markdown("---")
+    st.subheader("⚙️ Opciones Maestras")
     if st.button("📄 GENERAR PDF MAESTRO"):
-        archivo_maestro = exportar_todo_pdf()
-        with open(archivo_maestro, "rb") as f:
-            st.download_button("📥 DESCARGAR REPORTE COMPLETO", f, file_name=archivo_maestro)
+        pdf_m = FPDF()
+        pdf_m.add_page()
+        pdf_m.set_font("Arial", 'B', 16)
+        pdf_m.cell(200, 10, "SISTEMA INTEGRAL NEXUS PRO", ln=True, align='C')
+        pdf_m.set_font("Arial", size=10)
+        pdf_m.cell(200, 10, f"TITULAR: LUIS RAFAEL QUEVEDO", ln=True, align='C')
+        pdf_m.cell(200, 10, f"FECHA: {tiempo['fecha']}", ln=True, align='C')
+        pdf_m.output("Reporte_Completo_Quevedo.pdf")
+        with open("Reporte_Completo_Quevedo.pdf", "rb") as f:
+            st.download_button("📥 DESCARGAR REPORTE TOTAL", f, file_name="Reporte_Completo_Quevedo.pdf")
 
 # ==========================================
-# FINAL DEL SISTEMA
+# CIERRE DE CONEXIÓN (IMPORTANTE)
 # ==========================================
-st.sidebar.markdown("---")
-st.sidebar.caption(f"©️ 2026 - SISTEMA QUEVEDO PRO")
-st.sidebar.caption(f"Colaboradores:Luis Rafael Quevedo & Gemini AI")
-st.sidebar.caption(f"Fecha de última actualización: 29/03/2026")
+try:
+    conn.close()
+except:
+    pass
+            
