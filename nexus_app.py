@@ -231,8 +231,6 @@ with col_f2:
     except:
         st.caption("ID Sesión: ACTIVA")
 
-# --- NOTIFICACIÓN DE BIENVENIDA ---
-st.toast(f"Bienvenido, Sr. Quevedo. Panel de control listo.", icon="🛡️")
 
 # ==========================================
 # CIERRE DE CONEXIÓN SEGURO (FINAL DEL SCRIPT)
