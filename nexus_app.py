@@ -33,7 +33,7 @@ with conectar_db() as conn:
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, glucosa INTEGER, notas TEXT)""")
 
 # --- ESTRUCTURA DE NAVEGACIÓN ---
-st.sidebar.title("🚀 NEXUS PRO")
+st.sidebar.title("🚀 SISTEMA QUEVEDO")
 menu = st.sidebar.selectbox("SELECCIONE MÓDULO:", 
     ["🏠 Dashboard", "💰 Finanzas & Presupuesto", "🩺 Glucosa & Salud", "💊 Botiquín", "📅 Agenda"])
 
