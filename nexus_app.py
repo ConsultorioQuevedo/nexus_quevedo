@@ -403,84 +403,102 @@ if menu == "🏠 Dashboard":
     # --- MÉTRICAS CRÍTICAS ---
     col_s1, col_s2, col_s3 = st.columns(3)
     
-    # Datos de Salud
-    df_salud = pd.read_sql_query("SELECT valor FROM glucosa ORDER BY id DESC LIMIT 10", conn)
+    # 🩺 Datos de Salud (Blindado)
     ultimo_v = 0
-    if not df_salud.empty:
-        ultimo_v = df_salud['valor'].iloc[0]
-        promedio_v = df_salud['valor'].mean()
-        col_s1.metric("ÚLTIMA GLUCOSA", f"{ultimo_v} mg/dL", f"{ultimo_v - promedio_v:.1f} vs prom")
-    else:
-        col_s1.metric("ÚLTIMA GLUCOSA", "0", "Sin datos")
-
-    # Datos de Finanzas
     try:
-        df_fin = pd.read_sql_query(f"SELECT tipo, monto FROM finanzas WHERE mes = '{tiempo['mes']}'", conn)
-        gastos_totales = df_fin[df_fin['tipo'] == 'GASTO']['monto'].sum() if not df_fin.empty else 0.0
+        df_salud = pd.read_sql_query("SELECT valor FROM glucosa ORDER BY id DESC LIMIT 10", conn)
+        if not df_salud.empty:
+            ultimo_v = df_salud['valor'].iloc[0]
+            promedio_v = df_salud['valor'].mean()
+            col_s1.metric("ÚLTIMA GLUCOSA", f"{ultimo_v} mg/dL", f"{ultimo_v - promedio_v:.1f} vs prom")
+        else:
+            col_s1.metric("ÚLTIMA GLUCOSA", "0", "Sin datos")
     except:
-        gastos_totales = 0.0
+        col_s1.metric("ÚLTIMA GLUCOSA", "Error", "BD no lista")
+
+    # 💰 Datos de Finanzas (Blindado)
+    gastos_totales = 0.0
+    try:
+        # Usamos try/except interno para evitar fallos por columnas inexistentes
+        df_fin = pd.read_sql_query(f"SELECT tipo, monto FROM finanzas WHERE mes = '{tiempo['mes']}'", conn)
+        if not df_fin.empty:
+            gastos_totales = df_fin[df_fin['tipo'] == 'GASTO']['monto'].sum()
+    except:
+        pass
     
     col_s2.metric("GASTOS DEL MES", f"RD$ {gastos_totales:,.2f}")
-    col_s3.metric("ESTADO SISTEMA", "OPTIMIZADO", "Protección Activa")
+    col_s3.metric("SISTEMA", "OPTIMIZADO", "Protección Activa")
 
     st.markdown("---")
 
     # --- ANÁLISIS PREDICTIVO (IA) ---
-    st.subheader("🧠 Inteligencia Artificial: Análisis de Tendencia")
+    st.subheader("🧠 Inteligencia Artificial: Tendencia")
     
-    if len(df_salud) >= 2:
-        # Motor ML Simple (Cálculo de Pendiente)
-        y = df_salud['valor'].values[::-1]
-        x = list(range(len(y)))
-        n = len(x)
-        pendiente = (n * sum(i*j for i,j in zip(x,y)) - sum(x)*sum(y)) / (n*sum(i**2 for i in x) - sum(x)**2)
-        prediccion = y[-1] + pendiente
-        
-        c_ml1, c_ml2 = st.columns(2)
-        with c_ml1:
-            color_p = "normal" if 70 <= prediccion <= 140 else "inverse"
-            st.metric("PROYECCIÓN PRÓXIMA", f"{prediccion:.1f} mg/dL", f"{pendiente:.2f} tendencia", delta_color=color_p)
+    try:
+        if 'df_salud' in locals() and len(df_salud) >= 2:
+            # Motor ML Simple
+            y = df_salud['valor'].values[::-1]
+            x = list(range(len(y)))
+            n = len(x)
             
-        with c_ml2:
-            if pendiente > 0.5:
-                st.warning("⚠️ Tendencia ALCISTA detectada. Revise su dieta reciente.")
-            elif pendiente < -0.5:
-                st.info("📉 Tendencia BAJISTA detectada. Estabilidad en progreso.")
-            else:
-                st.success("⚖️ Niveles ESTABLES. Excelente control.")
+            # Cálculo de tendencia
+            denominador = (n * sum(i**2 for i in x) - sum(x)**2)
+            if denominador != 0:
+                pendiente = (n * sum(i*j for i,j in zip(x,y)) - sum(x)*sum(y)) / denominador
+                prediccion = y[-1] + pendiente
                 
-        # Gráfico de Área
-        st.area_chart(df_salud['valor'])
-    else:
-        st.info("📊 Sr. Quevedo, ingrese al menos 2 registros de glucosa para activar la IA.")
+                c_ml1, c_ml2 = st.columns(2)
+                with c_ml1:
+                    color_p = "normal" if 70 <= prediccion <= 140 else "inverse"
+                    st.metric("PROYECCIÓN PRÓXIMA", f"{prediccion:.1f} mg/dL", f"{pendiente:.2f} tendencia", delta_color=color_p)
+                
+                with c_ml2:
+                    if pendiente > 0.5:
+                        st.warning("⚠️ Tendencia ALCISTA detectada.")
+                    elif pendiente < -0.5:
+                        st.info("📉 Tendencia BAJISTA detectada.")
+                    else:
+                        st.success("⚖️ Niveles ESTABLES.")
+                
+                st.area_chart(df_salud['valor'])
+        else:
+            st.info("📊 Sr. Quevedo, ingrese más datos de glucosa para activar la IA.")
+    except:
+        st.error("Error en motor IA.")
 
-    # --- ACCIONES RÁPIDAS ---
+    # --- ACCIONES RÁPIDAS (PDF, WhatsApp, Borrado) ---
     st.markdown("---")
     ca1, ca2, ca3 = st.columns(3)
+    
     with ca1:
-        if st.button("📄 REPORTE RÁPIDO"):
-            pdf_r = FPDF()
-            pdf_r.add_page()
-            pdf_r.set_font("Arial", 'B', 16)
-            pdf_r.cell(200, 10, "RESUMEN EJECUTIVO - NEXUS PRO", ln=True, align='C')
-            pdf_r.set_font("Arial", size=12)
-            pdf_r.ln(10)
-            pdf_r.cell(200, 10, f"Usuario: Luis Rafael Quevedo", ln=True)
-            pdf_r.cell(200, 10, f"Glucosa: {ultimo_v} mg/dL | Gastos: RD$ {gastos_totales:,.2f}", ln=True)
-            pdf_r.output("resumen_quevedo.pdf")
-            with open("resumen_quevedo.pdf", "rb") as f:
-                st.download_button("📥 Descargar", f, file_name="resumen_quevedo.pdf")
+        if st.button("📄 REPORTE PDF"):
+            try:
+                from fpdf import FPDF
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", 'B', 16)
+                pdf.cell(200, 10, "RESUMEN EJECUTIVO - NEXUS PRO", ln=True, align='C')
+                pdf.set_font("Arial", size=12)
+                pdf.ln(10)
+                pdf.cell(200, 10, f"Usuario: Luis Rafael Quevedo", ln=True)
+                pdf.cell(200, 10, f"Glucosa actual: {ultimo_v} mg/dL", ln=True)
+                pdf.cell(200, 10, f"Gasto Mensual: RD$ {gastos_totales:,.2f}", ln=True)
+                pdf.output("resumen_quevedo.pdf")
+                with open("resumen_quevedo.pdf", "rb") as f:
+                    st.download_button("📥 Bajar PDF", f, file_name="resumen_quevedo.pdf")
+            except Exception as e:
+                st.error(f"Error PDF: {e}")
     
     with ca2:
-        msg_seg = f"REPORTE NEXUS PRO: Sr. Quevedo, su sistema está activo. Glucosa: {ultimo_v}."
-        url_wa = enviar_whatsapp(msg_seg)
-        st.markdown(f'<a href="{url_wa}" target="_blank" style="text-decoration:none;"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer;">📲 WA SEGURIDAD</button></a>', unsafe_allow_html=True)
+        msg = f"REPORTE NEXUS PRO: Sr. Quevedo, Glucosa: {ultimo_v}. Gastos: RD$ {gastos_totales:,.2f}."
+        url_wa = f"https://wa.me/?text={msg}".replace(" ", "%20")
+        st.markdown(f'<a href="{url_wa}" target="_blank" style="text-decoration:none;"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer;">📲 WA SEGURIDAD</button></a>', unsafe_allow_html=True)
 
     with ca3:
         if st.button("🧹 OPTIMIZAR"):
             st.cache_data.clear()
             st.success("Caché limpia.")
-
+            st.rerun()
 # ==========================================
 # 12. BARRA LATERAL (REPORTE MAESTRO)
 # ==========================================
