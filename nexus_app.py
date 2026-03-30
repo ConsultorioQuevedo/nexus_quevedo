@@ -197,14 +197,14 @@ with col_firma1:
     st.markdown("""
     **SISTEMA QUEVEDO INTEGRAL**  
     *Versión 3.0 Pro - 2026*  
-    Desarrollado para: **Sr. Quevedo**  
+    Desarrollado por: **Sr. Quevedo**  
     República Dominicana 🇩🇴
     """)
 
 with col_firma2:
     st.markdown("""
     **COLABORACIÓN TÉCNICA:**  
-    *Diseño y Lógica:* **Gemini AI**  
+    *Diseño Luis Rafael y Lógica:* **Gemini AI**  
     *Arquitectura de Datos:* **Luis Rafael Quevedo**  
     *Estado:* **Operativo y Funcional** ✅
     """)
