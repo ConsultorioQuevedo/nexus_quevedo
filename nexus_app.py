@@ -187,3 +187,26 @@ elif menu == "📅 Agenda":
                 pdf.cell(200, 10, f"{row['fecha']} {row['hora']} - {row['asunto']} ({row['lugar']})", ln=True)
             pdf.output("agenda_quevedo.pdf")
             st.success("PDF de Agenda listo.")            
+
+# --- PIE DE PÁGINA / FIRMA DE AUTORES ---
+st.markdown("---") # Línea divisoria decorativa
+
+col_firma1, col_firma2 = st.columns(2)
+
+with col_firma1:
+    st.markdown("""
+    **SISTEMA QUEVEDO INTEGRAL**  
+    *Versión 3.0 Pro - 2026*  
+    Desarrollado para: **Sr. Quevedo**  
+    República Dominicana 🇩🇴
+    """)
+
+with col_firma2:
+    st.markdown("""
+    **COLABORACIÓN TÉCNICA:**  
+    *Diseño y Lógica:* **Gemini AI**  
+    *Arquitectura de Datos:* **Luis Rafael Quevedo**  
+    *Estado:* **Operativo y Funcional** ✅
+    """)
+
+st.caption("© Todos los derechos reservados - Control de Gestión Personal")
