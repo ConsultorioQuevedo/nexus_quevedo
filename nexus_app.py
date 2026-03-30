@@ -420,7 +420,7 @@ if st.button("💾 REGISTRAR EN BOTIQUÍN", use_container_width=True):
                 st.markdown("---")
             if not df_m.empty:
                 st.markdown("### 📋 Inventario Actual")
- for _, fila in df_m.iterrows():
+            for _, fila in df_m.iterrows():
             with st.container():
                 col1, col2, col3 = st.columns([3, 2, 1])
                 
