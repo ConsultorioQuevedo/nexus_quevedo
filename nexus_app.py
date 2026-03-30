@@ -449,7 +449,7 @@ else:
      # =========================================================
 # 11. MÓDULO: AGENDA DE CITAS - LUIS RAFAEL QUEVEDO
 # =========================================================
-  elif menu == "📅 Agenda":
+ elif menu == "📅 Agenda":
     st.title("📅 Agenda de Citas - Luis Rafael Quevedo")
     
     # --- PROCESAMIENTO DE FECHA PARA EL CALENDARIO ---
