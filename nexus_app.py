@@ -444,7 +444,7 @@ if st.button("💾 REGISTRAR EN BOTIQUÍN", use_container_width=True):
                         st.rerun()
                     else:
                         st.error("⚠️ Sin stock disponible")
-    else:
+else:
         st.info("No hay medicamentos registrados aún.") 
      # =========================================================
 # 11. MÓDULO: AGENDA DE CITAS - LUIS RAFAEL QUEVEDO
