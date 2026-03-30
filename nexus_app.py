@@ -38,7 +38,7 @@ menu = st.sidebar.selectbox("SELECCIONE MÓDULO:",
     ["🏠Quevedo", "💰 Finanzas & Presupuesto", "🩺 Glucosa & Salud", "💊 Botiquín", "📅 Agenda"])
 
 st.title(f"🚀 {menu}")
-st.write(f"📅 {datetime.date.today().strftime('%d/%m/%Y')} | Usuario: Sr. Quevedo")
+st.write(f"📅 {datetime.date.today().strftime('%d/%m/%Y')} | Usuario: Sr. Luis Rafael Quevedo")
 if menu == "💰 Finanzas & Presupuesto":
     # 1. Configurar Presupuesto Mensual
     presupuesto_fijo = st.number_input("Definir Presupuesto Mensual (RD$):", min_value=0.0, value=10000.0)
