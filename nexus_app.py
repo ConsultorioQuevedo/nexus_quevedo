@@ -418,7 +418,7 @@ if st.button("💾 REGISTRAR EN BOTIQUÍN", use_container_width=True):
                 st.rerun()
     # --- CAPA 3: PANEL DE CONTROL ---
                 st.markdown("---")
-             if not df_m.empty:
+            if not df_m.empty:
                 st.markdown("### 📋 Inventario Actual")
         for _, fila in df_m.iterrows():
             with st.container():
