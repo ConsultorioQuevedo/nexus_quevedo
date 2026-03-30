@@ -316,7 +316,7 @@ if col4.button("🗑️", key=f"del_med_{fila['id']}"):
                     conn.commit()
 st.rerun()
 st.markdown("---")
-            else:
+              else:
         st.info("No hay medicamentos registrados.")
 
 # =========================================================
