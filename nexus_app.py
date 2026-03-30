@@ -277,22 +277,38 @@ if menu == "💊 Botiquín":
 
     # --- AGREGAR MEDICINA ---
     with st.expander("➕ AGREGAR MEDICAMENTO AL PLAN", expanded=False):
-        c1, c2 = st.columns(2)
-        n_med = c1.text_input("Nombre del Medicamento:").upper()
-        d_med = c2.text_input("Dosis (ej: 10mg):").upper()
-        
-        c3, c4 = st.columns(2)
-        h_med = c3.text_input("Horario (HH:MM):", value="08:00")
-        s_med = c4.number_input("Cantidad Inicial (Pastillas):", min_value=1, value=30)
-        
-        if st.button("💾 REGISTRAR EN BOTIQUÍN", use_container_width=True):
-            if n_med:
-                conn.execute("INSERT INTO medicamentos (nombre, dosis, horario, stock_inicial, stock_actual) VALUES (?,?,?,?,?)",
-                             (n_med, d_med, h_med, s_med, s_med))
-                conn.commit()
-                st.success(f"✅ {n_med} añadido.")
-                st.rerun()
+    c1, c2 = st.columns(2)
+    n_med = c1.text_input("Nombre del Medicamento:", placeholder="Ej: Enalapril")
+    d_med = c2.text_input("Dosis:", placeholder="Ej: 10mg").upper()
 
+    c3, c4 = st.columns(2)
+    h_med = c3.text_input("Horario (HH:MM):", value="08:00")
+    s_med = c4.number_input("Cantidad Inicial (Pastillas):", min_value=1, value=30)
+
+    if st.button("💾 REGISTRAR EN BOTIQUÍN", use_container_width=True):
+        if n_med:
+            try:
+                # Conexión ultra-segura (Abre y Cierra automáticamente)
+                with sqlite3.connect('nexus_data.db', timeout=10) as conn_med:
+                    # 1. Aseguramos que la tabla exista con todas sus columnas
+                    conn_med.execute("""
+                        CREATE TABLE IF NOT EXISTS medicamentos 
+                        (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                        nombre TEXT, dosis TEXT, horario TEXT, 
+                        stock_inicial REAL, stock_actual REAL)
+                    """)
+                    
+                    # 2. Insertamos el nuevo medicamento
+                    sql = "INSERT INTO medicamentos (nombre, dosis, horario, stock_inicial, stock_actual) VALUES (?, ?, ?, ?, ?)"
+                    conn_med.execute(sql, (n_med, d_med, h_med, s_med, s_med))
+                    conn_med.commit()
+                
+                st.success(f"✅ {n_med} registrado con éxito.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error al guardar: {e}")
+        else:
+            st.warning("⚠️ Por favor, ingrese el nombre del medicamento.")
     # --- PANEL DE CONTROL DE INVENTARIO ---
     st.markdown("---")
     if not df_m.empty:
