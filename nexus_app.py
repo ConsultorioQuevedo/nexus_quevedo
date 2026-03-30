@@ -391,6 +391,7 @@ elif menu == "💊 Botiquín":
         
         if st.button("💾 REGISTRAR EN BOTIQUÍN", use_container_width=True):
             if n_med:
+                conn = sqlite3.connect('nexus_data.db', check_same_thread=False)
                 conn.execute("INSERT INTO medicamentos (nombre, dosis, horario, stock_inicial, stock_actual) VALUES (?,?,?,?,?)",
                              (n_med, d_med, h_med, s_med, s_med))
                 conn.commit()
