@@ -1,174 +1,127 @@
-
-import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+import streamlit as st
+import pandas as pd
 import datetime
 import webbrowser
-import os
 from fpdf import FPDF
+import base64
 
 # ==========================================
-# 1. MOTOR DE LÓGICA INTEGRADA NEXUS
+# 1. MOTOR DE LÓGICA INTEGRADA NEXUS (SIN CAMBIOS)
 # ==========================================
 class MotorNEXUS:
     def __init__(self):
-        self.presupuesto = 5000.0  # Valor inicial
+        if 'presupuesto' not in st.session_state: st.session_state.presupuesto = 5000.0
+        if 'gastos' not in st.session_state: st.session_state.gastos = []
+        if 'glucosa_actual' not in st.session_state: st.session_state.glucosa_actual = 0.0
         self.ingresos = 8500.0
-        self.gastos = []
-        self.medicamentos = []
-        self.citas = []
-        self.glucosa_actual = 0.0
 
     def calcular_estado_ia(self):
         alertas = []
-        total_gastos = sum(g['monto'] for g in self.gastos)
+        total_gastos = sum(g['monto'] for g in st.session_state.gastos)
         
-        # Lógica de Finanzas con Presupuesto Elegible
-        porc = (total_gastos / self.presupuesto) * 100 if self.presupuesto > 0 else 0
+        # Lógica de Finanzas
+        porc = (total_gastos / st.session_state.presupuesto) * 100 if st.session_state.presupuesto > 0 else 0
         if porc > 85: 
             alertas.append(f"⚠️ IA FINANZAS: Consumo del {porc:.1f}%. ¡Cuidado!")
         else:
             alertas.append(f"✅ IA FINANZAS: Presupuesto saludable ({porc:.1f}%)")
         
         # Lógica de Salud
-        if self.glucosa_actual > 140:
-            alertas.append(f"🚨 IA SALUD: Glucosa en {self.glucosa_actual} mg/dL. Nivel Crítico.")
-        elif self.glucosa_actual > 0:
+        if st.session_state.glucosa_actual > 140:
+            alertas.append(f"🚨 IA SALUD: Glucosa en {st.session_state.glucosa_actual} mg/dL. Nivel Crítico.")
+        elif st.session_state.glucosa_actual > 0:
             alertas.append("✅ IA SALUD: Niveles de glucosa estables.")
             
         return alertas, total_gastos
 
 # ==========================================
-# 2. INTERFAZ GRÁFICA MEJORADA
+# 2. INTERFAZ WEB NEXUS (ADAPTADA)
 # ==========================================
-class NexusApp:
-    def __init__(self, root):
-        self.nexus = MotorNEXUS()
-        self.root = root
-        self.root.title("NEXUS PRO - SISTEMA INTEGRADO")
-        self.root.geometry("1150x900")
-        self.root.configure(bg="#0d1117")
+def main():
+    st.set_page_config(page_title="NEXUS PRO", layout="wide")
+    nexus = MotorNEXUS()
 
-        self.crear_interfaz()
+    # --- ESTILO DARK MODE ---
+    st.markdown("""
+        <style>
+        .main { background-color: #0d1117; color: white; }
+        .stButton>button { width: 100%; border-radius: 5px; font-weight: bold; }
+        div[data-testid="stMetricValue"] { color: #58a6ff; }
+        </style>
+        """, unsafe_allow_html=True)
 
-    def crear_interfaz(self):
-        # --- PANEL LATERAL ---
-        sidebar = tk.Frame(self.root, bg="#161b22", width=200)
-        sidebar.pack(side="left", fill="y")
+    # --- PANEL LATERAL ---
+    with st.sidebar:
+        st.title("NEXUS PRO 🧬")
+        st.write("---")
         
-        tk.Label(sidebar, text="NEXUS PRO", fg="#58a6ff", bg="#161b22", font=("Arial", 16, "bold")).pack(pady=20)
+        # WhatsApp Link
+        msg = f"Reporte Nexus: Balance actual. Glucosa: {st.session_state.glucosa_actual}"
+        wa_url = f"https://wa.me/?text={msg}"
+        st.markdown(f'<a href="{wa_url}" target="_blank"><button style="width:100%; background-color:#238636; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer;">📲 WHATSAPP ACTIVO</button></a>', unsafe_allow_html=True)
         
-        tk.Button(sidebar, text="📲 WHATSAPP ACTIVO", bg="#238636", fg="white", font=("Arial", 10, "bold"), command=self.share_wa).pack(fill="x", padx=10, pady=10)
-        tk.Button(sidebar, text="📄 VER REPORTE PDF", bg="#444", fg="white", command=self.save_pdf).pack(fill="x", padx=10, pady=10)
-        tk.Button(sidebar, text="📸 ESCÁNER ACTIVO", bg="#8957e5", fg="white", command=self.scan_action).pack(fill="x", padx=10, pady=10)
+        st.write("")
+        if st.button("📸 ACTIVAR ESCÁNER"):
+            st.session_state.glucosa_actual = 155.0
+            st.toast("Escáner: Se detectó Glucosa 155 mg/dL")
 
-        # --- ÁREA CENTRAL ---
-        main = tk.Frame(self.root, bg="#0d1117")
-        main.pack(side="right", fill="both", expand=True, padx=20)
+    # --- ÁREA CENTRAL ---
+    st.title("SISTEMA INTEGRADO DE GESTIÓN")
 
-        # SECCIÓN 1: CONFIGURACIÓN Y PRESUPUESTO
-        conf_frame = tk.Frame(main, bg="#0d1117")
-        conf_frame.pack(fill="x", pady=10)
-        tk.Label(conf_frame, text="DEFINA SU PRESUPUESTO (RD$):", fg="#d29922", bg="#0d1117", font=("Arial", 10, "bold")).grid(row=0, column=0)
-        self.ent_presupuesto = tk.Entry(conf_frame, width=15, font=("Arial", 12)); self.ent_presupuesto.grid(row=0, column=1, padx=10)
-        self.ent_presupuesto.insert(0, "5000")
-        tk.Button(conf_frame, text="FIJAR", bg="#d29922", command=self.set_presupuesto).grid(row=0, column=2)
+    # SECCIÓN 1: CONFIGURACIÓN
+    with st.expander("⚙️ CONFIGURACIÓN DE PRESUPUESTO", expanded=True):
+        col_p1, col_p2 = st.columns([3, 1])
+        nuevo_p = col_p1.number_input("DEFINA SU PRESUPUESTO (RD$):", value=st.session_state.presupuesto)
+        if col_p2.button("FIJAR"):
+            st.session_state.presupuesto = nuevo_p
+            st.success(f"Presupuesto fijado en RD$ {nuevo_p}")
 
-        # SECCIÓN 2: SALUD
-        s_frame = tk.LabelFrame(main, text=" 🩺 CONTROL MÉDICO ", fg="#ff7b72", bg="#0d1117", font=("Arial", 11, "bold"), padx=15, pady=15)
-        s_frame.pack(fill="x", pady=10)
+    # SECCIÓN 2: SALUD Y FINANZAS
+    col_salud, col_fin = st.columns(2)
 
-        tk.Label(s_frame, text="Glucosa:", fg="white", bg="#0d1117").grid(row=0, column=0, sticky="w")
-        self.ent_glu = tk.Entry(s_frame, width=10); self.ent_glu.grid(row=0, column=1, padx=5)
+    with col_salud:
+        st.subheader("🩺 CONTROL MÉDICO")
+        glu_input = st.number_input("Glucosa (mg/dL):", value=float(st.session_state.glucosa_actual))
+        med_input = st.text_input("Medicamento:")
+        if st.button("REGISTRAR SALUD"):
+            st.session_state.glucosa_actual = glu_input
+            if med_input:
+                st.session_state.gastos.append({'fecha': datetime.datetime.now().strftime('%d/%m %H:%M'), 'detalle': f"💊 {med_input}", 'monto': 0.0})
+            st.session_state.gastos.append({'fecha': datetime.datetime.now().strftime('%d/%m %H:%M'), 'detalle': "🩸 Glucosa", 'monto': glu_input})
+
+    with col_fin:
+        st.subheader("📊 FINANZAS")
+        alertas, total_g = nexus.calcular_estado_ia()
+        balance = nexus.ingresos - total_g
+        st.metric("Saldo Disponible", f"RD$ {balance:.2f}")
         
-        tk.Label(s_frame, text="Medicamento:", fg="white", bg="#0d1117").grid(row=0, column=2, padx=10)
-        self.ent_med = tk.Entry(s_frame, width=20); self.ent_med.grid(row=0, column=3)
-        
-        tk.Button(s_frame, text="REGISTRAR", bg="#1f6feb", fg="white", command=self.update_all).grid(row=0, column=4, padx=15)
-
-        # SECCIÓN 3: TABLA DE DATOS (VISUALIZACIÓN)
-        self.tabla = ttk.Treeview(main, columns=("Fecha", "Detalle", "Monto/Valor"), show="headings", height=8)
-        self.tabla.heading("Fecha", text="Fecha"); self.tabla.heading("Detalle", text="Detalle"); self.tabla.heading("Monto/Valor", text="Valor")
-        self.tabla.pack(fill="x", pady=10)
-
-        # SECCIÓN 4: FINANZAS
-        f_frame = tk.LabelFrame(main, text=" 📊 FINANZAS EN TIEMPO REAL ", fg="#3fb950", bg="#0d1117", font=("Arial", 11, "bold"), padx=15, pady=15)
-        f_frame.pack(fill="x", pady=10)
-
-        self.lbl_balance = tk.Label(f_frame, text="Saldo: $8500.00", fg="white", bg="#0d1117", font=("Arial", 14, "bold"))
-        self.lbl_balance.pack(side="left")
-
-        tk.Label(f_frame, text="Gasto ($):", fg="white", bg="#0d1117").pack(side="left", padx=10)
-        self.ent_gasto = tk.Entry(f_frame, width=10); self.ent_gasto.pack(side="left")
-        tk.Button(f_frame, text="AÑADIR GASTO", bg="#238636", fg="white", command=self.add_gasto).pack(side="left", padx=10)
-
-        # SECCIÓN 5: LOG DE IA
-        self.ia_box = tk.Text(main, bg="#161b22", fg="#d29922", font=("Consolas", 11), height=10)
-        self.ia_box.pack(fill="both", expand=True, pady=10)
-
-    # --- ACCIONES ---
-    def set_presupuesto(self):
-        try:
-            self.nexus.presupuesto = float(self.ent_presupuesto.get())
-            self.refresh_ia()
-            messagebox.showinfo("NEXUS", f"Nuevo presupuesto fijado en: RD$ {self.nexus.presupuesto}")
-        except: pass
-
-    def update_all(self):
-        fecha = datetime.datetime.now().strftime('%d/%m %H:%M')
-        if self.ent_glu.get():
-            val = self.ent_glu.get()
-            self.nexus.glucosa_actual = float(val)
-            self.tabla.insert("", "end", values=(fecha, "🩸 Glucosa", val))
-        if self.ent_med.get():
-            med = self.ent_med.get()
-            self.nexus.medicamentos.append(med)
-            self.tabla.insert("", "end", values=(fecha, "💊 Med.", med))
-        self.refresh_ia()
-
-    def add_gasto(self):
-        try:
-            m = float(self.ent_gasto.get())
+        gasto_val = st.number_input("Nuevo Gasto (RD$):", min_value=0.0)
+        if st.button("AÑADIR GASTO"):
             fecha = datetime.datetime.now().strftime('%d/%m %H:%M')
-            self.nexus.gastos.append({'monto': m, 'fecha': fecha})
-            self.tabla.insert("", "end", values=(fecha, "💸 Gasto", f"${m}"))
-            self.refresh_ia()
-            self.ent_gasto.delete(0, tk.END)
-        except: pass
+            st.session_state.gastos.append({'fecha': fecha, 'detalle': "💸 Gasto", 'monto': gasto_val})
+            st.rerun()
 
-    def refresh_ia(self):
-        alertas, total_g = self.nexus.calcular_estado_ia()
-        balance = self.nexus.ingresos - total_g
-        self.lbl_balance.config(text=f"Saldo Disponible: ${balance:.2f}")
+    # SECCIÓN 3: TABLA Y REPORTES
+    st.write("---")
+    if st.session_state.gastos:
+        st.subheader("📝 HISTORIAL DE ACTIVIDAD")
+        df = pd.DataFrame(st.session_state.gastos)
+        st.table(df)
         
-        self.ia_box.delete('1.0', tk.END)
-        self.ia_box.insert(tk.END, f"--- REPORTE DE INTELIGENCIA NEXUS ---\n")
-        for a in alertas: self.ia_box.insert(tk.END, f"> {a}\n")
+        # Botón para PDF (Versión Web)
+        if st.button("📄 GENERAR REPORTE PDF"):
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", 'B', 16)
+            pdf.cell(200, 10, txt="REPORTE NEXUS PRO - SR. QUEVEDO", ln=True, align='C')
+            pdf.output("reporte.pdf")
+            with open("reporte.pdf", "rb") as f:
+                st.download_button("⬇️ Descargar Reporte PDF", f, "Reporte_Nexus.pdf")
 
-    def save_pdf(self):
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 16)
-        pdf.cell(200, 10, txt="REPORTE NEXUS PRO - SR. QUEVEDO", ln=True, align='C')
-        pdf.set_font("Arial", size=12)
-        pdf.cell(200, 10, txt=f"Fecha: {datetime.datetime.now()}", ln=True)
-        pdf.cell(200, 10, txt=f"Balance Final: {self.nexus.ingresos - sum(g['monto'] for g in self.nexus.gastos)}", ln=True)
-        
-        nombre_archivo = "Reporte_Nexus_Final.pdf"
-        pdf.output(nombre_archivo)
-        os.startfile(nombre_archivo) # Abre el PDF automáticamente
-
-    def share_wa(self):
-        # Abre WhatsApp con un mensaje real
-        msg = f"Reporte Nexus: Balance actual ${self.nexus.ingresos}. Glucosa: {self.nexus.glucosa_actual}"
-        webbrowser.open(f"https://web.whatsapp.com/send?text={msg}")
-
-    def scan_action(self):
-        # Simulación de escáner que inserta datos reales
-        self.ent_glu.delete(0, tk.END)
-        self.ent_glu.insert(0, "155")
-        messagebox.showinfo("Escáner", "Análisis completado: Se detectó Glucosa 155 mg/dL")
+    # SECCIÓN 4: LOG DE IA
+    st.subheader("🤖 REPORTE DE INTELIGENCIA NEXUS")
+    for a in alertas:
+        st.info(a)
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = NexusApp(root)
-    root.mainloop()
+    main()
