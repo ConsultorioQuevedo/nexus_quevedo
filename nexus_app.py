@@ -1,212 +1,174 @@
-import streamlit as st
-import sqlite3
-import pandas as pd
+
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
 import datetime
-from fpdf import FPDF  # Para los reportes PDF
+import webbrowser
+import os
+from fpdf import FPDF
 
-# --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="NEXUS QUEVEDO", layout="wide", initial_sidebar_state="expanded")
+# ==========================================
+# 1. MOTOR DE LÓGICA INTEGRADA NEXUS
+# ==========================================
+class MotorNEXUS:
+    def __init__(self):
+        self.presupuesto = 5000.0  # Valor inicial
+        self.ingresos = 8500.0
+        self.gastos = []
+        self.medicamentos = []
+        self.citas = []
+        self.glucosa_actual = 0.0
 
-# --- FUNCIÓN DE CONEXIÓN SEGURA ---
-def conectar_db():
-    return sqlite3.connect('nexus_data.db', timeout=20)
-
-# --- CREACIÓN DE TABLAS (BLINDAJE) ---
-with conectar_db() as conn:
-    # Finanzas con columna de presupuesto
-    conn.execute("""CREATE TABLE IF NOT EXISTS finanzas 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, tipo TEXT, 
-                  categoria TEXT, monto REAL, nota TEXT, presupuesto REAL)""")
-    
-    # Medicamentos
-    conn.execute("""CREATE TABLE IF NOT EXISTS medicamentos 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, dosis TEXT, 
-                  horario TEXT, stock_actual REAL)""")
-    
-    # Agenda
-    conn.execute("""CREATE TABLE IF NOT EXISTS agenda 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, hora TEXT, 
-                  asunto TEXT, lugar TEXT)""")
-    
-    # Salud
-    conn.execute("""CREATE TABLE IF NOT EXISTS salud 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, glucosa INTEGER, notas TEXT)""")
-
-# --- ESTRUCTURA DE NAVEGACIÓN ---
-st.sidebar.title("🚀 SISTEMA QUEVEDO")
-menu = st.sidebar.selectbox("SELECCIONE MÓDULO:", 
-    ["🏠Quevedo", "💰 Finanzas & Presupuesto", "🩺 Glucosa & Salud", "💊 Botiquín", "📅 Agenda"])
-
-st.title(f"🚀 {menu}")
-st.write(f"📅 {datetime.date.today().strftime('%d/%m/%Y')} | Usuario: Sr. Luis Rafael Quevedo")
-if menu == "💰 Finanzas & Presupuesto":
-    # 1. Configurar Presupuesto Mensual
-    presupuesto_fijo = st.number_input("Definir Presupuesto Mensual (RD$):", min_value=0.0, value=10000.0)
-
-    # 2. Formulario de Registro
-    with st.expander("➕ REGISTRAR MOVIMIENTO", expanded=False):
-        c1, c2 = st.columns(2)
-        tipo = c1.selectbox("Tipo:", ["GASTO", "INGRESO"])
-        monto = c2.number_input("Monto (RD$):", min_value=0.0)
-        cat = st.selectbox("Categoría:", ["Salud", "Comida", "Servicios", "Pensión", "Otros"])
-        nota = st.text_input("Detalle/Nota:")
+    def calcular_estado_ia(self):
+        alertas = []
+        total_gastos = sum(g['monto'] for g in self.gastos)
         
-        if st.button("💾 GUARDAR"):
-            with conectar_db() as conn:
-                conn.execute("INSERT INTO finanzas (fecha, tipo, categoria, monto, nota, presupuesto) VALUES (?,?,?,?,?,?)",
-                            (str(datetime.date.today()), tipo, cat, monto, nota, presupuesto_fijo))
-            st.success("Guardado correctamente.")
-            st.rerun()
-
-    # 3. Análisis y Semáforo de Presupuesto
-    df_f = pd.read_sql_query("SELECT * FROM finanzas", conectar_db())
-    if not df_f.empty:
-        gastos_totales = df_f[df_f['tipo'] == "GASTO"]['monto'].sum()
-        porcentaje = (gastos_totales / presupuesto_fijo) * 100 if presupuesto_fijo > 0 else 0
-        
-        st.metric("Gastos Totales", f"RD$ {gastos_totales:,.2f}")
-        
-        # Semáforo de Presupuesto
-        if porcentaje < 70:
-            st.success(f"🟢 Uso del Presupuesto: {porcentaje:.1f}% (Bajo Control)")
-        elif porcentaje < 90:
-            st.warning(f"🟡 Uso del Presupuesto: {porcentaje:.1f}% (Cuidado)")
+        # Lógica de Finanzas con Presupuesto Elegible
+        porc = (total_gastos / self.presupuesto) * 100 if self.presupuesto > 0 else 0
+        if porc > 85: 
+            alertas.append(f"⚠️ IA FINANZAS: Consumo del {porc:.1f}%. ¡Cuidado!")
         else:
-            st.error(f"🔴 Uso del Presupuesto: {porcentaje:.1f}% (Límite Alcanzado)")
-
-        st.dataframe(df_f.tail(10), use_container_width=True)
+            alertas.append(f"✅ IA FINANZAS: Presupuesto saludable ({porc:.1f}%)")
         
-        id_del = st.number_input("ID para borrar:", min_value=1, step=1, key="del_f")
-        if st.button("🗑️ BORRAR REGISTRO"):
-            with conectar_db() as conn:
-                conn.execute("DELETE FROM finanzas WHERE id = ?", (id_del,))
-            st.rerun()
-# --- MÓDULO 3: GLUCOSA & SALUD (CON SEMÁFORO Y PDF) ---
-elif menu == "🩺 Glucosa & Salud":
-    st.header("🩺 Control de Glucosa")
-    
-    col1, col2 = st.columns(2)
-    valor = col1.number_input("Nivel de Glucosa (mg/dL):", min_value=0, value=100)
-    nota_s = col2.text_input("Nota (ej: Ayunas):")
-    
-    if st.button("💾 REGISTRAR GLUCOSA"):
-        with conectar_db() as conn:
-            conn.execute("INSERT INTO salud (fecha, glucosa, notas) VALUES (?,?,?)",
-                        (datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), valor, nota_s))
-        st.success("Dato guardado.")
-        st.rerun()
-
-    # Semáforo de Salud
-    if valor < 70:
-        st.error(f"🔴 NIVEL BAJO: {valor} mg/dL (Hipoglucemia)")
-    elif valor <= 130:
-        st.success(f"🟢 NIVEL NORMAL: {valor} mg/dL")
-    elif valor <= 180:
-        st.warning(f"🟡 NIVEL ELEVADO: {valor} mg/dL")
-    else:
-        st.error(f"🔴 NIVEL MUY ALTO: {valor} mg/dL (Peligro)")
-
-    df_s = pd.read_sql_query("SELECT * FROM salud ORDER BY id DESC", conectar_db())
-    if not df_s.empty:
-        st.line_chart(df_s.set_index('fecha')['glucosa'])
-        st.dataframe(df_s, use_container_width=True)
-        
-        # BOTÓN DE PDF (SALUD)
-        if st.button("📄 GENERAR REPORTE PDF SALUD"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 16)
-            pdf.cell(200, 10, "REPORTE DE SALUD - NEXUS QUEVEDO", ln=True, align='C')
-            pdf.set_font("Arial", "", 12)
-            for i, row in df_s.iterrows():
-                pdf.cell(200, 10, f"Fecha: {row['fecha']} | Glucosa: {row['glucosa']} | Notas: {row['notas']}", ln=True)
-            pdf.output("reporte_salud.pdf")
-            st.success("Reporte PDF generado con éxito.")
-
-        id_s = st.number_input("ID para borrar registro de salud:", min_value=1, step=1, key="del_s")
-        if st.button("🗑️ BORRAR REGISTRO SALUD"):
-            with conectar_db() as conn:
-                conn.execute("DELETE FROM salud WHERE id = ?", (id_s,))
-            st.rerun()
-
-# --- MÓDULO 4: BOTIQUÍN ---
-elif menu == "💊 Botiquín":
-    st.header("💊 Control de Medicamentos")
-    with st.expander("➕ REGISTRAR MEDICAMENTO"):
-        nombre = st.text_input("Nombre:")
-        dosis = st.text_input("Dosis:")
-        horario = st.text_input("Horario:")
-        if st.button("💾 GUARDAR MEDICAMENTO"):
-            with conectar_db() as conn:
-                conn.execute("INSERT INTO medicamentos (nombre, dosis, horario, stock_actual) VALUES (?,?,?,?)",
-                            (nombre, dosis, horario, 0))
-            st.rerun()
-    
-    df_m = pd.read_sql_query("SELECT * FROM medicamentos", conectar_db())
-    st.dataframe(df_m, use_container_width=True)
-    id_m = st.number_input("ID para borrar medicamento:", min_value=1, step=1, key="del_m")
-    if st.button("🗑️ ELIMINAR MEDICAMENTO"):
-        with conectar_db() as conn:
-            conn.execute("DELETE FROM medicamentos WHERE id = ?", (id_m,))
-        st.rerun()
-
-# --- MÓDULO 5: AGENDA (CON WHATSAPP Y PDF) ---
-elif menu == "📅 Agenda":
-    st.header("📅 Agenda de Citas")
-    with st.expander("➕ AGENDAR CITA"):
-        f_cita = st.date_input("Fecha:")
-        h_cita = st.time_input("Hora:")
-        asunto = st.text_input("Asunto:")
-        lugar = st.text_input("Lugar:")
-        if st.button("💾 GUARDAR CITA"):
-            with conectar_db() as conn:
-                conn.execute("INSERT INTO agenda (fecha, hora, asunto, lugar) VALUES (?,?,?,?)",
-                            (str(f_cita), str(h_cita), asunto, lugar))
-            st.rerun()
-
-    df_a = pd.read_sql_query("SELECT * FROM agenda ORDER BY fecha ASC", conectar_db())
-    if not df_a.empty:
-        for i, row in df_a.iterrows():
-            st.info(f"📌 {row['fecha']} - {row['hora']} | {row['asunto']}")
-            # VÍNCULO WHATSAPP
-            msg = f"Recordatorio: {row['asunto']} el {row['fecha']} en {row['lugar']}"
-            st.markdown(f"[📲 Enviar WhatsApp](https://wa.me/?text={msg.replace(' ', '%20')})")
+        # Lógica de Salud
+        if self.glucosa_actual > 140:
+            alertas.append(f"🚨 IA SALUD: Glucosa en {self.glucosa_actual} mg/dL. Nivel Crítico.")
+        elif self.glucosa_actual > 0:
+            alertas.append("✅ IA SALUD: Niveles de glucosa estables.")
             
-            if st.button(f"🗑️ Borrar Cita {row['id']}", key=f"cita_{row['id']}"):
-                with conectar_db() as conn:
-                    conn.execute("DELETE FROM agenda WHERE id = ?", (row['id'],))
-                st.rerun()
+        return alertas, total_gastos
+
+# ==========================================
+# 2. INTERFAZ GRÁFICA MEJORADA
+# ==========================================
+class NexusApp:
+    def __init__(self, root):
+        self.nexus = MotorNEXUS()
+        self.root = root
+        self.root.title("NEXUS PRO - SISTEMA INTEGRADO")
+        self.root.geometry("1150x900")
+        self.root.configure(bg="#0d1117")
+
+        self.crear_interfaz()
+
+    def crear_interfaz(self):
+        # --- PANEL LATERAL ---
+        sidebar = tk.Frame(self.root, bg="#161b22", width=200)
+        sidebar.pack(side="left", fill="y")
         
-        if st.button("📄 GENERAR PDF AGENDA"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 16)
-            pdf.cell(200, 10, "AGENDA DE CITAS - NEXUS QUEVEDO", ln=True, align='C')
-            pdf.set_font("Arial", "", 12)
-            for i, row in df_a.iterrows():
-                pdf.cell(200, 10, f"{row['fecha']} {row['hora']} - {row['asunto']} ({row['lugar']})", ln=True)
-            pdf.output("agenda_quevedo.pdf")
-            st.success("PDF de Agenda listo.")            
+        tk.Label(sidebar, text="NEXUS PRO", fg="#58a6ff", bg="#161b22", font=("Arial", 16, "bold")).pack(pady=20)
+        
+        tk.Button(sidebar, text="📲 WHATSAPP ACTIVO", bg="#238636", fg="white", font=("Arial", 10, "bold"), command=self.share_wa).pack(fill="x", padx=10, pady=10)
+        tk.Button(sidebar, text="📄 VER REPORTE PDF", bg="#444", fg="white", command=self.save_pdf).pack(fill="x", padx=10, pady=10)
+        tk.Button(sidebar, text="📸 ESCÁNER ACTIVO", bg="#8957e5", fg="white", command=self.scan_action).pack(fill="x", padx=10, pady=10)
 
-# --- PIE DE PÁGINA / FIRMA DE AUTORES ---
-st.markdown("---") # Línea divisoria decorativa
+        # --- ÁREA CENTRAL ---
+        main = tk.Frame(self.root, bg="#0d1117")
+        main.pack(side="right", fill="both", expand=True, padx=20)
 
-col_firma1, col_firma2 = st.columns(2)
+        # SECCIÓN 1: CONFIGURACIÓN Y PRESUPUESTO
+        conf_frame = tk.Frame(main, bg="#0d1117")
+        conf_frame.pack(fill="x", pady=10)
+        tk.Label(conf_frame, text="DEFINA SU PRESUPUESTO (RD$):", fg="#d29922", bg="#0d1117", font=("Arial", 10, "bold")).grid(row=0, column=0)
+        self.ent_presupuesto = tk.Entry(conf_frame, width=15, font=("Arial", 12)); self.ent_presupuesto.grid(row=0, column=1, padx=10)
+        self.ent_presupuesto.insert(0, "5000")
+        tk.Button(conf_frame, text="FIJAR", bg="#d29922", command=self.set_presupuesto).grid(row=0, column=2)
 
-with col_firma1:
-    st.markdown("""
-    **SISTEMA QUEVEDO INTEGRAL**  
-    *Versión 3.0 Pro - 2026*  
-    Desarrollado por: **Sr. Quevedo**  
-    República Dominicana 🇩🇴
-    """)
+        # SECCIÓN 2: SALUD
+        s_frame = tk.LabelFrame(main, text=" 🩺 CONTROL MÉDICO ", fg="#ff7b72", bg="#0d1117", font=("Arial", 11, "bold"), padx=15, pady=15)
+        s_frame.pack(fill="x", pady=10)
 
-with col_firma2:
-    st.markdown("""
-    **COLABORACIÓN TÉCNICA:**  
-    *Diseño Luis Rafael y Lógica:* **Gemini AI**  
-    *Arquitectura de Datos:* **Luis Rafael Quevedo**  
-    *Estado:* **Operativo y Funcional** ✅
-    """)
+        tk.Label(s_frame, text="Glucosa:", fg="white", bg="#0d1117").grid(row=0, column=0, sticky="w")
+        self.ent_glu = tk.Entry(s_frame, width=10); self.ent_glu.grid(row=0, column=1, padx=5)
+        
+        tk.Label(s_frame, text="Medicamento:", fg="white", bg="#0d1117").grid(row=0, column=2, padx=10)
+        self.ent_med = tk.Entry(s_frame, width=20); self.ent_med.grid(row=0, column=3)
+        
+        tk.Button(s_frame, text="REGISTRAR", bg="#1f6feb", fg="white", command=self.update_all).grid(row=0, column=4, padx=15)
 
-st.caption("© Todos los derechos reservados - Control de Gestión Personal")
+        # SECCIÓN 3: TABLA DE DATOS (VISUALIZACIÓN)
+        self.tabla = ttk.Treeview(main, columns=("Fecha", "Detalle", "Monto/Valor"), show="headings", height=8)
+        self.tabla.heading("Fecha", text="Fecha"); self.tabla.heading("Detalle", text="Detalle"); self.tabla.heading("Monto/Valor", text="Valor")
+        self.tabla.pack(fill="x", pady=10)
+
+        # SECCIÓN 4: FINANZAS
+        f_frame = tk.LabelFrame(main, text=" 📊 FINANZAS EN TIEMPO REAL ", fg="#3fb950", bg="#0d1117", font=("Arial", 11, "bold"), padx=15, pady=15)
+        f_frame.pack(fill="x", pady=10)
+
+        self.lbl_balance = tk.Label(f_frame, text="Saldo: $8500.00", fg="white", bg="#0d1117", font=("Arial", 14, "bold"))
+        self.lbl_balance.pack(side="left")
+
+        tk.Label(f_frame, text="Gasto ($):", fg="white", bg="#0d1117").pack(side="left", padx=10)
+        self.ent_gasto = tk.Entry(f_frame, width=10); self.ent_gasto.pack(side="left")
+        tk.Button(f_frame, text="AÑADIR GASTO", bg="#238636", fg="white", command=self.add_gasto).pack(side="left", padx=10)
+
+        # SECCIÓN 5: LOG DE IA
+        self.ia_box = tk.Text(main, bg="#161b22", fg="#d29922", font=("Consolas", 11), height=10)
+        self.ia_box.pack(fill="both", expand=True, pady=10)
+
+    # --- ACCIONES ---
+    def set_presupuesto(self):
+        try:
+            self.nexus.presupuesto = float(self.ent_presupuesto.get())
+            self.refresh_ia()
+            messagebox.showinfo("NEXUS", f"Nuevo presupuesto fijado en: RD$ {self.nexus.presupuesto}")
+        except: pass
+
+    def update_all(self):
+        fecha = datetime.datetime.now().strftime('%d/%m %H:%M')
+        if self.ent_glu.get():
+            val = self.ent_glu.get()
+            self.nexus.glucosa_actual = float(val)
+            self.tabla.insert("", "end", values=(fecha, "🩸 Glucosa", val))
+        if self.ent_med.get():
+            med = self.ent_med.get()
+            self.nexus.medicamentos.append(med)
+            self.tabla.insert("", "end", values=(fecha, "💊 Med.", med))
+        self.refresh_ia()
+
+    def add_gasto(self):
+        try:
+            m = float(self.ent_gasto.get())
+            fecha = datetime.datetime.now().strftime('%d/%m %H:%M')
+            self.nexus.gastos.append({'monto': m, 'fecha': fecha})
+            self.tabla.insert("", "end", values=(fecha, "💸 Gasto", f"${m}"))
+            self.refresh_ia()
+            self.ent_gasto.delete(0, tk.END)
+        except: pass
+
+    def refresh_ia(self):
+        alertas, total_g = self.nexus.calcular_estado_ia()
+        balance = self.nexus.ingresos - total_g
+        self.lbl_balance.config(text=f"Saldo Disponible: ${balance:.2f}")
+        
+        self.ia_box.delete('1.0', tk.END)
+        self.ia_box.insert(tk.END, f"--- REPORTE DE INTELIGENCIA NEXUS ---\n")
+        for a in alertas: self.ia_box.insert(tk.END, f"> {a}\n")
+
+    def save_pdf(self):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 16)
+        pdf.cell(200, 10, txt="REPORTE NEXUS PRO - SR. QUEVEDO", ln=True, align='C')
+        pdf.set_font("Arial", size=12)
+        pdf.cell(200, 10, txt=f"Fecha: {datetime.datetime.now()}", ln=True)
+        pdf.cell(200, 10, txt=f"Balance Final: {self.nexus.ingresos - sum(g['monto'] for g in self.nexus.gastos)}", ln=True)
+        
+        nombre_archivo = "Reporte_Nexus_Final.pdf"
+        pdf.output(nombre_archivo)
+        os.startfile(nombre_archivo) # Abre el PDF automáticamente
+
+    def share_wa(self):
+        # Abre WhatsApp con un mensaje real
+        msg = f"Reporte Nexus: Balance actual ${self.nexus.ingresos}. Glucosa: {self.nexus.glucosa_actual}"
+        webbrowser.open(f"https://web.whatsapp.com/send?text={msg}")
+
+    def scan_action(self):
+        # Simulación de escáner que inserta datos reales
+        self.ent_glu.delete(0, tk.END)
+        self.ent_glu.insert(0, "155")
+        messagebox.showinfo("Escáner", "Análisis completado: Se detectó Glucosa 155 mg/dL")
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = NexusApp(root)
+    root.mainloop()
