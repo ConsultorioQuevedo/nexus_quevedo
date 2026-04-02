@@ -2,38 +2,11 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import datetime
-import hashlib
-import matplotlib.pyplot as plt
+import urllib.parse
 from fpdf import FPDF
-from sklearn.linear_model import LinearRegression
-import numpy as np
+import matplotlib.pyplot as plt
 
-# -------------------------
-# Seguridad: Login
-# -------------------------
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
-def check_login(username, password):
-    conn = sqlite3.connect('nexuspro.db', check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute('CREATE TABLE IF NOT EXISTS users (username TEXT, password TEXT)')
-    conn.commit()
-    cursor.execute('SELECT password FROM users WHERE username=?', (username,))
-    row = cursor.fetchone()
-    if row:
-        return row[0] == hash_password(password)
-    else:
-        # Registro automático del primer usuario para facilitar el acceso inicial
-        if username and password:
-            cursor.execute('INSERT INTO users (username, password) VALUES (?,?)', (username, hash_password(password)))
-            conn.commit()
-            return True
-        return False
-
-# -------------------------
-# Base de datos
-# -------------------------
+# --- Inicializar base de datos ---
 def init_db():
     conn = sqlite3.connect('nexuspro.db', check_same_thread=False)
     cursor = conn.cursor()
@@ -41,168 +14,171 @@ def init_db():
     cursor.execute('CREATE TABLE IF NOT EXISTS meds (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT, hora TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS citas (id INTEGER PRIMARY KEY, fecha TEXT, doctor TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, monto REAL, tipo TEXT, categoria TEXT)')
+    cursor.execute('CREATE TABLE IF NOT EXISTS escaneo (id INTEGER PRIMARY KEY, fecha TEXT, archivo TEXT)')
     conn.commit()
     return conn, cursor
 
 conn, cursor = init_db()
 
-# -------------------------
-# Funciones auxiliares
-# -------------------------
+# --- Funciones de Utilidad ---
 def obtener_semaforo(v):
-    if 90 <= v <= 125: return "🟢 NORMAL"
-    if 126 <= v <= 160: return "🟡 PRECAUCIÓN"
+    if 90 <= v <= 125: 
+        return "🟢 NORMAL"
+    if 126 <= v <= 160: 
+        return "🟡 PRECAUCIÓN"
     return "🔴 ALERTA CRÍTICA"
 
-def validar_monto(monto):
-    try:
-        monto_f = float(monto)
-        if monto_f < 0:
-            st.error("El monto no puede ser negativo.")
-            return None
-        return monto_f
-    except ValueError:
-        if monto: # Solo muestra error si el usuario intentó escribir algo
-            st.error("Por favor ingrese un número válido.")
-        return None
+def generarpdf(img, nombre_archivo="documento_nexus.pdf"):
+    img_path = "captura.jpg"
+    with open(img_path, "wb") as f:
+        f.write(img.getbuffer())
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.image(img_path, x=10, y=10, w=180)
+    pdf.output(nombre_archivo, "F")
+    return nombre_archivo
 
-# -------------------------
-# IA Predictiva
-# -------------------------
-def predecir_glucosa(data):
-    if len(data) > 3:
-        X = np.arange(len(data)).reshape(-1,1)
-        y = data['valor'].values
-        model = LinearRegression().fit(X, y)
-        pred = model.predict([[len(data) + 1]])
-        return pred[0]
-    return None
-
-def predecir_gastos(data):
-    if len(data) > 3:
-        X = np.arange(len(data)).reshape(-1,1)
-        y = data['monto'].values
-        model = LinearRegression().fit(X, y)
-        pred = model.predict([[len(data) + 1]])
-        return pred[0]
-    return None
-
-# -------------------------
-# Interfaz principal
-# -------------------------
-def main():
-    st.set_page_config(page_title="Nexus Quevedo", layout="wide")
-    st.markdown("<style> .stMetric {background-color:#f9f9f9; border-radius:10px; padding:10px; border: 1px solid #ddd;} </style>", unsafe_allow_html=True)
-
-    # Login en la barra lateral
-    st.sidebar.title("🔐 Login")
-    username = st.sidebar.text_input("Usuario")
-    password = st.sidebar.text_input("Contraseña", type="password")
+def exportar_backup():
+    data_glucosa = pd.read_sql_query('SELECT * FROM glucosa', conn)
+    data_meds = pd.read_sql_query('SELECT * FROM meds', conn)
+    data_citas = pd.read_sql_query('SELECT * FROM citas', conn)
+    data_fin = pd.read_sql_query('SELECT * FROM finanzas', conn)
     
-    if not check_login(username, password):
-        st.title("🚀 Bienvenidos a Nexus Quevedo")
-        st.warning("Ingrese sus credenciales en el menú lateral para continuar.")
-        return
+    file_name = "backup_nexus.xlsx"
+    with pd.ExcelWriter(file_name) as writer:
+        data_glucosa.to_excel(writer, sheet_name="Glucosa", index=False)
+        data_meds.to_excel(writer, sheet_name="Medicamentos", index=False)
+        data_citas.to_excel(writer, sheet_name="Citas", index=False)
+        data_fin.to_excel(writer, sheet_name="Finanzas", index=False)
+    
+    with open(file_name, "rb") as f:
+        st.download_button("📥 Descargar Backup Excel", f, file_name=file_name)
 
-    st.title("📊 Nexus Quevedo - Asistente Personal")
-    menu = st.sidebar.radio("Menú", ["Salud", "Finanzas", "Citas"])
+# --- Módulo: Finanzas ---
+def mostrar_finanzas():
+    st.subheader("Gestión Financiera")
+    presupuesto = st.number_input("Presupuesto mensual (RD$):", min_value=0.0, format="%.2f", step=100.0)
+    
+    if st.button("Guardar Presupuesto"):
+        cursor.execute('INSERT INTO finanzas (monto, tipo, categoria) VALUES (?,?,?)', (presupuesto, "Presupuesto", "General"))
+        conn.commit()
+        st.success(f"Presupuesto registrado: RD$ {presupuesto:,.2f}")
+    
+    monto = st.number_input("Monto (RD$):", min_value=0.0, format="%.2f", step=1.0)
+    tipo = st.selectbox("Tipo de movimiento:", ["Ingreso", "Gasto"])
+    categoria = st.selectbox("Categoría:", ["Comida", "Salud", "Servicios", "Otros"])
+    
+    if st.button("Registrar Movimiento"):
+        cursor.execute('INSERT INTO finanzas (monto, tipo, categoria) VALUES (?,?,?)', (monto, tipo, categoria))
+        conn.commit()
+        st.success(f"{tipo} registrado: RD$ {monto:,.2f}")
+    
+    data = pd.read_sql_query('SELECT * FROM finanzas', conn)
+    st.dataframe(data)
+    
+    borrar_id = st.number_input("ID a borrar en Finanzas:", min_value=0, step=1, key="del_fin")
+    if st.button("Borrar Registro de Finanzas"):
+        cursor.execute('DELETE FROM finanzas WHERE id=?', (borrar_id,))
+        conn.commit()
+        st.success("Registro eliminado")
+        st.rerun()
 
-    if menu == "Salud":
-        st.subheader("🩸 Monitoreo de Glucosa")
-        val = st.number_input("Valor Glucosa (mg/dL):", min_value=0, step=1)
+    if not data.empty:
+        ingresos = data[data['tipo'] == "Ingreso"]['monto'].sum()
+        gastos = data[data['tipo'] == "Gasto"]['monto'].sum()
+        presupuesto_total = data[data['tipo'] == "Presupuesto"]['monto'].sum()
+        balance = ingresos - gastos
+        
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Ingresos", f"RD$ {ingresos:,.2f}")
+        col2.metric("Gastos", f"RD$ {gastos:,.2f}")
+        col3.metric("Balance", f"RD$ {balance:,.2f}")
+        col4.metric("Presupuesto", f"RD$ {presupuesto_total:,.2f}")
+        
+        if balance < presupuesto_total and presupuesto_total > 0:
+            st.warning("⚠️ El balance está por debajo del presupuesto. IA recomienda reducir gastos.")
+        else:
+            st.info("✅ Balance dentro del presupuesto.")
+            
+        gastos_por_cat = data[data['tipo'] == "Gasto"].groupby("categoria")['monto'].sum()
+        if not gastos_por_cat.empty:
+            fig, ax = plt.subplots()
+            ax.pie(gastos_por_cat, labels=gastos_por_cat.index, autopct='%1.1f%%')
+            st.pyplot(fig)
+
+# --- Módulo: Salud ---
+def mostrar_salud():
+    t_gluc, t_meds, t_citas, t_scan = st.tabs(["🩸 Glucosa", "💊 Medicamentos", "📅 Citas", "📸 Escáner"])
+    
+    with t_gluc:
+        val = st.number_input("Valor Glucosa:", min_value=0, step=1)
         if st.button("Guardar Glucosa"):
             estado = obtener_semaforo(val)
             fec = datetime.datetime.now().strftime("%d/%m %H:%M")
-            try:
-                cursor.execute('INSERT INTO glucosa (fecha, valor, estado) VALUES (?,?,?)', (fec, val, estado))
-                conn.commit()
-                st.success("Registro guardado exitosamente.")
-            except Exception as e:
-                st.error(f"Error al guardar: {e}")
+            cursor.execute('INSERT INTO glucosa (fecha, valor, estado) VALUES (?,?,?)', (fec, val, estado))
+            conn.commit()
+            st.success("Registro guardado")
         
         g_data = pd.read_sql_query('SELECT * FROM glucosa', conn)
+        st.write(g_data)
+        
+        borrar_id_g = st.number_input("ID a borrar en Glucosa:", min_value=0, step=1, key="del_glu")
+        if st.button("Borrar Registro Glucosa"):
+            cursor.execute('DELETE FROM glucosa WHERE id=?', (borrar_id_g,))
+            conn.commit()
+            st.success("Registro eliminado")
+            st.rerun()
+
         if not g_data.empty:
-            st.dataframe(g_data, use_container_width=True)
-            pred = predecir_glucosa(g_data)
-            if pred:
-                st.info(f"🤖 **IA Predictiva:** Su glucosa estimada para la próxima toma es de **{pred:.1f} mg/dL**.")
+            prom = g_data['valor'].mean()
+            if prom > 140:
+                st.warning(f"🤖 IA Salud: Promedio de glucosa {prom:.1f} está elevado. Considere ajustar dieta.")
+            else:
+                st.info(f"🤖 IA Salud: Promedio de glucosa {prom:.1f} dentro de rango saludable.")
             
             fig, ax = plt.subplots()
-            ax.plot(g_data['fecha'], g_data['valor'], marker='o', color='#ff4b4b')
-            ax.set_title("Tendencia de Niveles de Glucosa")
+            ax.plot(g_data['fecha'], g_data['valor'], marker='o')
+            ax.set_title("Tendencia de Glucosa")
             st.pyplot(fig)
 
-        st.divider()
-        st.subheader("💊 Medicamentos")
-        n_med = st.text_input("Nombre del Medicamento:")
-        d_med = st.text_input("Dosis (ej. 500mg):")
-        h_med = st.time_input("Hora de la toma:")
+    with t_meds:
+        n_med = st.text_input("Medicamento:")
+        d_med = st.text_input("Dosis:")
+        h_med = st.time_input("Hora de tomarlo:")
         if st.button("Registrar Medicamento"):
-            try:
-                cursor.execute('INSERT INTO meds (nombre, dosis, hora) VALUES (?,?,?)', (n_med, d_med, str(h_med)))
-                conn.commit()
-                st.success("Medicamento registrado en su esquema.")
-            except Exception as e:
-                st.error(f"Error: {e}")
-        
-        m_data = pd.read_sql_query('SELECT * FROM meds', conn)
-        if not m_data.empty:
-            st.table(m_data)
-
-    elif menu == "Finanzas":
-        st.subheader("💰 Control Financiero Inteligente")
-        monto_input = st.text_input("Monto (RD$):")
-        monto_val = validar_monto(monto_input)
-        tipo = st.selectbox("Tipo de Movimiento:", ["Ingreso", "Gasto"])
-        categoria = st.selectbox("Categoría:", ["Comida", "Salud", "Servicios", "Otros"])
-        
-        if st.button("Registrar Movimiento") and monto_val is not None:
-            try:
-                cursor.execute('INSERT INTO finanzas (monto, tipo, categoria) VALUES (?,?,?)', (monto_val, tipo, categoria))
-                conn.commit()
-                st.success("Movimiento financiero registrado.")
-            except Exception as e:
-                st.error(f"Error: {e}")
-        
-        f_data = pd.read_sql_query('SELECT * FROM finanzas', conn)
-        if not f_data.empty:
-            st.dataframe(f_data, use_container_width=True)
-            pred_f = predecir_gastos(f_data[f_data['tipo'] == 'Gasto'])
-            if pred_f:
-                st.info(f"🤖 **IA Predictiva:** Próximo gasto estimado según tendencia: **RD$ {pred_f:.2f}**.")
+            cursor.execute('INSERT INTO meds (nombre, dosis, hora) VALUES (?,?,?)', (n_med, d_med, str(h_med)))
+            conn.commit()
+            st.success("Medicamento registrado")
             
-            gastos_cat = f_data[f_data['tipo'] == "Gasto"].groupby("categoria")['monto'].sum()
-            if not gastos_cat.empty:
-                fig, ax = plt.subplots()
-                ax.pie(gastos_cat, labels=gastos_cat.index, autopct='%1.1f%%', colors=['#ff9999','#66b3ff','#99ff99','#ffcc99'])
-                st.pyplot(fig)
+        m_data = pd.read_sql_query('SELECT * FROM meds', conn)
+        st.write(m_data)
+        
+        borrar_id_m = st.number_input("ID a borrar en Medicamentos:", min_value=0, step=1, key="del_med")
+        if st.button("Borrar Registro Medicamento"):
+            cursor.execute('DELETE FROM meds WHERE id=?', (borrar_id_m,))
+            conn.commit()
+            st.rerun()
 
-    elif menu == "Citas":
-        st.subheader("📅 Agenda de Citas Médicas")
-        f_c = st.date_input("Fecha de la Cita:")
-        d_c = st.text_input("Doctor o Especialidad:")
+    with t_citas:
+        f_c = st.date_input("Fecha de Cita")
+        d_c = st.text_input("Nombre del Doctor")
         if st.button("Agendar Cita"):
-            try:
-                cursor.execute('INSERT INTO citas (fecha, doctor) VALUES (?,?)', (str(f_c), d_c))
-                conn.commit()
-                st.success("Cita agendada correctamente.")
-            except Exception as e:
-                st.error(f"Error: {e}")
+            cursor.execute('INSERT INTO citas (fecha, doctor) VALUES (?,?)', (str(f_c), d_c))
+            conn.commit()
+            st.success("Cita agendada")
         
         c_data = pd.read_sql_query('SELECT * FROM citas', conn)
-        if not c_data.empty:
-            st.write(c_data)
-            hoy = datetime.date.today()
-            for index, row in c_data.iterrows():
-                try:
-                    fecha_cita = datetime.datetime.strptime(row['fecha'], "%Y-%m-%d").date()
-                    dias_restantes = (fecha_cita - hoy).days
-                    if dias_restantes == 2:
-                        st.warning(f"🔔 **Recordatorio:** Sr. Quevedo, tiene una cita en 2 días con: {row['doctor']}.")
-                    elif dias_restantes == 0:
-                        st.error(f"🚨 **¡Es hoy!** Cita programada para hoy con: {row['doctor']}.")
-                except:
-                    continue
+        st.write(c_data)
 
-if __name__ == "__main__":
-    main()
+# --- App Principal ---
+st.set_page_config(page_title="NEXUS PRO", layout="wide")
+st.title("NEXUS PRO - Gestión Inteligente")
+
+menu = st.sidebar.selectbox("Módulo:", ["Finanzas", "Salud"])
+if menu == "Finanzas":
+    mostrar_finanzas()
+else:
+    mostrar_salud()
+
+if st.sidebar.button("📦 Generar Backup Completo"):
+    exportar_backup()
