@@ -19,11 +19,7 @@ def init_db():
 
 conn, cursor = init_db()
 
-==========================================
 
-2. SEMÁFORO GLUCOSA
-
-==========================================
 def obtener_semaforo(v):
     if 90 <= v <= 125: return "🟢 NORMAL"
     if 126 <= v <= 160: return "🟡 PRECAUCIÓN"
