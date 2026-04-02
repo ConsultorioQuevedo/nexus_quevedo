@@ -25,11 +25,6 @@ def obtener_semaforo(v):
     if 126 <= v <= 160: return "🟡 PRECAUCIÓN"
     return "🔴 ALERTA CRÍTICA"
 
-==========================================
-
-3. GENERADOR DE PDF
-
-==========================================
 def generarpdf(imgbytes, nombre_archivo="escaneo.pdf"):
     pdf = FPDF()
     pdf.add_page()
@@ -37,11 +32,7 @@ def generarpdf(imgbytes, nombre_archivo="escaneo.pdf"):
     pdf.output(nombre_archivo, "F")
     return nombre_archivo
 
-==========================================
 
-4. MÓDULO FINANZAS
-
-==========================================
 def mostrar_finanzas():
     st.subheader("Gestión Financiera")
     monto = st.numberinput("Monto (RD$):", minvalue=0.0, format="%.2f", step=1.0)
@@ -52,11 +43,8 @@ def mostrar_finanzas():
         st.success(f"{tipo} registrado: RD$ {monto:,.2f}")
     st.write(pd.readsqlquery('SELECT * FROM finanzas', conn))
 
-==========================================
 
-5. MÓDULO SALUD
 
-==========================================
 def mostrar_salud():
     tgluc, tmeds, tcitas, tscan = st.tabs(["🩸 Glucosa", "💊 Medicamentos", "📅 Citas", "📸 Escáner"])
 
@@ -100,11 +88,7 @@ def mostrar_salud():
                 conn.commit()
                 st.success("Documento escaneado y guardado como PDF")
 
-==========================================
 
-6. REPORTES (WhatsApp, Gmail, PDF)
-
-==========================================
 def generar_reportes():
     gdata = pd.readsql_query('SELECT * FROM glucosa', conn)
     cdata = pd.readsql_query('SELECT * FROM citas', conn)
