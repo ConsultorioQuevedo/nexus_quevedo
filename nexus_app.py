@@ -168,5 +168,3 @@ Este código ya refleja la arquitectura del diagrama:
 - Salud dividido en Glucosa (con semáforo), Medicamentos, Citas y Escáner con botón PDF.  
 - Reportes exportables a WhatsApp y Gmail.  
 - IA básica para análisis de glucosa.  
-
-¿Quieres que te prepare también un diagrama visual en Mermaid/Graphviz para que el equipo vea gráficamente cómo se conectan estos módulos?
