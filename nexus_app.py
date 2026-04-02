@@ -4,180 +4,216 @@ import sqlite3
 import datetime
 import numpy as np
 import requests
-from openai import OpenAI
+import openai
 from fpdf import FPDF
 from PIL import Image
+import pytesseract
+from pyzbar.pyzbar import decode
+from sklearn.linear_model import LinearRegression
+
+# 🔐 API KEY
+openai.api_key = "TU_API_KEY_AQUI"
 
 # -------------------------
-# CONFIGURACIÓN INICIAL
+# CONFIG UI MODERNO
 # -------------------------
-st.set_page_config(page_title="Nexus AI PRO", layout="wide")
+st.set_page_config(page_title="Nexus AI", layout="wide")
 
-# Estilos CSS para el modo oscuro y centrado
 st.markdown("""
 <style>
-body {background-color: #0e1117; color: white;}
-.stDataFrame td {
-    text-align: center !important;
+.block-container {padding-top: 1rem;}
+.card {
+    padding: 20px;
+    border-radius: 15px;
+    background-color: #1e1e1e;
+    box-shadow: 0px 4px 10px rgba(0,0,0,0.3);
+    margin-bottom: 15px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# Inicialización del cliente OpenAI con Secrets (Línea crítica corregida)
-try:
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-except Exception:
-    st.error("Configura 'OPENAI_API_KEY' en los Secrets de Streamlit.")
-
 # -------------------------
-# SISTEMA DE LOGIN
+# DB
 # -------------------------
-if "login" not in st.session_state:
-    st.session_state.login = False
+DB = "nexus_moderno.db"
 
-def login():
-    st.title("🔐 Nexus AI")
-    u = st.text_input("Usuario", key="login_user")
-    p = st.text_input("Contraseña", type="password", key="login_pass")
-    if st.button("Entrar"):
-        if u == "admin" and p == "1234":
-            st.session_state.login = True
-            st.rerun()
-        else:
-            st.error("Credenciales incorrectas")
-
-if not st.session_state.login:
-    login()
-    st.stop()
-
-# -------------------------
-# BASE DE DATOS (SQLite)
-# -------------------------
 def conn():
-    return sqlite3.connect("nexus.db", check_same_thread=False)
+    return sqlite3.connect(DB, check_same_thread=False)
 
-def run_db(q, p=()):
+def run(q,p=()):
     with conn() as c:
-        cur = c.cursor()
-        cur.execute(q, p)
+        cur=c.cursor()
+        cur.execute(q,p)
         c.commit()
         return cur.fetchall()
 
-# Crear tabla si no existe
-run_db("CREATE TABLE IF NOT EXISTS glucosa(id INTEGER PRIMARY KEY, fecha TEXT, valor REAL)")
+def init():
+    run("CREATE TABLE IF NOT EXISTS glucosa(id INTEGER PRIMARY KEY, fecha TEXT, valor REAL)")
+    run("CREATE TABLE IF NOT EXISTS medicamentos(id INTEGER PRIMARY KEY, fecha TEXT, nombre TEXT, dosis TEXT)")
+    run("CREATE TABLE IF NOT EXISTS citas(id INTEGER PRIMARY KEY, fecha TEXT, doctor TEXT)")
+    run("CREATE TABLE IF NOT EXISTS finanzas(id INTEGER PRIMARY KEY, fecha TEXT, tipo TEXT, monto REAL)")
+    run("CREATE TABLE IF NOT EXISTS escaneos(id INTEGER PRIMARY KEY, fecha TEXT, codigo TEXT, producto TEXT)")
+
+init()
 
 # -------------------------
-# LÓGICA DE NEGOCIO
+# FUNCIONES
 # -------------------------
 def guardar_glucosa(v):
-    run_db("INSERT INTO glucosa VALUES(NULL,?,?)", (datetime.datetime.now().isoformat(), v))
+    run("INSERT INTO glucosa VALUES(NULL,?,?)",(datetime.datetime.now(),v))
 
-def glucosa_df():
-    data = run_db("SELECT * FROM glucosa")
-    df = pd.DataFrame(data, columns=["id", "fecha", "valor"])
-    if not df.empty:
-        df["fecha"] = pd.to_datetime(df["fecha"])
-        df["hora"] = df["fecha"].dt.strftime("%H:%M")
-        df["fecha_str"] = df["fecha"].dt.strftime("%d/%m/%Y")
-    return df
+def listar_glucosa():
+    return pd.DataFrame(run("SELECT * FROM glucosa"),columns=["id","fecha","valor"])
 
-def color_glucosa(v):
-    if v < 70:
-        return "background-color: #3498db; color:white"   # Azul (Baja)
-    elif v <= 140:
-        return "background-color: #2ecc71; color:white"   # Verde (Normal)
-    elif v <= 180:
-        return "background-color: #f39c12; color:white"   # Amarillo (Alta)
-    else:
-        return "background-color: #e74c3c; color:white"   # Rojo (Muy Alta)
+def guardar_medicamento(n,d):
+    run("INSERT INTO medicamentos VALUES(NULL,?,?,?)",(datetime.datetime.now(),n,d))
+
+def listar_meds():
+    return pd.DataFrame(run("SELECT * FROM medicamentos"),columns=["id","fecha","nombre","dosis"])
+
+def guardar_cita(f,d):
+    run("INSERT INTO citas VALUES(NULL,?,?)",(f,d))
+
+def listar_citas():
+    return pd.DataFrame(run("SELECT * FROM citas"),columns=["id","fecha","doctor"])
+
+def guardar_finanza(t,m):
+    run("INSERT INTO finanzas VALUES(NULL,?,?,?)",(datetime.datetime.now(),t,m))
+
+def listar_finanzas():
+    return pd.DataFrame(run("SELECT * FROM finanzas"),columns=["id","fecha","tipo","monto"])
+
+def balance():
+    df=listar_finanzas()
+    if df.empty: return 0
+    return df[df.tipo=="ingreso"].monto.sum()-df[df.tipo=="gasto"].monto.sum()
+
+def escanear_codigo(img):
+    decoded=decode(np.array(img))
+    if decoded:
+        return decoded[0].data.decode("utf-8")
+    return None
+
+def buscar_producto(codigo):
+    try:
+        data=requests.get(f"https://world.openfoodfacts.org/api/v0/product/{codigo}.json").json()
+        if data["status"]==1:
+            p=data["product"]
+            nombre=p.get("product_name","Desconocido")
+            cal=p.get("nutriments",{}).get("energy-kcal_100g","N/A")
+            return f"{nombre} ({cal} kcal)"
+        return "No encontrado"
+    except:
+        return "Error"
+
+def prediccion():
+    df=listar_glucosa()
+    if len(df)<5: return "Datos insuficientes"
+    df["t"]=range(len(df))
+    model=LinearRegression()
+    model.fit(df[["t"]],df["valor"])
+    return f"Predicción: {model.predict([[len(df)]])[0]:.1f}"
+
+def chat(p):
+    r=openai.ChatCompletion.create(
+        model="gpt-4o-mini",
+        messages=[{"role":"user","content":p}]
+    )
+    return r["choices"][0]["message"]["content"]
 
 # -------------------------
-# INTERFAZ DE USUARIO (TABS)
+# UI
 # -------------------------
-st.title("🩺 Control de Glucosa Inteligente")
+st.title("🧠 Nexus AI - Sistema Inteligente")
 
-tabs = st.tabs(["Glucosa", "Asistente IA", "Reportes"])
+tabs=st.tabs(["Dashboard","Salud","Finanzas","Escáner","IA","Reportes"])
 
-# --- PESTAÑA 1: GLUCOSA ---
+# DASHBOARD
 with tabs[0]:
-    st.subheader("Registrar glucosa")
-    valor = st.number_input("Valor mg/dL", min_value=0.0, step=1.0, key="input_glucosa")
+    col1,col2=st.columns(2)
+    with col1:
+        st.metric("💰 Balance", balance())
+    with col2:
+        st.metric("🩺 Promedio glucosa",
+                  listar_glucosa()["valor"].mean() if not listar_glucosa().empty else 0)
+    st.info(prediccion())
 
-    if st.button("Guardar Registro"):
-        guardar_glucosa(valor)
-        st.success("Dato guardado correctamente")
+# SALUD
+with tabs[1]:
+    st.subheader("Glucosa")
+    v=st.number_input("Valor mg/dL")
+    if st.button("Guardar glucosa"):
+        guardar_glucosa(v)
         st.rerun()
 
-    df = glucosa_df()
+    df=listar_glucosa()
     if not df.empty:
-        st.subheader("Historial con semáforo")
-        # Mostramos columnas relevantes
-        df_display = df[["fecha_str", "hora", "valor"]].copy()
-        styled = df_display.style.applymap(color_glucosa, subset=["valor"])
-        st.dataframe(styled, use_container_width=True)
+        st.line_chart(df["valor"])
 
-        st.subheader("Evolución Temporal")
-        st.line_chart(df.set_index("fecha")["valor"])
+    st.subheader("Medicamentos")
+    n=st.text_input("Nombre")
+    d=st.text_input("Dosis")
+    if st.button("Guardar medicamento"):
+        guardar_medicamento(n,d)
+        st.rerun()
+    st.dataframe(listar_meds())
 
-# --- PESTAÑA 2: ASISTENTE IA (Sintaxis V1 Corregida) ---
-with tabs[1]:
-    st.subheader("Nexus AI Chat")
-    
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
+    st.subheader("Citas")
+    f=st.date_input("Fecha")
+    doc=st.text_input("Doctor")
+    if st.button("Guardar cita"):
+        guardar_cita(str(f),doc)
+        st.rerun()
+    st.dataframe(listar_citas())
 
-    # Entrada de texto (Nota: SpeechRecognition y pyttsx3 se omiten por ser incompatibles con servidores web)
-    texto_usuario = st.text_input("Escribe tu consulta aquí:", key="chat_input")
-
-    if st.button("Consultar IA"):
-        if texto_usuario:
-            try:
-                # Llamada corregida para la nueva versión de la API
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role": "user", "content": texto_usuario}]
-                )
-                respuesta = response.choices[0].message.content
-                
-                st.session_state.chat_history.append({"u": texto_usuario, "ai": respuesta})
-                
-                st.markdown(f"**Tú:** {texto_usuario}")
-                st.info(f"**Nexus AI:** {respuesta}")
-            except Exception as e:
-                st.error(f"Error en la conexión con OpenAI: {e}")
-        else:
-            st.warning("Por favor, escribe algo.")
-
-# --- PESTAÑA 3: REPORTES ---
+# FINANZAS
 with tabs[2]:
-    st.subheader("Exportar Datos")
-    
-    if st.button("Generar PDF de Historial"):
-        df = glucosa_df()
-        if not df.empty:
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", 'B', 16)
-            pdf.cell(200, 10, "Reporte de Glucosa - Nexus AI", ln=True, align='C')
-            pdf.ln(10)
-            
-            pdf.set_font("Arial", size=12)
-            for i, row in df.iterrows():
-                linea = f"Fecha: {row['fecha_str']} | Hora: {row['hora']} | Valor: {row['valor']} mg/dL"
-                pdf.cell(200, 10, linea, ln=True)
+    t=st.selectbox("Tipo",["ingreso","gasto"])
+    m=st.number_input("Monto")
+    if st.button("Guardar movimiento"):
+        guardar_finanza(t,m)
+        st.rerun()
+    st.dataframe(listar_finanzas())
+    st.metric("Balance actual", balance())
 
-            pdf.output("reporte_nexus.pdf")
-            st.success("PDF generado con éxito")
-            
-            with open("reporte_nexus.pdf", "rb") as f:
-                st.download_button("Descargar PDF", f, file_name="reporte_nexus.pdf")
+# ESCÁNER
+with tabs[3]:
+    img=st.camera_input("Escanear código")
+    if img:
+        image=Image.open(img)
+        codigo=escanear_codigo(image)
+        if codigo:
+            producto=buscar_producto(codigo)
+            st.success(producto)
+            run("INSERT INTO escaneos VALUES(NULL,?,?,?)",
+                (datetime.datetime.now(),codigo,producto))
         else:
-            st.error("No hay datos para generar el reporte.")
+            st.warning("No detectado")
 
-    st.markdown("---")
-    st.markdown("### Enlaces de Contacto")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("[📲 Enviar por WhatsApp](https://wa.me/123456789)")
-    with col2:
-        st.markdown("[📧 Enviar por Gmail](mailto:test@gmail.com)")
+# IA
+with tabs[4]:
+    if "chat" not in st.session_state:
+        st.session_state.chat=[]
+
+    p=st.text_input("Pregunta")
+    if st.button("Enviar"):
+        r=chat(p)
+        st.session_state.chat.append(("Tú",p))
+        st.session_state.chat.append(("IA",r))
+
+    for rol,msg in st.session_state.chat:
+        st.markdown(f"**{rol}:** {msg}")
+
+# REPORTES + COMUNICACIÓN
+with tabs[5]:
+    if st.button("Generar PDF"):
+        pdf=FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial",size=12)
+        pdf.cell(200,10,"Reporte Nexus",ln=True)
+        pdf.output("reporte.pdf")
+        st.success("PDF generado")
+
+    st.markdown("### 📲 Compartir")
+    st.markdown("[WhatsApp](https://wa.me/123456789)")
+    st.markdown("[Gmail](mailto:test@gmail.com)")
