@@ -4,16 +4,20 @@ import sqlite3
 import datetime
 import hashlib
 import matplotlib.pyplot as plt
-import urllib.parse
 from fpdf import FPDF
 from sklearn.linear_model import LinearRegression
 import numpy as np
 import logging
+import smtplib
 
-# --- Configuración de Logs ---
+# -------------------------
+# Configuración de Logs
+# -------------------------
 logging.basicConfig(filename="error.log", level=logging.ERROR)
 
-# --- Seguridad: Login persistente ---
+# -------------------------
+# Seguridad: Login persistente
+# -------------------------
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
@@ -27,11 +31,14 @@ def check_login(username, password):
     if row:
         return row[0] == hash_password(password)
     else:
+        # Registro automático del primer usuario
         cursor.execute('INSERT INTO users (username, password) VALUES (?,?)', (username, hash_password(password)))
         conn.commit()
         return True
 
-# --- Base de datos ---
+# -------------------------
+# Base de datos
+# -------------------------
 def init_db():
     conn = sqlite3.connect('nexuspro.db', check_same_thread=False)
     cursor = conn.cursor()
@@ -44,143 +51,138 @@ def init_db():
 
 conn, cursor = init_db()
 
-# --- Funciones de Comunicación y Exportación ---
-def enviar_whatsapp(mensaje):
-    msg_encoded = urllib.parse.quote(mensaje)
-    url = f"https://wa.me/?text={msg_encoded}"
-    st.markdown(f'<a href="{url}" target="_blank">📲 Enviar Reporte por WhatsApp</a>', unsafe_allow_html=True)
-
-def generar_pdf_estudio(img_file):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt="Reporte Médico - Nexus Quevedo", ln=1, align='C')
-    # Guardar temporalmente para el PDF
-    with open("temp_img.png", "wb") as f:
-        f.write(img_file.getbuffer())
-    pdf.image("temp_img.png", x=10, y=30, w=180)
-    pdf.output("reporte_nexus.pdf")
-    return "reporte_nexus.pdf"
-
-def exportar_excel(u_id):
-    df_g = pd.read_sql_query('SELECT * FROM glucosa WHERE user_id=?', conn, params=(u_id,))
-    df_f = pd.read_sql_query('SELECT * FROM finanzas WHERE user_id=?', conn, params=(u_id,))
-    with pd.ExcelWriter("Nexus_Backup.xlsx") as writer:
-        df_g.to_excel(writer, sheet_name="Salud", index=False)
-        df_f.to_excel(writer, sheet_name="Finanzas", index=False)
-    return "Nexus_Backup.xlsx"
-
-# --- IA y Auxiliares ---
+# -------------------------
+# Funciones auxiliares
+# -------------------------
 def obtener_semaforo(v):
     if 90 <= v <= 125: return "🟢 NORMAL"
     if 126 <= v <= 160: return "🟡 PRECAUCIÓN"
     return "🔴 ALERTA CRÍTICA"
 
+def validar_monto(monto):
+    try:
+        m_val = float(monto)
+        if m_val < 0:
+            st.error("El monto no puede ser negativo.")
+            return None
+        return m_val
+    except ValueError:
+        if monto: st.error("Por favor ingrese un número válido.")
+        return None
+
+# -------------------------
+# IA Predictiva
+# -------------------------
 def predecir_valores(data, columna):
-    if len(data) >= 5: # Bajé a 5 para que lo pruebes más rápido
+    if len(data) >= 10:
         X = np.arange(len(data)).reshape(-1,1)
         y = data[columna].values
         model = LinearRegression().fit(X,y)
         pred = model.predict([[len(data)+1]])
-        return f"{pred[0]:.1f} ± 5"
+        intervalo = 5
+        return f"{pred[0]:.1f} ± {intervalo}"
     return None
 
-# --- Interfaz Principal ---
+# -------------------------
+# Interfaz principal
+# -------------------------
 def main():
     st.set_page_config(page_title="Nexus Quevedo", layout="wide")
 
+    # Manejo de Sesión Persistente
     if "loggedin" not in st.session_state:
         st.session_state.loggedin = False
 
     if not st.session_state.loggedin:
         st.sidebar.title("🔐 Login")
-        u = st.sidebar.text_input("Usuario")
-        p = st.sidebar.text_input("Contraseña", type="password")
+        user_in = st.sidebar.text_input("Usuario")
+        pass_in = st.sidebar.text_input("Contraseña", type="password")
         if st.sidebar.button("Ingresar"):
-            if check_login(u, p):
+            if check_login(user_in, pass_in):
                 st.session_state.loggedin = True
-                st.session_state.userid = u
+                st.session_state.userid = user_in
                 st.rerun()
+            else:
+                st.error("Credenciales incorrectas")
         return
     else:
         if st.sidebar.button("Cerrar Sesión"):
             st.session_state.loggedin = False
             st.rerun()
 
-    st.title(f"🛡️ Nexus Quevedo - Panel de {st.session_state.userid}")
-    menu = st.sidebar.radio("Menú", ["Salud", "Finanzas", "Citas", "Reportes & Backup"])
+    st.title(f"📊 Nexus Quevedo - Hola, {st.session_state.userid}")
+    menu = st.sidebar.radio("Menú", ["Salud", "Finanzas", "Citas"])
 
-    # --- SALUD ---
+    # --- Módulo Salud ---
     if menu == "Salud":
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("🩸 Glucosa")
-            val = st.number_input("Valor Glucosa:", min_value=0)
-            if st.button("Guardar"):
-                fec = datetime.datetime.now().strftime("%d/%m %H:%M")
-                cursor.execute('INSERT INTO glucosa (user_id, fecha, valor, estado) VALUES (?,?,?,?)',
-                               (st.session_state.userid, fec, val, obtener_semaforo(val)))
-                conn.commit()
-                st.success("Registrado")
-        
+        st.subheader("🩸 Glucosa")
+        val = st.number_input("Valor Glucosa:", min_value=0, step=1)
+        if st.button("Guardar Glucosa"):
+            estado = obtener_semaforo(val)
+            fec = datetime.datetime.now().strftime("%d/%m %H:%M")
+            cursor.execute('INSERT INTO glucosa (user_id, fecha, valor, estado) VALUES (?,?,?,?)',
+                           (st.session_state.userid, fec, val, estado))
+            conn.commit()
+            st.success("Registro guardado")
+
         g_data = pd.read_sql_query('SELECT * FROM glucosa WHERE user_id=?', conn, params=(st.session_state.userid,))
         st.dataframe(g_data, use_container_width=True)
         
-        if not g_data.empty:
-            p = predecir_valores(g_data, "valor")
-            if p: st.info(f"🤖 IA: Predicción próxima toma: {p}")
-            
-            # Botón WhatsApp para salud
-            ultimo = g_data.iloc[-1]
-            if st.button("Enviar última glucosa por WhatsApp"):
-                msg = f"Reporte Nexus: Glucosa {ultimo['valor']} mg/dL ({ultimo['estado']}) el {ultimo['fecha']}"
-                enviar_whatsapp(msg)
-
-    # --- FINANZAS ---
-    elif menu == "Finanzas":
-        st.subheader("💰 Gestión de Gastos")
-        m_in = st.number_input("Monto (RD$):", min_value=0.0)
-        tipo = st.selectbox("Tipo:", ["Gasto", "Ingreso"])
-        cat = st.selectbox("Categoría:", ["Salud", "Comida", "Servicios", "Otros"])
-        if st.button("Registrar Movimiento"):
-            cursor.execute('INSERT INTO finanzas (user_id, monto, tipo, categoria) VALUES (?,?,?,?)',
-                           (st.session_state.userid, m_in, tipo, cat))
+        borrar_id = st.number_input("ID a borrar (Glucosa):", min_value=0, step=1, key="del_glu")
+        if st.button("Eliminar Registro Glucosa"):
+            cursor.execute('DELETE FROM glucosa WHERE id=? AND user_id=?', (borrar_id, st.session_state.userid))
             conn.commit()
-            st.success("Finanza guardada")
+            st.rerun()
+
+        if not g_data.empty:
+            pred = predecir_valores(g_data, "valor")
+            if pred: st.info(f"🤖 IA Predictiva: Su glucosa estimada es {pred}")
+            fig, ax = plt.subplots()
+            ax.plot(g_data['fecha'], g_data['valor'], marker='o', color='red')
+            st.pyplot(fig)
+
+    # --- Módulo Finanzas ---
+    elif menu == "Finanzas":
+        st.subheader("💰 Finanzas")
+        monto_in = st.text_input("Monto (RD$):")
+        monto_val = validar_monto(monto_in)
+        tipo = st.selectbox("Tipo:", ["Ingreso","Gasto"])
+        categoria = st.selectbox("Categoría:", ["Comida","Salud","Servicios","Otros"])
         
+        if st.button("Registrar Movimiento") and monto_val is not None:
+            cursor.execute('INSERT INTO finanzas (user_id, monto, tipo, categoria) VALUES (?,?,?,?)',
+                           (st.session_state.userid, monto_val, tipo, categoria))
+            conn.commit()
+            st.success("Movimiento registrado")
+
         f_data = pd.read_sql_query('SELECT * FROM finanzas WHERE user_id=?', conn, params=(st.session_state.userid,))
-        st.write(f_data)
-
-    # --- REPORTES & BACKUP ---
-    elif menu == "Reportes & Backup":
-        st.subheader("📦 Exportación y Documentos")
+        st.dataframe(f_data, use_container_width=True)
         
-        # Escáner / PDF
-        st.write("### 📸 Generar PDF de Estudio")
-        archivo = st.file_uploader("Subir imagen de estudio", type=['png', 'jpg', 'jpeg'])
-        if archivo and st.button("Convertir a PDF"):
-            pdf_path = generar_pdf_estudio(archivo)
-            with open(pdf_path, "rb") as f:
-                st.download_button("📥 Descargar PDF Médico", f, file_name=pdf_path)
+        borrar_f = st.number_input("ID a borrar (Finanzas):", min_value=0, step=1, key="del_fin")
+        if st.button("Eliminar Registro Finanzas"):
+            cursor.execute('DELETE FROM finanzas WHERE id=? AND user_id=?', (borrar_f, st.session_state.userid))
+            conn.commit()
+            st.rerun()
 
-        st.divider()
-        
-        # Backup Excel
-        st.write("### 📥 Backup Completo")
-        if st.button("Generar Backup en Excel"):
-            ex_path = exportar_excel(st.session_state.userid)
-            with open(ex_path, "rb") as f:
-                st.download_button("📥 Descargar Excel", f, file_name=ex_path)
+    # --- Módulo Citas ---
+    elif menu == "Citas":
+        st.subheader("📅 Citas Médicas")
+        f_c = st.date_input("Fecha")
+        d_c = st.text_input("Doctor")
+        if st.button("Agendar Cita"):
+            cursor.execute('INSERT INTO citas (user_id, fecha, doctor) VALUES (?,?,?)',
+                           (st.session_state.userid, str(f_c), d_c))
+            conn.commit()
+            st.success("Cita agendada")
 
-        st.divider()
+        c_data = pd.read_sql_query('SELECT * FROM citas WHERE user_id=?', conn, params=(st.session_state.userid,))
+        st.write(c_data)
         
-        # Email (Simulado/Gmail link)
-        st.write("### 📧 Reporte por Email")
-        email_dest = st.text_input("Correo del Doctor:")
-        if st.button("Preparar Email"):
-            asunto = urllib.parse.quote("Reporte Nexus Quevedo")
-            cuerpo = urllib.parse.quote("Adjunto envío mi reporte de salud generado por Nexus Pro.")
-            st.markdown(f'<a href="mailto:{email_dest}?subject={asunto}&body={cuerpo}">✉️ Abrir Gmail/Outlook</a>', unsafe_allow_html=True)
+        borrar_c = st.number_input("ID a borrar (Citas):", min_value=0, step=1, key="del_cit")
+        if st.button("Eliminar Cita"):
+            cursor.execute('DELETE FROM citas WHERE id=? AND user_id=?', (borrar_c, st.session_state.userid))
+            conn.commit()
+            st.rerun()
 
 if __name__ == "__main__":
     main()
