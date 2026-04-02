@@ -5,7 +5,6 @@ import datetime
 import urllib.parse
 from fpdf import FPDF
 
-
 def init_db():
     conn = sqlite3.connect('nexuspro.db', checksame_thread=False)
     cursor = conn.cursor()
@@ -19,7 +18,6 @@ def init_db():
 
 conn, cursor = init_db()
 
-
 def obtener_semaforo(v):
     if 90 <= v <= 125: return "🟢 NORMAL"
     if 126 <= v <= 160: return "🟡 PRECAUCIÓN"
@@ -32,7 +30,6 @@ def generarpdf(imgbytes, nombre_archivo="escaneo.pdf"):
     pdf.output(nombre_archivo, "F")
     return nombre_archivo
 
-
 def mostrar_finanzas():
     st.subheader("Gestión Financiera")
     monto = st.numberinput("Monto (RD$):", minvalue=0.0, format="%.2f", step=1.0)
@@ -43,12 +40,8 @@ def mostrar_finanzas():
         st.success(f"{tipo} registrado: RD$ {monto:,.2f}")
     st.write(pd.readsqlquery('SELECT * FROM finanzas', conn))
 
-
-
 def mostrar_salud():
     tgluc, tmeds, tcitas, tscan = st.tabs(["🩸 Glucosa", "💊 Medicamentos", "📅 Citas", "📸 Escáner"])
-
-    # Glucosa
     with t_gluc:
         val = st.numberinput("Valor Glucosa:", minvalue=0, step=1)
         if st.button("Guardar Glucosa"):
@@ -58,8 +51,6 @@ def mostrar_salud():
             conn.commit()
             st.success("Registro guardado")
         st.write(pd.readsqlquery('SELECT * FROM glucosa', conn))
-
-    # Medicamentos
     with t_meds:
         nmed = st.textinput("Medicamento:")
         dmed = st.textinput("Dosis:")
@@ -67,8 +58,6 @@ def mostrar_salud():
             cursor.execute('INSERT INTO meds (nombre, dosis) VALUES (?,?)', (nmed, dmed))
             conn.commit()
         st.write(pd.readsqlquery('SELECT * FROM meds', conn))
-
-    # Citas
     with t_citas:
         fc = st.dateinput("Fecha")
         dc = st.textinput("Doctor")
@@ -76,8 +65,6 @@ def mostrar_salud():
             cursor.execute('INSERT INTO citas (fecha, doctor) VALUES (?,?)', (str(fc), dc))
             conn.commit()
         st.write(pd.readsqlquery('SELECT * FROM citas', conn))
-
-    # Escáner con PDF
     with t_scan:
         if st.checkbox("Abrir Escáner"):
             img = st.camera_input("Escanee documento")
@@ -88,38 +75,29 @@ def mostrar_salud():
                 conn.commit()
                 st.success("Documento escaneado y guardado como PDF")
 
-
 def generar_reportes():
     gdata = pd.readsql_query('SELECT * FROM glucosa', conn)
     cdata = pd.readsql_query('SELECT * FROM citas', conn)
-
     reporte = "📑 Reporte Nexus\n\n"
     reporte += "🩸 Glucosa:\n"
-    for i , r in gdata.iterrows():
-      reporte += f"- {r['fecha']}: {r['valor']} ({r['estado']})\n"
+    for , r in gdata.iterrows():
+        reporte += f"- {r['fecha']}: {r['valor']} ({r['estado']})\n"
     reporte += "\n📅 Citas:\n"
-    for i , c in cdata.iterrows():
+    for , c in cdata.iterrows():
         reporte += f"- {c['fecha']}: {c['doctor']}\n"
-
     st.text_area("Vista previa del reporte:", reporte, height=200)
-
     rep_enc = urllib.parse.quote(reporte)
     st.markdown(f'📲 Enviar a WhatsApp')
     gmailurl = f"https://mail.google.com/mail/?view=cm&fs=1&su=Reporte+Nexus&body={repenc}"
     st.markdown(f'📧 Enviar por Gmail')
 
-
 def main():
     st.setpageconfig(page_title="NEXUS PRO GLOBAL", layout="wide")
     st.title("📊 Dashboard Principal - Finanzas & Salud Inteligente")
-
     tfin, tsalud, t_rep = st.tabs(["💰 Finanzas", "🩺 Salud", "📤 Reportes"])
-
     with tfin: mostrarfinanzas()
     with tsalud: mostrarsalud()
     with trep: generarreportes()
-
-    # IA básica
     gdata = pd.readsql_query('SELECT * FROM glucosa', conn)
     if not g_data.empty:
         prom = g_data['valor'].mean()
@@ -130,3 +108,4 @@ def main():
 
 if name == "main":
     main()
+`
