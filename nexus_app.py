@@ -1,168 +1,108 @@
 import streamlit as st
 import pandas as pd
 import datetime
-import urllib.parse
-from fpdf import FPDF
 
 # ==========================================
-# 1. BACKEND SÓLIDO (INDEPENDENCIA TOTAL)
+# 1. MOTOR DE PERSISTENCIA Y LÓGICA
 # ==========================================
-class BackendNEXUS:
+class MotorNEXUS:
     def __init__(self):
-        # Entidades como archivos/celdas separadas
-        if 'db_glucosa' not in st.session_state: st.session_state.db_glucosa = []
-        if 'db_meds' not in st.session_state: st.session_state.db_meds = []
-        if 'db_agenda' not in st.session_state: st.session_state.db_agenda = []
+        # Bases de datos separadas (Independencia Total)
         if 'db_finanzas' not in st.session_state: st.session_state.db_finanzas = []
+        if 'db_glucosa' not in st.session_state: st.session_state.db_glucosa = []
+        if 'db_citas' not in st.session_state: st.session_state.db_citas = []
+        if 'db_escaner' not in st.session_state: st.session_state.db_escaner = []
 
-    def borrar_registro(self, db_name, index):
-        """Borrado quirúrgico sin cruce de datos"""
-        if db_name in st.session_state:
-            st.session_state[db_name].pop(index)
-            st.rerun()
-
-# ==========================================
-# 2. MÓDULO DE INTELIGENCIA ARTIFICIAL (IA)
-# ==========================================
-class CerebroNEXUS:
-    @staticmethod
-    def analizar_salud():
-        alertas = []
-        logs = st.session_state.db_glucosa
-        if logs:
-            ultimo = logs[-1]['Valor']
-            # Patrón detectado
-            if ultimo > 140:
-                alertas.append("🚨 IA ALERTA: Tendencia de Glucosa ALTA. Sugerencia: Revisar ingesta de carbohidratos.")
-            elif ultimo < 70:
-                alertas.append("⚠️ IA ALERTA: Tendencia de Hipoglucemia. Tenga azúcar a mano.")
-            else:
-                alertas.append("✅ IA ESTADO: Niveles estables según los últimos registros.")
-        
-        # Análisis de Citas
-        if st.session_state.db_agenda:
-            alertas.append(f"📅 IA RECORDATORIO: Tiene {len(st.session_state.db_agenda)} cita(s) pendiente(s).")
-            
-        return alertas
+    def obtener_color_glucosa(self, valor):
+        """Lógica de Semáforo solicitada por Sr. Quevedo"""
+        if valor < 125: return "#28a745" # Verde
+        elif 125 <= valor <= 160: return "#ffc107" # Amarillo
+        else: return "#dc3545" # Rojo
 
 # ==========================================
-# 3. GENERADOR DE REPORTES ELEGANTES
-# ==========================================
-def generar_reporte_profesional():
-    fecha_hoy = datetime.datetime.now().strftime("%d/%m/%Y")
-    # Formato Récord Médico / Factura
-    rep = f"🏥 *NEXUS PRO - RÉCORD MÉDICO OFICIAL*\n"
-    rep += f"🗓️ Fecha de Emisión: {fecha_hoy}\n"
-    rep += f"👤 Paciente: Luis Rafael Quevedo\n"
-    rep += "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    
-    rep += "🩸 *SECCIÓN A: CONTROL DE GLUCOSA*\n"
-    if st.session_state.db_glucosa:
-        for r in st.session_state.db_glucosa:
-            rep += f"• {r['Fecha']}: {r['Valor']} mg/dL ({r['Nota']})\n"
-    else: rep += "_Sin registros de glucosa_\n"
-    
-    rep += "\n💊 *SECCIÓN B: MEDICAMENTOS*\n"
-    if st.session_state.db_meds:
-        for m in st.session_state.db_meds:
-            rep += f"• {m['Medicamento']}: {m['Dosis']}\n"
-    
-    rep += "\n📅 *SECCIÓN C: AGENDA DE CITAS*\n"
-    if st.session_state.db_agenda:
-        for c in st.session_state.db_agenda:
-            rep += f"• {c['Fecha']}: Dr. {c['Doctor']} ({c['Centro']})\n"
-    
-    rep += "\n━━━━━━━━━━━━━━━━━━━━━━━━\n"
-    rep += "🤖 _Analizado por Inteligencia Artificial NEXUS_"
-    return rep
-
-# ==========================================
-# 4. INTERFAZ DASHBOARD PRINCIPAL
+# 2. INTERFAZ DASHBOARD PRINCIPAL
 # ==========================================
 def main():
-    st.set_page_config(page_title="NEXUS PRO GLOBAL", layout="wide", page_icon="🧬")
-    backend = BackendNEXUS()
-    ia = CerebroNEXUS()
+    st.set_page_config(page_title="NEXUS SMART PRO", layout="wide")
+    nexus = MotorNEXUS()
 
     st.title("🧬 NEXUS SMART: Gestión Institucional")
-    st.write(f"Bienvenido, **Sr. Quevedo** | {datetime.datetime.now().strftime('%A, %d de %B')}")
+    st.write(f"Bienvenido, **Sr. Quevedo** | {datetime.datetime.now().strftime('%d/%m/%Y')}")
 
-    # --- PESTAÑAS DE NAVEGACIÓN ---
-    t_dash, t_salud, t_agenda, t_fin, t_reporte = st.tabs([
-        "🏠 DASHBOARD", "🩺 CLÍNICA", "📅 CITAS", "💰 FINANZAS", "📤 REPORTES"
+    # PESTAÑAS DE NAVEGACIÓN
+    t_dash, t_clinica, t_citas, t_finanzas, t_escaner = st.tabs([
+        "🏠 DASHBOARD", "🩺 CLÍNICA", "📅 CITAS", "💰 FINANZAS", "📸 ESCÁNER"
     ])
 
-    # PESTAÑA DASHBOARD (IA INTEGRADA)
+    # --- PESTAÑA: DASHBOARD ---
     with t_dash:
-        st.subheader("🤖 Análisis Proactivo de la IA")
-        avisos = ia.analizar_salud()
-        for aviso in avisos:
-            st.info(aviso)
+        st.subheader("Resumen de Estado")
+        c1, c2 = st.columns(2)
         
-        st.write("---")
-        st.subheader("📸 ESCÁNER INTELIGENTE")
-        # Integración de cámara nativa para teléfono
-        img_file = st.camera_input("Capturar Documento/Receta Médica")
-        if img_file:
-            st.success("✅ Imagen capturada. Procesando datos para registro automático...")
-            # Aquí la IA registraría automáticamente (Simulación)
-            st.session_state.db_glucosa.append({"Fecha": "Hoy", "Valor": 118.0, "Nota": "Escaneado"})
-
-    # PESTAÑA CLÍNICA (GLUCOSA Y MEDS)
-    with t_salud:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("### 🩸 Registro de Glucosa")
-            val_g = st.number_input("Valor mg/dL", min_value=0.0)
-            nota_g = st.text_input("Nota (Ayunas, Post-comida, etc.)")
-            if st.button("Guardar Glucosa"):
-                st.session_state.db_glucosa.append({"Fecha": datetime.datetime.now().strftime("%d/%m %H:%M"), "Valor": val_g, "Nota": nota_g})
+        # Resumen Financiero
+        total_ing = sum(f['Monto'] for f in st.session_state.db_finanzas if f['Tipo'] == 'Ingreso')
+        total_gas = sum(f['Monto'] for f in st.session_state.db_finanzas if f['Tipo'] == 'Gasto')
+        c1.metric("Balance Neto", f"RD$ {total_ing - total_gas:,.2f}")
         
-        with col2:
-            st.markdown("### 💊 Medicamentos")
-            nom_m = st.text_input("Nombre Medicina")
-            dos_m = st.text_input("Dosis (Ej: 500mg)")
-            if st.button("Registrar Medicina"):
-                st.session_state.db_meds.append({"Medicamento": nom_m, "Dosis": dos_m})
-
-        st.write("---")
-        st.write("### Historial Clínico Independiente")
+        # Último Registro Glucosa con Semáforo
         if st.session_state.db_glucosa:
-            for i, r in enumerate(st.session_state.db_glucosa):
-                c_a, c_b = st.columns([4, 1])
-                c_a.write(f"📍 {r['Fecha']} - **{r['Valor']} mg/dL** ({r['Nota']})")
-                if c_b.button("🗑️", key=f"del_g_{i}"): backend.borrar_registro('db_glucosa', i)
+            ultimo = st.session_state.db_glucosa[-1]
+            color = nexus.obtener_color_glucosa(ultimo['Valor'])
+            c2.markdown(f"**Última Glucosa:** <span style='color:{color}; font-size:24px; font-weight:bold;'>{ultimo['Valor']} mg/dL</span>", unsafe_allow_html=True)
+        else:
+            c2.write("No hay registros de salud hoy.")
 
-    # PESTAÑA AGENDA DE CITAS
-    with t_agenda:
-        st.subheader("📅 Gestión de Citas Médicas")
-        ca1, ca2 = st.columns([1, 2])
-        with ca1:
-            f_cita = st.date_input("Fecha de Cita")
-            d_cita = st.text_input("Nombre del Doctor")
-            l_cita = st.text_input("Centro Médico")
-            if st.button("Agendar Nueva Cita"):
-                st.session_state.db_agenda.append({"Fecha": str(f_cita), "Doctor": d_cita, "Centro": l_cita})
+    # --- PESTAÑA: CLÍNICA (CON SEMÁFORO) ---
+    with t_clinica:
+        st.subheader("Control de Glucosa y Medicamentos")
+        col_input, col_view = st.columns([1, 2])
         
-        with ca2:
-            if st.session_state.db_agenda:
-                for i, c in enumerate(st.session_state.db_agenda):
-                    col_x, col_y = st.columns([4, 1])
-                    col_x.warning(f"📆 **{c['Fecha']}** | Dr. {c['Doctor']} en {c['Centro']}")
-                    if col_y.button("🗑️", key=f"del_c_{i}"): backend.borrar_registro('db_agenda', i)
+        with col_input:
+            val_g = st.number_input("Valor de Glucosa (mg/dL):", min_value=0)
+            if st.button("Registrar Glucosa"):
+                st.session_state.db_glucosa.append({"Fecha": datetime.datetime.now().strftime("%d/%m %H:%M"), "Valor": val_g})
+        
+        with col_view:
+            if st.session_state.db_glucosa:
+                for i, r in enumerate(reversed(st.session_state.db_glucosa)):
+                    color = nexus.obtener_color_glucosa(r['Valor'])
+                    st.markdown(f"● **{r['Fecha']}**: {r['Valor']} mg/dL <span style='color:{color};'>● Indicador</span>", unsafe_allow_html=True)
 
-    # PESTAÑA REPORTES (ELEGANCIA)
-    with t_reporte:
-        st.subheader("📄 Generación de Récord Médico Profesional")
-        reporte_final = generar_reporte_profesional()
-        st.markdown(f"```\n{reporte_final}\n```")
+    # --- PESTAÑA: FINANZAS (YA NO ESTÁ VACÍA) ---
+    with t_finanzas:
+        st.subheader("Registro de Ingresos y Gastos")
+        f_col1, f_col2 = st.columns([1, 2])
         
-        rep_enc = urllib.parse.quote(reporte_final)
-        col_wa, col_em = st.columns(2)
-        with col_wa:
-            st.markdown(f'<a href="https://wa.me/?text={rep_enc}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; cursor:pointer; font-weight:bold;">📲 WHATSAPP PROFESIONAL</button></a>', unsafe_allow_html=True)
-        with col_em:
-            st.markdown(f'<a href="mailto:?subject=Record Medico Nexus&body={rep_enc}"><button style="width:100%; background-color:#EA4335; color:white; border:none; padding:15px; border-radius:10px; cursor:pointer; font-weight:bold;">📧 CORREO ELECTRÓNICO</button></a>', unsafe_allow_html=True)
+        with f_col1:
+            tipo = st.radio("Tipo:", ["Ingreso", "Gasto"])
+            monto = st.number_input("Monto RD$:", min_value=0.0)
+            concepto = st.text_input("Concepto:")
+            if st.button("Añadir Registro"):
+                st.session_state.db_finanzas.append({"Fecha": datetime.datetime.now().strftime("%d/%m"), "Tipo": tipo, "Monto": monto, "Concepto": concepto})
+        
+        with f_col2:
+            if st.session_state.db_finanzas:
+                df_fin = pd.DataFrame(st.session_state.db_finanzas)
+                st.table(df_fin)
+                if st.button("Limpiar Finanzas"):
+                    st.session_state.db_finanzas = []
+                    st.rerun()
+
+    # --- PESTAÑA: ESCÁNER (USO MANUAL) ---
+    with t_escaner:
+        st.subheader("Captura de Documentos")
+        if st.button("📷 ABRIR CÁMARA"):
+            img = st.camera_input("Enfoque el documento o receta")
+            if img:
+                st.session_state.db_escaner.append({"Fecha": datetime.datetime.now().strftime("%d/%m %H:%M"), "Imagen": img})
+                st.success("Documento guardado en el archivo digital.")
+        
+        st.write("---")
+        st.subheader("Archivo de Documentos Escaneados")
+        if st.session_state.db_escaner:
+            for doc in st.session_state.db_escaner:
+                st.write(f"Documento del {doc['Fecha']}")
+                st.image(doc['Imagen'], width=300)
 
 if __name__ == "__main__":
     main()
