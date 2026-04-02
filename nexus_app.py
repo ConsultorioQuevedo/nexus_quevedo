@@ -198,7 +198,7 @@ def mostrar_salud():
 # --- FUNCIÓN PRINCIPAL ---
 def main():
     st.set_page_config(page_title="NEXUS PRO - Sr. Quevedo", layout="wide")
-    st.title("🛡️ NEXUS PRO: Control Total de Vida")
+    st.title("🛡️ SISTEMA QUEVEDO: ORGANIZANDO MI VIDA")
     
     menu = st.sidebar.radio("Navegación", ["Panel Principal", "Respaldos"])
     
