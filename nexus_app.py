@@ -100,8 +100,8 @@ def main():
     password = st.sidebar.text_input("Contraseña", type="password")
     
     if not check_login(username, password):
-    st.title("🚀 Bienvenidos a Nexus Quevedo")
-    st.warning("Ingrese sus credenciales en el menú lateral para continuar.")
+       st.title("🚀 Bienvenidos a Nexus Quevedo")
+       st.warning("Ingrese sus credenciales en el menú lateral para continuar.")
         return
 
     st.title("📊 Nexus Quevedo - Asistente Personal")
