@@ -92,10 +92,10 @@ def predecir_gastos(data):
 # -------------------------
 def main():
     st.set_page_config(page_title="Nexus Quevedo", layout="wide")
-    st.markdown("<style> .stMetric {background-color:#f9f9f9; border-radius:10px; padding:10px; border: 1px solid #ddd;} </style>", unsafeallowhtml=True)
+    st.markdown("<style> .stMetric {background-color:#f9f9f9; border-radius:10px; padding:10px; border: 1px solid #ddd;} </style>", unsafe_allow_html=True)
 
     # Login en la barra lateral
-    st.sidebar.title("🔐 Login")
+    st.sidebar.title("🔐 Login")w
     username = st.sidebar.text_input("Usuario")
     password = st.sidebar.text_input("Contraseña", type="password")
     
