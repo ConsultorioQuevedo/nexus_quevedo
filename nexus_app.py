@@ -95,7 +95,7 @@ def main():
     st.markdown("<style> .stMetric {background-color:#f9f9f9; border-radius:10px; padding:10px; border: 1px solid #ddd;} </style>", unsafe_allow_html=True)
 
 # Login en la barra lateral
-    st.sidebar.title("🔐 Login")w
+    st.sidebar.title("🔐 Login")
     username = st.sidebar.text_input("Usuario")
     password = st.sidebar.text_input("Contraseña", type="password")
     
