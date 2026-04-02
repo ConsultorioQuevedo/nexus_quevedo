@@ -1,127 +1,108 @@
 import streamlit as st
 import pandas as pd
 import datetime
-import webbrowser
 from fpdf import FPDF
-import base64
 
 # ==========================================
-# 1. MOTOR DE LÓGICA INTEGRADA NEXUS (SIN CAMBIOS)
+# 1. MOTOR DE LÓGICA (BACKEND SIMULADO)
 # ==========================================
 class MotorNEXUS:
     def __init__(self):
+        # Bases de Datos Independientes (como en su diagrama)
+        if 'db_finanzas' not in st.session_state: st.session_state.db_finanzas = []
+        if 'db_salud' not in st.session_state: st.session_state.db_salud = []
         if 'presupuesto' not in st.session_state: st.session_state.presupuesto = 5000.0
-        if 'gastos' not in st.session_state: st.session_state.gastos = []
-        if 'glucosa_actual' not in st.session_state: st.session_state.glucosa_actual = 0.0
         self.ingresos = 8500.0
 
-    def calcular_estado_ia(self):
+    def obtener_alertas_ia(self):
+        total_g = sum(g['Monto'] for g in st.session_state.db_finanzas)
         alertas = []
-        total_gastos = sum(g['monto'] for g in st.session_state.gastos)
-        
-        # Lógica de Finanzas
-        porc = (total_gastos / st.session_state.presupuesto) * 100 if st.session_state.presupuesto > 0 else 0
-        if porc > 85: 
-            alertas.append(f"⚠️ IA FINANZAS: Consumo del {porc:.1f}%. ¡Cuidado!")
-        else:
-            alertas.append(f"✅ IA FINANZAS: Presupuesto saludable ({porc:.1f}%)")
-        
-        # Lógica de Salud
-        if st.session_state.glucosa_actual > 140:
-            alertas.append(f"🚨 IA SALUD: Glucosa en {st.session_state.glucosa_actual} mg/dL. Nivel Crítico.")
-        elif st.session_state.glucosa_actual > 0:
-            alertas.append("✅ IA SALUD: Niveles de glucosa estables.")
-            
-        return alertas, total_gastos
+        # Predicción Financiera
+        if total_g > st.session_state.presupuesto * 0.8:
+            alertas.append("⚠️ IA FINANZAS: Predicción de agotamiento de presupuesto próximamente.")
+        # Análisis de Salud
+        if any(s['Glucosa'] > 140 for s in st.session_state.db_salud):
+            alertas.append("🚨 IA SALUD: Se detectaron picos de glucosa en el historial.")
+        return alertas, total_g
 
 # ==========================================
-# 2. INTERFAZ WEB NEXUS (ADAPTADA)
+# 2. DASHBOARD PRINCIPAL (FRONTEND)
 # ==========================================
 def main():
-    st.set_page_config(page_title="NEXUS PRO", layout="wide")
+    st.set_page_config(page_title="NEXUS PRO - Arquitectura", layout="wide")
     nexus = MotorNEXUS()
 
-    # --- ESTILO DARK MODE ---
-    st.markdown("""
-        <style>
-        .main { background-color: #0d1117; color: white; }
-        .stButton>button { width: 100%; border-radius: 5px; font-weight: bold; }
-        div[data-testid="stMetricValue"] { color: #58a6ff; }
-        </style>
-        """, unsafe_allow_html=True)
+    # --- ENCABEZADO ESTILO DASHBOARD ---
+    st.title("🚀 NEXUS SMART: Dashboard Principal")
+    alertas_ia, total_gastado = nexus.obtener_alertas_ia()
+    
+    # Métricas rápidas arriba
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Balance Disponible", f"RD$ {nexus.ingresos - total_gastado}")
+    c2.metric("Presupuesto Fijo", f"RD$ {st.session_state.presupuesto}")
+    c3.metric("Estado General", "Estable" if not alertas_ia else "Atención")
 
-    # --- PANEL LATERAL ---
-    with st.sidebar:
-        st.title("NEXUS PRO 🧬")
+    # --- SEPARACIÓN POR PESTAÑAS (Arquitectura de su diagrama) ---
+    tab_fin, tab_salud, tab_ia = st.tabs(["💰 ÁREA FINANZAS", "🩺 ÁREA SALUD", "🤖 MOTOR IA & REPORTES"])
+
+    # --- PESTAÑA FINANZAS ---
+    with tab_fin:
+        st.subheader("Gestión de Ingresos & Gastos")
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            desc = st.text_input("Concepto:")
+            monto = st.number_input("Monto (RD$):", min_value=0.0, key="f_monto")
+            if st.button("AÑADIR GASTO"):
+                st.session_state.db_finanzas.append({
+                    "Fecha": datetime.datetime.now().strftime("%d/%m/%Y %H:%M"),
+                    "Concepto": desc,
+                    "Monto": monto
+                })
+        with col_f2:
+            st.write("Historial Financiero")
+            if st.session_state.db_finanzas:
+                st.table(pd.DataFrame(st.session_state.db_finanzas))
+                if st.button("Limpiar Finanzas"):
+                    st.session_state.db_finanzas = []
+                    st.rerun()
+
+    # --- PESTAÑA SALUD ---
+    with tab_salud:
+        st.subheader("Control Médico & Medicamentos")
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            glu = st.number_input("Registro de Glucosa:", min_value=0)
+            med = st.text_input("Medicamento / Cita:")
+            if st.button("REGISTRAR EN SALUD"):
+                st.session_state.db_salud.append({
+                    "Fecha": datetime.datetime.now().strftime("%d/%m/%Y %H:%M"),
+                    "Glucosa": glu,
+                    "Detalle": med
+                })
+        with col_s2:
+            st.write("Historial Médico")
+            if st.session_state.db_salud:
+                st.table(pd.DataFrame(st.session_state.db_salud))
+                if st.button("Limpiar Salud"):
+                    st.session_state.db_salud = []
+                    st.rerun()
+
+    # --- PESTAÑA IA & REPORTES ---
+    with tab_ia:
+        st.subheader("Modelos Predictivos & Generador PDF")
+        for alerta in alertas_ia:
+            st.warning(alerta)
+        
         st.write("---")
-        
-        # WhatsApp Link
-        msg = f"Reporte Nexus: Balance actual. Glucosa: {st.session_state.glucosa_actual}"
-        wa_url = f"https://wa.me/?text={msg}"
-        st.markdown(f'<a href="{wa_url}" target="_blank"><button style="width:100%; background-color:#238636; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer;">📲 WHATSAPP ACTIVO</button></a>', unsafe_allow_html=True)
-        
-        st.write("")
-        if st.button("📸 ACTIVAR ESCÁNER"):
-            st.session_state.glucosa_actual = 155.0
-            st.toast("Escáner: Se detectó Glucosa 155 mg/dL")
+        if st.button("📄 GENERAR REPORTE GLOBAL (PDF)"):
+            st.info("Generando reporte basado en la base de datos central...")
+            # Aquí iría la lógica del PDF que ya tenemos
 
-    # --- ÁREA CENTRAL ---
-    st.title("SISTEMA INTEGRADO DE GESTIÓN")
-
-    # SECCIÓN 1: CONFIGURACIÓN
-    with st.expander("⚙️ CONFIGURACIÓN DE PRESUPUESTO", expanded=True):
-        col_p1, col_p2 = st.columns([3, 1])
-        nuevo_p = col_p1.number_input("DEFINA SU PRESUPUESTO (RD$):", value=st.session_state.presupuesto)
-        if col_p2.button("FIJAR"):
-            st.session_state.presupuesto = nuevo_p
-            st.success(f"Presupuesto fijado en RD$ {nuevo_p}")
-
-    # SECCIÓN 2: SALUD Y FINANZAS
-    col_salud, col_fin = st.columns(2)
-
-    with col_salud:
-        st.subheader("🩺 CONTROL MÉDICO")
-        glu_input = st.number_input("Glucosa (mg/dL):", value=float(st.session_state.glucosa_actual))
-        med_input = st.text_input("Medicamento:")
-        if st.button("REGISTRAR SALUD"):
-            st.session_state.glucosa_actual = glu_input
-            if med_input:
-                st.session_state.gastos.append({'fecha': datetime.datetime.now().strftime('%d/%m %H:%M'), 'detalle': f"💊 {med_input}", 'monto': 0.0})
-            st.session_state.gastos.append({'fecha': datetime.datetime.now().strftime('%d/%m %H:%M'), 'detalle': "🩸 Glucosa", 'monto': glu_input})
-
-    with col_fin:
-        st.subheader("📊 FINANZAS")
-        alertas, total_g = nexus.calcular_estado_ia()
-        balance = nexus.ingresos - total_g
-        st.metric("Saldo Disponible", f"RD$ {balance:.2f}")
-        
-        gasto_val = st.number_input("Nuevo Gasto (RD$):", min_value=0.0)
-        if st.button("AÑADIR GASTO"):
-            fecha = datetime.datetime.now().strftime('%d/%m %H:%M')
-            st.session_state.gastos.append({'fecha': fecha, 'detalle': "💸 Gasto", 'monto': gasto_val})
-            st.rerun()
-
-    # SECCIÓN 3: TABLA Y REPORTES
-    st.write("---")
-    if st.session_state.gastos:
-        st.subheader("📝 HISTORIAL DE ACTIVIDAD")
-        df = pd.DataFrame(st.session_state.gastos)
-        st.table(df)
-        
-        # Botón para PDF (Versión Web)
-        if st.button("📄 GENERAR REPORTE PDF"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", 'B', 16)
-            pdf.cell(200, 10, txt="REPORTE NEXUS PRO - SR. QUEVEDO", ln=True, align='C')
-            pdf.output("reporte.pdf")
-            with open("reporte.pdf", "rb") as f:
-                st.download_button("⬇️ Descargar Reporte PDF", f, "Reporte_Nexus.pdf")
-
-    # SECCIÓN 4: LOG DE IA
-    st.subheader("🤖 REPORTE DE INTELIGENCIA NEXUS")
-    for a in alertas:
-        st.info(a)
+    # --- SIDEBAR (CONEXIONES EXTERNAS) ---
+    with st.sidebar:
+        st.header("Conexiones")
+        st.button("📲 API WHATSAPP")
+        st.button("📷 ESCÁNER DOCUMENTOS")
 
 if __name__ == "__main__":
     main()
