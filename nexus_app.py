@@ -6,7 +6,7 @@ import urllib.parse
 from fpdf import FPDF
 
 def init_db():
-    conn = sqlite3.connect('nexuspro.db', checksame_thread=False)
+    conn = sqlite3.connect('nexuspro.db', check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, fecha TEXT, valor REAL, estado TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS meds (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT)')
