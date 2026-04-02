@@ -5,3 +5,10 @@ fpdf
 scikit-learn
 numpy
 twilio
+pillow
+openpyx1
+pytesseract
+qrcode
+sqlalchemy
+psycopg2-binary
+python-dotenv
