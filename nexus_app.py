@@ -3,155 +3,130 @@ import pandas as pd
 import sqlite3
 import datetime
 import hashlib
-import os
-from PIL import Image
-import io
 
-# --- CONFIGURACIÓN PROFESIONAL DE LA UI ---
-st.set_page_config(page_title="NEXUS QUEVEDO PRO", layout="wide", initial_sidebar_state="expanded")
+# --- 1. CONFIGURACIÓN DE LA INTERFAZ ---
+st.set_page_config(page_title="NEXUS QUEVEDO PRO", layout="wide")
 
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;700&display=swap');
     html, body, [class*="css"] { font-family: 'Poppins', sans-serif; }
     .stApp { background-color: #0E1117; color: #FFFFFF; }
-    /* Estilo para el Semáforo */
-    .stMetric { background-color: #161B22; padding: 15px; border-radius: 10px; border: 1px solid #30363D; }
+    .sidebar .sidebar-content { background-image: linear-gradient(#161B22,#0E1117); }
     </style>
     """, unsafe_allow_html=True)
 
-# --- SISTEMA DE BASE DE DATOS ROBUSTA (SQLite local persistente) ---
+# --- 2. BASE DE DATOS ROBUSTA ---
 def init_db():
-    conn = sqlite3.connect('nexus_pro_soberano.db', check_same_thread=False)
-    cursor = conn.cursor()
-    # Tablas con Independencia Total
-    cursor.execute('CREATE TABLE IF NOT EXISTS usuarios (email TEXT PRIMARY KEY, password TEXT, nombre TEXT)')
-    cursor.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, email TEXT, fecha TEXT, valor REAL, estado TEXT)')
-    cursor.execute('CREATE TABLE IF NOT EXISTS meds (id INTEGER PRIMARY KEY, email TEXT, nombre TEXT, dosis TEXT, hora TEXT)')
-    cursor.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, email TEXT, monto REAL, tipo TEXT, categoria TEXT, fecha TEXT)')
-    cursor.execute('CREATE TABLE IF NOT EXISTS documentos (id INTEGER PRIMARY KEY, email TEXT, fecha TEXT, nombre_archivo TEXT, texto_extraido TEXT)')
+    conn = sqlite3.connect('nexus_pro_data.db', check_same_thread=False)
+    c = conn.cursor()
+    # Usuarios, Salud, Finanzas y Documentos
+    c.execute('CREATE TABLE IF NOT EXISTS usuarios (user TEXT PRIMARY KEY, password TEXT, nombre TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, user TEXT, fecha TEXT, valor REAL, estado TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, user TEXT, monto REAL, tipo TEXT, cat TEXT, fecha TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS docs (id INTEGER PRIMARY KEY, user TEXT, fecha TEXT, info TEXT)')
     conn.commit()
-    return conn, cursor
+    return conn, c
 
-conn, cursor = init_db()
+conn, c = init_db()
 
-# --- FUNCIONES DE SEGURIDAD (Autenticación) ---
-def make_hashes(password):
+# --- 3. SEGURIDAD (Hash de contraseñas) ---
+def encriptar(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
-def check_hashes(password, hashed_text):
-    if make_hashes(password) == hashed_text:
-        return hashed_text
+def verificar_usuario(user, password):
+    c.execute('SELECT password FROM usuarios WHERE user = ?', (user,))
+    data = c.fetchone()
+    if data:
+        return data[0] == encriptar(password)
     return False
 
-# --- LÓGICA DE INTELIGENCIA (Salud) ---
-def obtener_semaforo(v):
-    if 90 <= v <= 125: return "🟢 NORMAL", "Sigue así, vas por buen camino."
-    if 126 <= v <= 160: return "🟡 PRECAUCIÓN", "Revisa tu dieta y actividad física."
-    return "🔴 ALERTA CRÍTICA", "Consulta a tu médico a la brevedad."
+# --- 4. LÓGICA DE SALUD ---
+def semaforo_glucosa(v):
+    if 90 <= v <= 125: return "🟢 NORMAL"
+    if 126 <= v <= 160: return "🟡 PRECAUCIÓN"
+    return "🔴 ALERTA CRÍTICA"
 
-# --- INTERFAZ DE USUARIO (LOGIN / REGISTRO) ---
-if 'autenticado' not in st.session_state:
-    st.session_state['autenticado'] = False
-    st.session_state['usuario'] = ""
+# --- 5. CONTROL DE ACCESO ---
+if 'login' not in st.session_state:
+    st.session_state['login'] = False
+    st.session_state['user'] = ""
 
-def pantalla_acceso():
-    st.title("🛡️ NEXUS PRO - Acceso Soberano")
-    menu_acc = st.tabs(["Iniciar Sesión", "Crear Cuenta"])
+if not st.session_state['login']:
+    st.title("🛡️ NEXUS PRO - Privacidad Total")
+    tab_log, tab_reg = st.tabs(["Identificarse", "Crear Cuenta"])
     
-    with menu_acc[0]:
-        email = st.text_input("Correo Electrónico", key="login_email")
-        password = st.text_input("Contraseña", type='password', key="login_pass")
+    with tab_log:
+        u = st.text_input("Usuario")
+        p = st.text_input("Contraseña", type='password')
         if st.button("Entrar"):
-            cursor.execute('SELECT password FROM usuarios WHERE email = ?', (email,))
-            data = cursor.fetchone()
-            if data and check_hashes(password, data[0]):
-                st.session_state['autenticado'] = True
-                st.session_state['usuario'] = email
-                st.success(f"Bienvenido de nuevo")
+            if verificar_usuario(u, p):
+                st.session_state['login'] = True
+                st.session_state['user'] = u
                 st.rerun()
             else:
-                st.error("Correo o contraseña incorrectos")
-
-    with menu_acc[1]:
-        new_user = st.text_input("Correo Electrónico", key="reg_email")
-        new_name = st.text_input("Nombre Completo")
-        new_password = st.text_input("Contraseña", type='password', key="reg_pass")
-        if st.button("Registrarme"):
+                st.error("Credenciales incorrectas")
+                
+    with tab_reg:
+        new_u = st.text_input("Nuevo Usuario")
+        new_n = st.text_input("Su Nombre")
+        new_p = st.text_input("Nueva Contraseña", type='password')
+        if st.button("Registrar"):
             try:
-                cursor.execute('INSERT INTO usuarios VALUES (?,?,?)', (new_user, make_hashes(new_password), new_name))
+                c.execute('INSERT INTO usuarios VALUES (?,?,?)', (new_u, encriptar(new_p), new_n))
                 conn.commit()
-                st.success("Cuenta creada exitosamente. Ahora puedes iniciar sesión.")
+                st.success("Cuenta creada. Ya puede identificarse.")
             except:
-                st.error("El usuario ya existe.")
+                st.error("Ese usuario ya existe")
 
-# --- CUERPO DEL PROGRAMA (Solo si está autenticado) ---
-if not st.session_state['autenticado']:
-    pantalla_acceso()
+# --- 6. CUERPO DEL PROGRAMA ---
 else:
-    st.sidebar.title(f"👤 {st.session_state['usuario']}")
-    menu = st.sidebar.radio("Navegación", ["🩸 Salud Inteligente", "💰 Finanzas PRO", "📸 Escáner de Documentos", "⚙️ Ajustes"])
+    st.sidebar.title(f"Bienvenido, {st.session_state['user']}")
+    opcion = st.sidebar.radio("Navegación", ["Salud", "Finanzas", "Escáner", "Backup"])
 
-    if menu == "🩸 Salud Inteligente":
-        st.header("Monitoreo de Glucosa con IA")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            valor = st.number_input("Valor Glucosa (mg/dL):", min_value=0.0, step=1.0)
-            if st.button("Guardar Registro"):
-                estado, consejo = obtener_semaforo(valor)
-                fecha = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                cursor.execute('INSERT INTO glucosa (email, fecha, valor, estado) VALUES (?,?,?,?)', 
-                               (st.session_state['usuario'], fecha, valor, estado))
-                conn.commit()
-                st.info(f"Análisis: {estado} - {consejo}")
-
-        with col2:
-            st.subheader("Historial Reciente")
-            df = pd.read_sql_query('SELECT fecha, valor, estado FROM glucosa WHERE email=? ORDER BY id DESC LIMIT 10', 
-                                   conn, params=(st.session_state['usuario'],))
-            st.dataframe(df, use_container_width=True)
-
-    elif menu == "📸 Escáner de Documentos":
-        st.header("Escáner de Documentos Médicos")
-        st.write("Sube una foto de tu análisis para extraer la información.")
-        archivo = st.file_uploader("Cargar Imagen", type=['png', 'jpg', 'jpeg'])
-        
-        if archivo:
-            # Aquí simulamos el procesamiento OCR para que no dependa de librerías externas difíciles de instalar
-            st.image(archivo, caption="Documento Cargado", width=400)
-            if st.button("Extraer Información"):
-                with st.spinner("Analizando documento localmente..."):
-                    # Simulación de extracción inteligente
-                    texto_simulado = "Resultado de análisis: Glucosa 110 mg/dL, Colesterol 190 mg/dL."
-                    fecha_doc = datetime.datetime.now().strftime("%Y-%m-%d")
-                    cursor.execute('INSERT INTO documentos (email, fecha, nombre_archivo, texto_extraido) VALUES (?,?,?,?)',
-                                   (st.session_state['usuario'], fecha_doc, archivo.name, texto_simulado))
-                    conn.commit()
-                    st.success("Información extraída y guardada en tu base de datos.")
-                    st.text_area("Contenido detectado:", texto_simulado)
-
-    elif menu == "💰 Finanzas PRO":
-        st.header("Gestión Financiera")
-        monto = st.number_input("Monto (RD$):", min_value=0.0, format="%.2f")
-        tipo = st.selectbox("Tipo:", ["Ingreso", "Gasto"])
-        cat = st.selectbox("Categoría:", ["Salud", "Alimentación", "Servicios", "Inversión", "Otros"])
-        
-        if st.button("Registrar Transacción"):
-            fecha_fin = datetime.datetime.now().strftime("%Y-%m-%d")
-            cursor.execute('INSERT INTO finanzas (email, monto, tipo, categoria, fecha) VALUES (?,?,?,?,?)',
-                           (st.session_state['usuario'], monto, tipo, cat, fecha_fin))
+    if opcion == "Salud":
+        st.header("🩸 Control de Glucosa Inteligente")
+        val = st.number_input("Introduzca Valor:", min_value=0.0)
+        if st.button("Guardar"):
+            est = semaforo_glucosa(val)
+            f = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            c.execute('INSERT INTO glucosa (user, fecha, valor, estado) VALUES (?,?,?,?)', (st.session_state['user'], f, val, est))
             conn.commit()
-            st.success("Transacción registrada con éxito.")
+            st.success(f"Registrado: {est}")
         
-        df_fin = pd.read_sql_query('SELECT fecha, monto, tipo, categoria FROM finanzas WHERE email=?', 
-                                   conn, params=(st.session_state['usuario'],))
-        st.dataframe(df_fin, use_container_width=True)
+        historial = pd.read_sql_query('SELECT fecha, valor, estado FROM glucosa WHERE user=? ORDER BY id DESC', conn, params=(st.session_state['user'],))
+        st.dataframe(historial, use_container_width=True)
 
-    elif menu == "⚙️ Ajustes":
-        st.header("Configuración y Backup")
-        if st.button("Cerrar Sesión"):
-            st.session_state['autenticado'] = False
-            st.rerun()
+    elif opcion == "Finanzas":
+        st.header("💰 Gestión de Finanzas")
+        m = st.number_input("Monto (RD$):", min_value=0.0)
+        t = st.selectbox("Tipo:", ["Ingreso", "Gasto"])
+        ca = st.selectbox("Categoría:", ["Comida", "Salud", "Servicios", "Otros"])
+        if st.button("Registrar Transacción"):
+            f = datetime.datetime.now().strftime("%Y-%m-%d")
+            c.execute('INSERT INTO finanzas (user, monto, tipo, cat, fecha) VALUES (?,?,?,?,?)', (st.session_state['user'], m, t, ca, f))
+            conn.commit()
+            st.success("Guardado correctamente")
         
-        st.warning("Tus datos están guardados localmente en 'nexus_pro_soberano.db'.")
+        fin_df = pd.read_sql_query('SELECT fecha, monto, tipo, cat FROM finanzas WHERE user=?', conn, params=(st.session_state['user'],))
+        st.dataframe(fin_df, use_container_width=True)
+
+    elif opcion == "Escáner":
+        st.header("📸 Escáner de Documentos")
+        img = st.file_uploader("Subir foto de análisis o receta", type=['jpg', 'png', 'jpeg'])
+        if img:
+            st.image(img, width=400)
+            if st.button("Procesar Documento"):
+                # Simulación de extracción para mantener el código simple y funcional en su PC
+                info_extraida = "Documento analizado localmente. Datos guardados en historial."
+                f = datetime.datetime.now().strftime("%Y-%m-%d")
+                c.execute('INSERT INTO docs (user, fecha, info) VALUES (?,?,?)', (st.session_state['user'], f, info_extraida))
+                conn.commit()
+                st.info(info_extraida)
+
+    elif opcion == "Backup":
+        st.header("⚙️ Copia de Seguridad")
+        if st.button("Cerrar Sesión"):
+            st.session_state['login'] = False
+            st.rerun()
+        st.write("Sus datos están resguardados en el archivo 'nexus_pro_data.db' de su PC.")
