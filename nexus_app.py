@@ -5,11 +5,7 @@ import datetime
 import urllib.parse
 from fpdf import FPDF
 import os
-import base64
 
-# ==========================================
-# 1. INICIALIZACIÓN DE BASE DE DATOS
-# ==========================================
 def init_db():
     conn = sqlite3.connect('nexuspro.db', check_same_thread=False)
     cursor = conn.cursor()
@@ -23,9 +19,6 @@ def init_db():
 
 conn, cursor = init_db()
 
-# ==========================================
-# 2. FUNCIONES AUXILIARES (PDF & IA)
-# ==========================================
 def obtener_semaforo(v):
     if 90 <= v <= 125: return "🟢 NORMAL"
     if 126 <= v <= 160: return "🟡 PRECAUCIÓN"
@@ -43,91 +36,99 @@ def generarpdf(img, nombre_archivo="documento_nexus.pdf"):
         os.remove(img_path)
     return nombre_archivo
 
-# ==========================================
-# 3. MÓDULO FINANZAS (CON BORRADO)
-# ==========================================
 def mostrar_finanzas():
-    st.subheader("💰 Gestión Financiera")
+    st.subheader("Gestión Financiera")
     presupuesto = st.number_input("Presupuesto mensual (RD$):", min_value=0.0, format="%.2f", step=100.0)
     if st.button("Guardar Presupuesto"):
         cursor.execute('INSERT INTO finanzas (monto, tipo) VALUES (?,?)', (presupuesto, "Presupuesto"))
         conn.commit()
-        st.success("Presupuesto registrado")
-
+        st.success(f"Presupuesto registrado: RD$ {presupuesto:,.2f}")
+    
     monto = st.number_input("Monto (RD$):", min_value=0.0, format="%.2f", step=1.0)
     tipo = st.selectbox("Tipo de movimiento:", ["Ingreso", "Gasto"])
     if st.button("Registrar Movimiento"):
         cursor.execute('INSERT INTO finanzas (monto, tipo) VALUES (?,?)', (monto, tipo))
         conn.commit()
-        st.success("Movimiento registrado")
-
+        st.success(f"{tipo} registrado: RD$ {monto:,.2f}")
+    
     data = pd.read_sql_query('SELECT * FROM finanzas', conn)
-    st.dataframe(data)
-
-    borrar_id = st.number_input("ID a borrar en Finanzas:", min_value=0, step=1, key="del_fin")
-    if st.button("Eliminar Registro Finanzas"):
+    st.write(data)
+    
+    borrar_id = st.number_input("ID a borrar en Finanzas:", min_value=0, step=1, key="fin_del")
+    if st.button("Borrar Finanzas"):
         cursor.execute('DELETE FROM finanzas WHERE id=?', (borrar_id,))
         conn.commit()
-        st.warning(f"ID {borrar_id} eliminado. Refresque la app.")
+        st.success("Registro eliminado")
+        st.rerun()
 
     ingresos = data[data['tipo']=="Ingreso"]['monto'].sum()
     gastos = data[data['tipo']=="Gasto"]['monto'].sum()
     presupuesto_total = data[data['tipo']=="Presupuesto"]['monto'].sum()
     balance = ingresos - gastos
+    
+    st.metric("Ingresos", f"RD$ {ingresos:,.2f}")
+    st.metric("Gastos", f"RD$ {gastos:,.2f}")
+    st.metric("Balance", f"RD$ {balance:,.2f}")
+    st.metric("Presupuesto", f"RD$ {presupuesto_total:,.2f}")
+    
+    if balance < presupuesto_total:
+        st.warning("⚠️ El balance está por debajo del presupuesto.")
+    else:
+        st.info("✅ Balance dentro del presupuesto.")
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Balance", f"RD$ {balance:,.2f}")
-    col2.metric("Gastos", f"RD$ {gastos:,.2f}")
-    col3.metric("Presupuesto", f"RD$ {presupuesto_total:,.2f}")
-
-    if balance < presupuesto_total and presupuesto_total > 0:
-        st.warning("⚠️ IA: Balance por debajo del presupuesto.")
-
-# ==========================================
-# 4. MÓDULO SALUD (IA, BORRADO & VISTA PREVIA)
-# ==========================================
 def mostrar_salud():
     t_gluc, t_meds, t_citas, t_scan = st.tabs(["🩸 Glucosa", "💊 Medicamentos", "📅 Citas", "📸 Escáner"])
     
     with t_gluc:
         val = st.number_input("Valor Glucosa:", min_value=0, step=1)
         if st.button("Guardar Glucosa"):
-            cursor.execute('INSERT INTO glucosa (fecha, valor, estado) VALUES (?,?,?)', 
-                           (datetime.datetime.now().strftime("%d/%m %H:%M"), val, obtener_semaforo(val)))
+            estado = obtener_semaforo(val)
+            fec = datetime.datetime.now().strftime("%d/%m %H:%M")
+            cursor.execute('INSERT INTO glucosa (fecha, valor, estado) VALUES (?,?,?)', (fec, val, estado))
             conn.commit()
+            st.success("Registro guardado")
+        
         g_data = pd.read_sql_query('SELECT * FROM glucosa', conn)
         st.write(g_data)
-        borrar_id = st.number_input("ID a borrar en Glucosa:", min_value=0, step=1, key="del_glu")
+        
+        borrar_id = st.number_input("ID a borrar en Glucosa:", min_value=0, step=1, key="glu_del")
         if st.button("Borrar Glucosa"):
             cursor.execute('DELETE FROM glucosa WHERE id=?', (borrar_id,))
             conn.commit()
             st.success("Registro eliminado")
+            st.rerun()
 
     with t_meds:
-        nmed = st.textinput("Medicamento:")
-        dmed = st.textinput("Dosis:")
-        if st.button("Registrar"):
+        nmed = st.text_input("Medicamento:")
+        dmed = st.text_input("Dosis:")
+        if st.button("Registrar Medicamento"):
             cursor.execute('INSERT INTO meds (nombre, dosis) VALUES (?,?)', (nmed, dmed))
             conn.commit()
+        
         m_data = pd.read_sql_query('SELECT * FROM meds', conn)
         st.write(m_data)
-        borrar_id = st.number_input("ID a borrar en Meds:", min_value=0, step=1, key="del_med")
+        
+        borrar_id = st.number_input("ID a borrar en Medicamentos:", min_value=0, step=1, key="med_del")
         if st.button("Borrar Medicamento"):
             cursor.execute('DELETE FROM meds WHERE id=?', (borrar_id,))
             conn.commit()
+            st.rerun()
 
     with t_citas:
         fc = st.date_input("Fecha")
-        dc = st.textinput("Doctor")
-        if st.button("Agendar"):
+        dc = st.text_input("Doctor")
+        if st.button("Agendar Cita"):
             cursor.execute('INSERT INTO citas (fecha, doctor) VALUES (?,?)', (str(fc), dc))
             conn.commit()
+        
         c_data = pd.read_sql_query('SELECT * FROM citas', conn)
         st.write(c_data)
-        borrar_id = st.number_input("ID a borrar en Citas:", min_value=0, step=1, key="del_cit")
+        
+        borrar_id = st.number_input("ID a borrar en Citas:", min_value=0, step=1, key="cit_del")
         if st.button("Borrar Cita"):
             cursor.execute('DELETE FROM citas WHERE id=?', (borrar_id,))
             conn.commit()
+            st.rerun()
 
     with t_scan:
         if st.checkbox("Abrir Escáner"):
@@ -137,32 +138,40 @@ def mostrar_salud():
                 cursor.execute('INSERT INTO escaneo (fecha, archivo) VALUES (?,?)',
                                (datetime.datetime.now().strftime("%d/%m %H:%M"), pdf_file))
                 conn.commit()
-                st.success("PDF Generado")
-                
-                # Vista previa robusta
+                st.success("Documento escaneado y guardado como PDF")
                 with open(pdf_file, "rb") as f:
-                    base64_pdf = base64.b64encode(f.read()).decode('utf-8')
-                pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="500" type="application/pdf"></iframe>'
-                st.markdown(pdf_display, unsafe_allow_html=True)
-                st.download_button("📥 Descargar PDF", data=open(pdf_file, "rb"), file_name=pdf_file)
+                    st.download_button("📥 Descargar PDF", f, file_name=pdf_file)
+                
+                st.markdown(f'<iframe src="{pdf_file}" width="700" height="500" type="application/pdf"></iframe>', unsafe_allow_html=True)
 
-# ==========================================
-# 5. REPORTES & ARRANQUE
-# ==========================================
 def generar_reportes():
-    # (Mantenemos su lógica de reportes limpia)
+    gdata = pd.read_sql_query('SELECT * FROM glucosa', conn)
+    cdata = pd.read_sql_query('SELECT * FROM citas', conn)
     fdata = pd.read_sql_query('SELECT * FROM finanzas', conn)
-    reporte = "📑 Reporte Nexus\n\n💰 Finanzas:\n"
+    
+    reporte = "📑 Reporte Nexus\n\n"
+    reporte += "🩸 Glucosa:\n"
+    for _, r in gdata.iterrows():
+        reporte += f"- {r['fecha']}: {r['valor']} ({r['estado']})\n"
+    
+    reporte += "\n📅 Citas:\n"
+    for _, c in cdata.iterrows():
+        reporte += f"- {c['fecha']}: {c['doctor']}\n"
+    
+    reporte += "\n💰 Finanzas:\n"
     ingresos = fdata[fdata['tipo']=="Ingreso"]['monto'].sum()
     gastos = fdata[fdata['tipo']=="Gasto"]['monto'].sum()
-    reporte += f"Balance Actual: RD$ {(ingresos-gastos):,.2f}"
-    st.text_area("Vista previa:", reporte, height=200)
+    presupuesto_total = fdata[fdata['tipo']=="Presupuesto"]['monto'].sum()
+    balance = ingresos - gastos
+    reporte += f"Balance Actual: RD$ {balance:,.2f}\n"
+    
+    st.text_area("Vista previa del reporte:", reporte, height=200)
     rep_enc = urllib.parse.quote(reporte)
     st.markdown(f'[📲 WhatsApp](https://wa.me/?text={rep_enc})')
 
 def main():
     st.set_page_config(page_title="NEXUS PRO GLOBAL", layout="wide")
-    st.title("📊 NEXUS PRO - Control Total")
+    st.title("📊 Dashboard Principal - Finanzas & Salud Inteligente")
     t_fin, t_salud, t_rep = st.tabs(["💰 Finanzas", "🩺 Salud", "📤 Reportes"])
     with t_fin: mostrar_finanzas()
     with t_salud: mostrar_salud()
