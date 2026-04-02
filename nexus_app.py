@@ -16,7 +16,6 @@ def init_db():
     conn.commit()
     return conn, cursor
 
-conn, cursor = init_db()
 
 def obtener_semaforo(v):
     if 90 <= v <= 125: return "🟢 NORMAL"
