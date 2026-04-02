@@ -80,7 +80,7 @@ def generar_reportes():
     cdata = pd.readsql_query('SELECT * FROM citas', conn)
     reporte = "📑 Reporte Nexus\n\n"
     reporte += "🩸 Glucosa:\n"
-    for , r in gdata.iterrows():
+    for i , r in gdata.iterrows():
         reporte += f"- {r['fecha']}: {r['valor']} ({r['estado']})\n"
     reporte += "\n📅 Citas:\n"
     for , c in cdata.iterrows():
