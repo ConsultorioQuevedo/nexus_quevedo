@@ -2,101 +2,128 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import datetime
-import plotly.express as px
+from io import BytesIO
+import matplotlib.pyplot as plt
+from fpdf import FPDF
 
-st.set_page_config(page_title="Nexus AI", layout="wide")
+# -------------------------
+# CONFIG
+# -------------------------
+st.set_page_config(page_title="Nexus Pro", layout="wide")
 
-DB="nexus_ai.db"
+DB = "nexus.db"
 
-def db():
+def conn():
     return sqlite3.connect(DB, check_same_thread=False)
 
-def run(q,p=()):
-    with db() as c:
-        cur=c.cursor()
-        cur.execute(q,p)
+def run(q, p=()):
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(q, p)
         c.commit()
         return cur.fetchall()
 
+# -------------------------
 # DB
-run("CREATE TABLE IF NOT EXISTS glucosa(id INTEGER PRIMARY KEY, fecha TEXT, valor REAL)")
-run("CREATE TABLE IF NOT EXISTS finanzas(id INTEGER PRIMARY KEY, fecha TEXT, tipo TEXT, monto REAL)")
+# -------------------------
+def init():
+    run('''CREATE TABLE IF NOT EXISTS glucosa(id INTEGER PRIMARY KEY, fecha TEXT, valor REAL)''')
+    run('''CREATE TABLE IF NOT EXISTS finanzas(id INTEGER PRIMARY KEY, fecha TEXT, tipo TEXT, monto REAL)''')
 
+init()
+
+# -------------------------
 # FUNCIONES
-def add_g(v):
-    run("INSERT INTO glucosa VALUES(NULL,?,?)",(datetime.datetime.now(),v))
+# -------------------------
+def guardar_glucosa(v):
+    run("INSERT INTO glucosa VALUES(NULL,?,?)", (datetime.datetime.now(), v))
 
-def get_g():
-    return pd.DataFrame(run("SELECT * FROM glucosa"),columns=["id","fecha","valor"])
+def listar_glucosa():
+    return pd.DataFrame(run("SELECT * FROM glucosa"), columns=["id","fecha","valor"])
 
-def add_f(t,m):
-    run("INSERT INTO finanzas VALUES(NULL,?,?,?)",(datetime.datetime.now(),t,m))
+def color_glucosa(v):
+    if v < 70: return "🔴 Bajo"
+    elif v <= 140: return "🟢 Normal"
+    return "🟡 Alto"
 
-def get_f():
-    return pd.DataFrame(run("SELECT * FROM finanzas"),columns=["id","fecha","tipo","monto"])
-
-def bal():
-    df=get_f()
-    if df.empty: return 0
-    return df[df.tipo=="ingreso"].monto.sum()-df[df.tipo=="gasto"].monto.sum()
-
-def pred():
-    df=get_g()
-    if len(df)>2:
-        return df.valor.mean()
+def prediccion():
+    df = listar_glucosa()
+    if len(df)>0:
+        return df["valor"].mean()
     return 0
 
+def guardar_finanza(t, m):
+    run("INSERT INTO finanzas VALUES(NULL,?,?,?)", (datetime.datetime.now(), t, m))
+
+def listar_finanzas():
+    return pd.DataFrame(run("SELECT * FROM finanzas"), columns=["id","fecha","tipo","monto"])
+
+def balance():
+    df = listar_finanzas()
+    if df.empty: return 0
+    ing = df[df["tipo"]=="ingreso"]["monto"].sum()
+    gas = df[df["tipo"]=="gasto"]["monto"].sum()
+    return ing - gas
+
+def pdf():
+    p = FPDF()
+    p.add_page()
+    p.set_font("Arial", size=12)
+    p.cell(200,10,"Reporte Nexus",ln=True)
+    for _,r in listar_glucosa().iterrows():
+        p.cell(200,10,f"{r['fecha']} {r['valor']}",ln=True)
+    p.output("reporte.pdf")
+
+# -------------------------
 # UI
-st.title("🧠 Nexus Inteligente")
+# -------------------------
+st.title("Nexus Mejorado")
 
-col1,col2,col3=st.columns(3)
-col1.metric("💰 Balance",bal())
-col2.metric("🩺 Glucosa Prom",pred())
-col3.metric("📊 Registros",len(get_g()))
+tabs = st.tabs(["Glucosa","Finanzas","Dashboard"])
 
-st.divider()
-
-# INPUTS
-c1,c2=st.columns(2)
-
-with c1:
-    st.subheader("Glucosa")
-    v=st.number_input("Valor")
-    if st.button("Guardar Glucosa"):
-        add_g(v)
+# GLUCOSA
+with tabs[0]:
+    v = st.number_input("Valor")
+    if st.button("Guardar"):
+        guardar_glucosa(v)
         st.rerun()
 
-with c2:
-    st.subheader("Finanzas")
-    t=st.selectbox("Tipo",["ingreso","gasto"])
-    m=st.number_input("Monto")
-    if st.button("Guardar Movimiento"):
-        add_f(t,m)
+    df = listar_glucosa()
+    if not df.empty:
+        df["estado"] = df["valor"].apply(color_glucosa)
+        st.dataframe(df)
+
+        st.line_chart(df["valor"])
+
+# FINANZAS
+with tabs[1]:
+    t = st.selectbox("Tipo",["ingreso","gasto"])
+    m = st.number_input("Monto")
+    if st.button("Guardar finanza"):
+        guardar_finanza(t,m)
         st.rerun()
 
-st.divider()
+    df = listar_finanzas()
+    st.dataframe(df)
 
-# GRÁFICAS
-dfg=get_g()
-if not dfg.empty:
-    fig=px.line(dfg,x="fecha",y="valor",title="Glucosa")
-    st.plotly_chart(fig,use_container_width=True)
+    st.metric("Balance", balance())
 
-dff=get_f()
-if not dff.empty:
-    fig2=px.pie(dff,names="tipo",values="monto",title="Finanzas")
-    st.plotly_chart(fig2,use_container_width=True)
+# DASHBOARD
+with tabs[2]:
+    st.metric("Promedio glucosa", prediccion())
+    st.metric("Balance", balance())
 
-# ALERTAS
-p=pred()
-if p>140:
-    st.error("⚠ Glucosa alta")
-elif p<70 and p!=0:
-    st.warning("⚠ Glucosa baja")
-elif p!=0:
-    st.success("✅ Todo bien")
+    if prediccion() > 140:
+        st.error("Glucosa alta")
+    elif prediccion() < 70:
+        st.warning("Glucosa baja")
+    else:
+        st.success("Normal")
 
-# LINKS
-st.markdown("### Compartir")
-st.markdown("[📲 WhatsApp](https://wa.me/123456789)")
-st.markdown("[✉ Gmail](mailto:test@gmail.com)")
+# EXTRAS
+st.markdown("[WhatsApp](https://wa.me/123456789)")
+st.markdown("[Gmail](mailto:test@gmail.com)")
+
+if st.button("Generar PDF"):
+    pdf()
+    st.success("PDF creado")
