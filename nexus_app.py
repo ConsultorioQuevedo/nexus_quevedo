@@ -4,12 +4,12 @@ import sqlite3
 import datetime
 import urllib.parse
 from fpdf import FPDF
+import os
 
 # ==========================================
 # 1. INICIALIZACIÓN DE BASE DE DATOS
 # ==========================================
 def init_db():
-    # Se corrigió 'checksame_thread'
     conn = sqlite3.connect('nexuspro.db', check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, fecha TEXT, valor REAL, estado TEXT)')
@@ -23,23 +23,27 @@ def init_db():
 conn, cursor = init_db()
 
 # ==========================================
-# 2. FUNCIONES DE APOYO
+# 2. FUNCIONES DE APOYO (IA & PDF)
 # ==========================================
 def obtener_semaforo(v):
     if 90 <= v <= 125: return "🟢 NORMAL"
     if 126 <= v <= 160: return "🟡 PRECAUCIÓN"
     return "🔴 ALERTA CRÍTICA"
 
-def generarpdf(img_file, nombre_archivo="escaneo.pdf"):
+def generarpdf(img, nombre_archivo="documento.pdf"):
+    img_path = "captura.png"
+    with open(img_path, "wb") as f:
+        f.write(img.getbuffer())
     pdf = FPDF()
     pdf.add_page()
-    # FPDF necesita una ruta de archivo o un objeto compatible
-    pdf.image(img_file, x=10, y=10, w=180)
+    pdf.image(img_path, x=10, y=10, w=180)
     pdf.output(nombre_archivo, "F")
+    if os.path.exists(img_path):
+        os.remove(img_path)
     return nombre_archivo
 
 # ==========================================
-# 3. MÓDULO DE FINANZAS (IA INTEGRADA)
+# 3. MÓDULO FINANZAS (IA & BALANCE)
 # ==========================================
 def mostrar_finanzas():
     st.subheader("Gestión Financiera")
@@ -56,26 +60,24 @@ def mostrar_finanzas():
         conn.commit()
         st.success(f"{tipo} registrado: RD$ {monto:,.2f}")
 
-    # Corrección: read_sql_query
     data = pd.read_sql_query('SELECT * FROM finanzas', conn)
     ingresos = data[data['tipo']=="Ingreso"]['monto'].sum()
     gastos = data[data['tipo']=="Gasto"]['monto'].sum()
     presupuesto_total = data[data['tipo']=="Presupuesto"]['monto'].iloc[-1] if not data[data['tipo']=="Presupuesto"].empty else 0.0
     balance = ingresos - gastos
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Ingresos", f"RD$ {ingresos:,.2f}")
-    col2.metric("Gastos", f"RD$ {gastos:,.2f}")
-    col3.metric("Balance", f"RD$ {balance:,.2f}")
-    col4.metric("Presupuesto", f"RD$ {presupuesto_total:,.2f}")
+    st.metric("Ingresos", f"RD$ {ingresos:,.2f}")
+    st.metric("Gastos", f"RD$ {gastos:,.2f}")
+    st.metric("Balance", f"RD$ {balance:,.2f}")
+    st.metric("Presupuesto", f"RD$ {presupuesto_total:,.2f}")
 
     if balance < presupuesto_total and presupuesto_total > 0:
-        st.warning("⚠️ IA Finanzas: El balance está por debajo del presupuesto. Se recomienda reducir gastos.")
-    elif presupuesto_total > 0:
-        st.info("✅ IA Finanzas: Balance dentro del presupuesto.")
+        st.warning("⚠️ El balance está por debajo del presupuesto. IA recomienda reducir gastos.")
+    else:
+        st.info("✅ Balance saludable dentro del presupuesto.")
 
 # ==========================================
-# 4. MÓDULO DE SALUD (IA INTEGRADA)
+# 4. MÓDULO SALUD (IA & ESCÁNER)
 # ==========================================
 def mostrar_salud():
     t_gluc, t_meds, t_citas, t_scan = st.tabs(["🩸 Glucosa", "💊 Medicamentos", "📅 Citas", "📸 Escáner"])
@@ -90,14 +92,14 @@ def mostrar_salud():
             st.success("Registro guardado")
         
         g_data = pd.read_sql_query('SELECT * FROM glucosa', conn)
-        st.dataframe(g_data)
+        st.write(g_data)
         
         if not g_data.empty:
             prom = g_data['valor'].mean()
             if prom > 140:
-                st.warning(f"🤖 IA Salud: Promedio {prom:.1f} mg/dL elevado. Considere ajustar su dieta.")
+                st.warning(f"🤖 IA Salud: Promedio {prom:.1f}, elevado. Considere ajustar dieta.")
             else:
-                st.info(f"🤖 IA Salud: Promedio {prom:.1f} mg/dL en rango saludable.")
+                st.info(f"🤖 IA Salud: Promedio {prom:.1f}, rango saludable.")
 
     with t_meds:
         nmed = st.text_input("Medicamento:")
@@ -119,11 +121,13 @@ def mostrar_salud():
         if st.checkbox("Abrir Escáner"):
             img = st.camera_input("Escanee documento")
             if img:
-                pdf_file = generarpdf(img, "documento.pdf")
+                pdf_file = generarpdf(img, "documento_nexus.pdf")
                 cursor.execute('INSERT INTO escaneo (fecha, archivo) VALUES (?,?)',
                                (datetime.datetime.now().strftime("%d/%m %H:%M"), pdf_file))
                 conn.commit()
                 st.success("Documento escaneado y guardado como PDF")
+                with open(pdf_file, "rb") as f:
+                    st.download_button("📥 Descargar PDF", f, file_name=pdf_file)
 
 # ==========================================
 # 5. GENERACIÓN DE REPORTES
@@ -135,11 +139,11 @@ def generar_reportes():
     
     reporte = "📑 Reporte Nexus\n\n"
     reporte += "🩸 Glucosa:\n"
-    for index, r in gdata.iterrows():
+    for _, r in gdata.iterrows():
         reporte += f"- {r['fecha']}: {r['valor']} ({r['estado']})\n"
     
     reporte += "\n📅 Citas:\n"
-    for index, c in cdata.iterrows():
+    for _, c in cdata.iterrows():
         reporte += f"- {c['fecha']}: {c['doctor']}\n"
     
     reporte += "\n💰 Finanzas:\n"
@@ -151,10 +155,10 @@ def generar_reportes():
     reporte += f"Ingresos: RD$ {ingresos:,.2f}\n"
     reporte += f"Gastos: RD$ {gastos:,.2f}\n"
     reporte += f"Balance: RD$ {balance:,.2f}\n"
+    reporte += f"Presupuesto: RD$ {presupuesto_total:,.2f}\n"
     
-    st.text_area("Vista previa del reporte:", reporte, height=200)
+    st.text_area("Vista previa:", reporte, height=200)
     rep_enc = urllib.parse.quote(reporte)
-    
     st.markdown(f'[📲 Enviar a WhatsApp](https://wa.me/?text={rep_enc})')
     gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&su=Reporte+Nexus&body={rep_enc}"
     st.markdown(f'[📧 Enviar por Gmail]({gmail_url})')
@@ -165,9 +169,7 @@ def generar_reportes():
 def main():
     st.set_page_config(page_title="NEXUS PRO GLOBAL", layout="wide")
     st.title("📊 Dashboard Principal - Finanzas & Salud Inteligente")
-    
     t_fin, t_salud, t_rep = st.tabs(["💰 Finanzas", "🩺 Salud", "📤 Reportes"])
-    
     with t_fin: mostrar_finanzas()
     with t_salud: mostrar_salud()
     with t_rep: generar_reportes()
