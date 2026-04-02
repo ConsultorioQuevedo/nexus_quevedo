@@ -29,6 +29,7 @@ def check_login(username, password):
     if row:
         return row[0] == hash_password(password)
     else:
+        # Si el usuario no existe, lo crea (para su primer acceso)
         cursor.execute('INSERT INTO users (username, password) VALUES (?,?)', (username, hash_password(password)))
         conn.commit()
         return True
@@ -58,11 +59,11 @@ def obtener_semaforo(v):
 
 def validar_monto(monto):
     try:
-        monto_f = float(monto)
-        if monto_f < 0:
+        monto = float(monto)
+        if monto < 0:
             st.error("El monto no puede ser negativo.")
             return None
-        return monto_f
+        return monto
     except ValueError:
         st.error("Por favor ingrese un número válido.")
         return None
@@ -72,10 +73,10 @@ def validar_monto(monto):
 # -------------------------
 def predecir_valores(data, columna):
     if len(data) >= 10:
-        X = np.arange(len(data)).reshape(-1, 1)
+        X = np.arange(len(data)).reshape(-1,1)
         y = data[columna].values
-        model = LinearRegression().fit(X, y)
-        pred = model.predict([[len(data) + 1]])
+        model = LinearRegression().fit(X,y)
+        pred = model.predict([[len(data)+1]])
         intervalo = 5
         return f"{pred[0]:.1f} ± {intervalo}"
     return None
@@ -86,6 +87,7 @@ def predecir_valores(data, columna):
 def main():
     st.set_page_config(page_title="Nexus Quevedo", layout="wide")
 
+    # Login persistente
     if "loggedin" not in st.session_state:
         st.session_state.loggedin = False
 
@@ -106,10 +108,11 @@ def main():
             st.session_state.loggedin = False
             st.rerun()
 
-    st.title("📊 Nexus Quevedo - Asistente Personal")
+    st.title(f"📊 Nexus Quevedo - Asistente de {st.session_state.userid}")
+
     menu = st.sidebar.radio("Menú", ["Salud", "Finanzas", "Citas"])
 
-    # --- MÓDULO SALUD ---
+    # --- SALUD ---
     if menu == "Salud":
         st.subheader("🩸 Glucosa")
         val = st.number_input("Valor Glucosa:", min_value=0, step=1)
@@ -150,11 +153,11 @@ def main():
         st.subheader("💊 Medicamentos")
         nmed = st.text_input("Medicamento:")
         dmed = st.text_input("Dosis:")
-        hmed = st.time_input("Hora de tomarlo:")
+        h_med = st.time_input("Hora de tomarlo:")
         if st.button("Registrar Medicamento"):
             cursor.execute(
                 'INSERT INTO meds (user_id, nombre, dosis, hora) VALUES (?,?,?,?)',
-                (st.session_state.userid, nmed, dmed, str(hmed))
+                (st.session_state.userid, nmed, dmed, str(h_med))
             )
             conn.commit()
             st.success("Medicamento registrado")
@@ -162,13 +165,13 @@ def main():
         df_m = pd.read_sql_query('SELECT * FROM meds WHERE user_id=?', conn, params=(st.session_state.userid,))
         st.write(df_m)
 
-    # --- MÓDULO FINANZAS ---
+    # --- FINANZAS ---
     elif menu == "Finanzas":
         st.subheader("💰 Finanzas")
         monto_input = st.text_input("Monto (RD$):")
         monto_val = validar_monto(monto_input)
-        tipo = st.selectbox("Tipo:", ["Ingreso", "Gasto"])
-        categoria = st.selectbox("Categoría:", ["Comida", "Salud", "Servicios", "Otros"])
+        tipo = st.selectbox("Tipo:", ["Ingreso","Gasto"])
+        categoria = st.selectbox("Categoría:", ["Comida","Salud","Servicios","Otros"])
         
         if st.button("Registrar Movimiento") and monto_val is not None:
             cursor.execute(
@@ -181,7 +184,7 @@ def main():
         df_f = pd.read_sql_query('SELECT * FROM finanzas WHERE user_id=?', conn, params=(st.session_state.userid,))
         st.write(df_f)
 
-    # --- MÓDULO CITAS ---
+    # --- CITAS ---
     elif menu == "Citas":
         st.subheader("📅 Citas")
         fc = st.date_input("Fecha")
@@ -198,7 +201,7 @@ def main():
         st.write(df_c)
 
         hoy = datetime.date.today()
-        for _, row in df_c.iterrows():
+        for index, row in df_c.iterrows():
             try:
                 fecha_cita = datetime.datetime.strptime(row['fecha'], "%Y-%m-%d").date()
                 if (fecha_cita - hoy).days == 2:
