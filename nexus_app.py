@@ -9,7 +9,6 @@ import os
 
 # --- CONFIGURACIÓN E INICIALIZACIÓN ---
 def init_db():
-    # Corregido: check_same_thread (sin la 's')
     conn = sqlite3.connect('nexuspro.db', check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, fecha TEXT, valor REAL, estado TEXT)')
@@ -39,28 +38,22 @@ def generarpdf(img, nombre_archivo="documento_nexus.pdf"):
     return nombre_archivo
 
 def exportar_backup():
-    st.subheader("📦 Soberanía de Datos - Backup Excel")
-    # Corregido: read_sql_query (con guiones bajos)
-    dataglucosa = pd.read_sql_query('SELECT * FROM glucosa', conn)
-    datameds = pd.read_sql_query('SELECT * FROM meds', conn)
-    datacitas = pd.read_sql_query('SELECT * FROM citas', conn)
-    datafin = pd.read_sql_query('SELECT * FROM finanzas', conn)
-    
-    file_path = "backup_nexus.xlsx"
-    # Corregido: to_excel (con guion bajo)
-    with pd.ExcelWriter(file_path) as writer:
-        dataglucosa.to_excel(writer, sheet_name="Glucosa", index=False)
-        datameds.to_excel(writer, sheet_name="Medicamentos", index=False)
-        datacitas.to_excel(writer, sheet_name="Citas", index=False)
-        datafin.to_excel(writer, sheet_name="Finanzas", index=False)
-    
-    with open(file_path, "rb") as f:
-        st.download_button("📥 Descargar Backup Excel", f, file_name=file_path)
+    st.subheader("📦 Soberanía de Datos - Backup")
+    # Para máxima compatibilidad en el servidor, usamos CSV que no requiere librerías extra
+    tablas = ["glucosa", "meds", "citas", "finanzas"]
+    for tabla in tablas:
+        df = pd.read_sql_query(f'SELECT * FROM {tabla}', conn)
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label=f"📥 Descargar {tabla.capitalize()} (CSV)",
+            data=csv,
+            file_name=f"nexus_{tabla}_{datetime.date.today()}.csv",
+            mime='text/csv',
+        )
 
 # --- CAPA 2: FINANZAS INTELIGENTES ---
 def mostrar_finanzas():
     st.subheader("💰 Gestión Financiera Pro")
-    # Corregido: number_input (con guion bajo)
     presupuesto = st.number_input("Presupuesto mensual (RD$):", min_value=0.0, format="%.2f", step=100.0)
     if st.button("Guardar Presupuesto"):
         cursor.execute('INSERT INTO finanzas (monto, tipo, categoria) VALUES (?,?,?)', (presupuesto, "Presupuesto","General"))
@@ -155,6 +148,12 @@ def mostrar_salud():
         m_data = pd.read_sql_query('SELECT * FROM meds', conn)
         st.write(m_data)
         
+        borrar_id_m = st.number_input("ID a borrar en Medicamentos:", min_value=0, step=1, key="med_del")
+        if st.button("Borrar Medicamento"):
+            cursor.execute('DELETE FROM meds WHERE id=?', (borrar_id_m,))
+            conn.commit()
+            st.rerun()
+
         if not m_data.empty:
             st.info(f"💊 Recordatorio: Tomar {m_data.iloc[-1]['nombre']} ({m_data.iloc[-1]['dosis']}) hoy.")
 
@@ -168,6 +167,12 @@ def mostrar_salud():
         c_data = pd.read_sql_query('SELECT * FROM citas', conn)
         st.write(c_data)
         
+        borrar_id_c = st.number_input("ID a borrar en Citas:", min_value=0, step=1, key="cit_del")
+        if st.button("Borrar Cita"):
+            cursor.execute('DELETE FROM citas WHERE id=?', (borrar_id_c,))
+            conn.commit()
+            st.rerun()
+
         hoy = datetime.date.today()
         for _, row in c_data.iterrows():
             try:
