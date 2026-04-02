@@ -7,7 +7,7 @@ from fpdf import FPDF
 import os
 
 # ==========================================
-# 1. INICIALIZACIÓN DE BASE DE DATOS
+# 1. NÚCLEO DE DATOS (SQLite)
 # ==========================================
 def init_db():
     conn = sqlite3.connect('nexuspro.db', check_same_thread=False)
@@ -23,15 +23,15 @@ def init_db():
 conn, cursor = init_db()
 
 # ==========================================
-# 2. FUNCIONES DE APOYO (IA & PDF)
+# 2. APOYO IA Y GENERACIÓN PDF
 # ==========================================
 def obtener_semaforo(v):
     if 90 <= v <= 125: return "🟢 NORMAL"
     if 126 <= v <= 160: return "🟡 PRECAUCIÓN"
     return "🔴 ALERTA CRÍTICA"
 
-def generarpdf(img, nombre_archivo="documento.pdf"):
-    img_path = "captura.png"
+def generarpdf(img, nombre_archivo="documento_nexus.pdf"):
+    img_path = "captura.jpg" # Corregido a JPG para evitar RuntimeError
     with open(img_path, "wb") as f:
         f.write(img.getbuffer())
     pdf = FPDF()
@@ -52,29 +52,29 @@ def mostrar_finanzas():
         cursor.execute('INSERT INTO finanzas (monto, tipo) VALUES (?,?)', (presupuesto, "Presupuesto"))
         conn.commit()
         st.success(f"Presupuesto registrado: RD$ {presupuesto:,.2f}")
-
+    
     monto = st.number_input("Monto (RD$):", min_value=0.0, format="%.2f", step=1.0)
     tipo = st.selectbox("Tipo de movimiento:", ["Ingreso", "Gasto"])
     if st.button("Registrar Movimiento"):
         cursor.execute('INSERT INTO finanzas (monto, tipo) VALUES (?,?)', (monto, tipo))
         conn.commit()
         st.success(f"{tipo} registrado: RD$ {monto:,.2f}")
-
+    
     data = pd.read_sql_query('SELECT * FROM finanzas', conn)
     ingresos = data[data['tipo']=="Ingreso"]['monto'].sum()
     gastos = data[data['tipo']=="Gasto"]['monto'].sum()
-    presupuesto_total = data[data['tipo']=="Presupuesto"]['monto'].iloc[-1] if not data[data['tipo']=="Presupuesto"].empty else 0.0
+    presupuesto_total = data[data['tipo']=="Presupuesto"]['monto'].sum()
     balance = ingresos - gastos
-
+    
     st.metric("Ingresos", f"RD$ {ingresos:,.2f}")
     st.metric("Gastos", f"RD$ {gastos:,.2f}")
     st.metric("Balance", f"RD$ {balance:,.2f}")
     st.metric("Presupuesto", f"RD$ {presupuesto_total:,.2f}")
-
+    
     if balance < presupuesto_total and presupuesto_total > 0:
-        st.warning("⚠️ El balance está por debajo del presupuesto. IA recomienda reducir gastos.")
+        st.warning("⚠️ IA Finanzas: El balance está por debajo del presupuesto.")
     else:
-        st.info("✅ Balance saludable dentro del presupuesto.")
+        st.info("✅ IA Finanzas: Balance dentro del presupuesto.")
 
 # ==========================================
 # 4. MÓDULO SALUD (IA & ESCÁNER)
@@ -97,9 +97,9 @@ def mostrar_salud():
         if not g_data.empty:
             prom = g_data['valor'].mean()
             if prom > 140:
-                st.warning(f"🤖 IA Salud: Promedio {prom:.1f}, elevado. Considere ajustar dieta.")
+                st.warning(f"🤖 IA Salud: Promedio {prom:.1f} mg/dL elevado.")
             else:
-                st.info(f"🤖 IA Salud: Promedio {prom:.1f}, rango saludable.")
+                st.info(f"🤖 IA Salud: Promedio {prom:.1f} mg/dL saludable.")
 
     with t_meds:
         nmed = st.text_input("Medicamento:")
@@ -110,7 +110,7 @@ def mostrar_salud():
         st.write(pd.read_sql_query('SELECT * FROM meds', conn))
 
     with t_citas:
-        fc = st.date_input("Fecha")
+        fc = st.date_input("Fecha de Cita")
         dc = st.text_input("Doctor")
         if st.button("Agendar Cita"):
             cursor.execute('INSERT INTO citas (fecha, doctor) VALUES (?,?)', (str(fc), dc))
@@ -119,13 +119,13 @@ def mostrar_salud():
 
     with t_scan:
         if st.checkbox("Abrir Escáner"):
-            img = st.camera_input("Escanee documento")
+            img = st.camera_input("Enfoque documento")
             if img:
                 pdf_file = generarpdf(img, "documento_nexus.pdf")
                 cursor.execute('INSERT INTO escaneo (fecha, archivo) VALUES (?,?)',
                                (datetime.datetime.now().strftime("%d/%m %H:%M"), pdf_file))
                 conn.commit()
-                st.success("Documento escaneado y guardado como PDF")
+                st.success("Documento guardado como PDF")
                 with open(pdf_file, "rb") as f:
                     st.download_button("📥 Descargar PDF", f, file_name=pdf_file)
 
@@ -151,11 +151,7 @@ def generar_reportes():
     gastos = fdata[fdata['tipo']=="Gasto"]['monto'].sum()
     presupuesto_total = fdata[fdata['tipo']=="Presupuesto"]['monto'].sum()
     balance = ingresos - gastos
-    
-    reporte += f"Ingresos: RD$ {ingresos:,.2f}\n"
-    reporte += f"Gastos: RD$ {gastos:,.2f}\n"
-    reporte += f"Balance: RD$ {balance:,.2f}\n"
-    reporte += f"Presupuesto: RD$ {presupuesto_total:,.2f}\n"
+    reporte += f"Ingresos: RD$ {ingresos:,.2f}\nGastos: RD$ {gastos:,.2f}\nBalance: RD$ {balance:,.2f}\n"
     
     st.text_area("Vista previa:", reporte, height=200)
     rep_enc = urllib.parse.quote(reporte)
@@ -164,7 +160,7 @@ def generar_reportes():
     st.markdown(f'[📧 Enviar por Gmail]({gmail_url})')
 
 # ==========================================
-# 6. FUNCIÓN PRINCIPAL
+# 6. ARRANQUE DEL SISTEMA
 # ==========================================
 def main():
     st.set_page_config(page_title="NEXUS PRO GLOBAL", layout="wide")
