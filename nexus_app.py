@@ -5,11 +5,8 @@ import datetime
 import urllib.parse
 from fpdf import FPDF
 
-==========================================
-
 1. BASE DE DATOS SQLITE (Persistencia real)
 
-==========================================
 def init_db():
     conn = sqlite3.connect('nexuspro.db', checksame_thread=False)
     cursor = conn.cursor()
