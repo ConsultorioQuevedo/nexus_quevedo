@@ -1,12 +1,8 @@
 streamlit
 pandas
 matplotlib
-fpdf
-scikit-learn
-numpy
-twilio
+openpyxl
 pillow
-openpyx1
 pytesseract
 qrcode
 sqlalchemy
