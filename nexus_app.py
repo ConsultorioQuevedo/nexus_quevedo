@@ -108,11 +108,7 @@ def generar_reportes():
     gmailurl = f"https://mail.google.com/mail/?view=cm&fs=1&su=Reporte+Nexus&body={repenc}"
     st.markdown(f'📧 Enviar por Gmail')
 
-==========================================
 
-7. DASHBOARD PRINCIPAL + IA
-
-==========================================
 def main():
     st.setpageconfig(page_title="NEXUS PRO GLOBAL", layout="wide")
     st.title("📊 Dashboard Principal - Finanzas & Salud Inteligente")
