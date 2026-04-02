@@ -130,10 +130,3 @@ def main():
 
 if name == "main":
     main()
-
-Este código ya refleja la arquitectura del diagrama:  
-- Dashboard principal con tres pestañas: Finanzas, Salud y Reportes.  
-- Finanzas con diferenciación de ingresos/gastos.  
-- Salud dividido en Glucosa (con semáforo), Medicamentos, Citas y Escáner con botón PDF.  
-- Reportes exportables a WhatsApp y Gmail.  
-- IA básica para análisis de glucosa.  
