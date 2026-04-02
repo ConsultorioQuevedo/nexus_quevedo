@@ -4,3 +4,4 @@ plotly
 pytz
 fpdf
 matplotlib
+openpyx1
