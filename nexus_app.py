@@ -102,7 +102,7 @@ def main():
     if not check_login(username, password):
        st.title("🚀 Bienvenidos a Nexus Quevedo")
        st.warning("Ingrese sus credenciales en el menú lateral para continuar.")
-        return
+       return
 
     st.title("📊 Nexus Quevedo - Asistente Personal")
     menu = st.sidebar.radio("Menú", ["Salud", "Finanzas", "Citas"])
