@@ -255,7 +255,7 @@ with tabs[1]:
 with tabs[2]:
     st.header("Citas")
     f_c = st.date_input("Fecha")
-    h_c = st.time_input("Hora", key=hora_citas" )
+    h_c = st.time_input("Hora", key=hora_citas")
     doc = st.text_input("Doctor")
     if st.button("Agendar Cita"):
         dt = datetime.datetime.combine(f_c, h_c).isoformat()
