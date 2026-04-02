@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 import numpy as np
 
-# -------------------------
-# Seguridad: Login
-# -------------------------
+# ---------------------------------------------------------
+# SEGURIDAD: LOGIN (Mantiene su lógica de cifrado intacta)
+# ---------------------------------------------------------
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
@@ -23,13 +23,14 @@ def check_login(username, password):
     if row:
         return row[0] == hash_password(password)
     else:
+        # Si el usuario no existe, se crea (Lógica original del Sr. Quevedo)
         cursor.execute('INSERT INTO users (username, password) VALUES (?,?)', (username, hash_password(password)))
         conn.commit()
         return True
 
-# -------------------------
-# Base de datos
-# -------------------------
+# ---------------------------------------------------------
+# BASE DE DATOS (Independencia total de registros)
+# ---------------------------------------------------------
 def init_db():
     conn = sqlite3.connect('nexuspro.db', check_same_thread=False)
     cursor = conn.cursor()
@@ -42,9 +43,9 @@ def init_db():
 
 conn, cursor = init_db()
 
-# -------------------------
-# Funciones auxiliares
-# -------------------------
+# ---------------------------------------------------------
+# FUNCIONES AUXILIARES Y SEMÁFORO
+# ---------------------------------------------------------
 def obtener_semaforo(v):
     if 90 <= v <= 125: return "🟢 NORMAL"
     if 126 <= v <= 160: return "🟡 PRECAUCIÓN"
@@ -61,9 +62,9 @@ def validar_monto(monto):
         st.error("Por favor ingrese un número válido.")
         return None
 
-# -------------------------
-# IA Predictiva
-# -------------------------
+# ---------------------------------------------------------
+# IA PREDICTIVA (Módulo de Inteligencia scikit-learn)
+# ---------------------------------------------------------
 def predecir_glucosa(data):
     if len(data) > 3:
         X = np.arange(len(data)).reshape(-1,1)
@@ -82,114 +83,106 @@ def predecir_gastos(data):
         return pred[0]
     return None
 
-# -------------------------
-# Interfaz principal
-# -------------------------
+# ---------------------------------------------------------
+# INTERFAZ PRINCIPAL - NEXUS QUEVEDO PRO
+# ---------------------------------------------------------
 def main():
-    # Corrección: set_page_config (con guiones bajos)
     st.set_page_config(page_title="Nexus Quevedo", layout="wide")
     st.markdown("<style> .stMetric {background-color:#f9f9f9; border-radius:10px; padding:10px;} </style>", unsafe_allow_html=True)
 
-    # Login
-    st.sidebar.title("🔐 Login")
+    # Login Lateral
+    st.sidebar.title("🔐 Acceso Nexus")
     username = st.sidebar.text_input("Usuario")
     password = st.sidebar.text_input("Contraseña", type="password")
     
     if not username or not password:
-        st.warning("Ingrese sus credenciales para continuar.")
+        st.info("🛡️ Bienvenida a Nexus Pro. Por favor, identifíquese para acceder a sus datos.")
         return
 
     if not check_login(username, password):
-        st.error("Contraseña incorrecta.")
+        st.error("Acceso denegado.")
         return
 
-    st.title("📊 Nexus Quevedo - Asistente Personal")
+    st.title(f"📊 Panel de Control - {username}")
+    menu = st.sidebar.radio("Navegación Modular", ["Salud", "Finanzas", "Citas Médicas", "Respaldo"])
 
-    menu = st.sidebar.radio("Menú", ["Salud", "Finanzas", "Citas", "Backup"])
-
+    # --- MÓDULO SALUD ---
     if menu == "Salud":
-        st.subheader("🩸 Glucosa")
-        val = st.number_input("Valor Glucosa:", min_value=0, step=1)
-        if st.button("Guardar Glucosa"):
-            estado = obtener_semaforo(val)
-            fec = datetime.datetime.now().strftime("%d/%m %H:%M")
-            try:
+        st.subheader("🩸 Monitor de Glucosa")
+        col1, col2 = st.columns(2)
+        with col1:
+            val = st.number_input("Valor Glucosa (mg/dL):", min_value=0, step=1)
+            if st.button("Guardar Glucosa"):
+                estado = obtener_semaforo(val)
+                fec = datetime.datetime.now().strftime("%d/%m %H:%M")
                 cursor.execute('INSERT INTO glucosa (fecha, valor, estado) VALUES (?,?,?)', (fec, val, estado))
                 conn.commit()
-                st.success("Registro guardado")
-            except Exception as e:
-                st.error(f"Error al guardar: {e}")
+                st.success("Dato registrado permanentemente.")
         
-        # Corrección: read_sql_query (con guiones bajos)
         g_data = pd.read_sql_query('SELECT * FROM glucosa', conn)
-        st.write(g_data)
+        st.dataframe(g_data, use_container_width=True)
         
         if not g_data.empty:
-            pred = predecir_glucosa(g_data)
-            if pred:
-                st.info(f"🤖 Predicción: su glucosa mañana podría ser {pred:.1f}")
-            fig, ax = plt.subplots()
-            ax.plot(g_data['fecha'], g_data['valor'], marker='o')
-            plt.xticks(rotation=45)
-            st.pyplot(fig)
+            with col2:
+                pred = predecir_glucosa(g_data)
+                if pred:
+                    st.metric("🤖 Predicción Mañana", f"{pred:.1f} mg/dL")
+                fig, ax = plt.subplots()
+                ax.plot(g_data['fecha'], g_data['valor'], marker='o', color='#ff4b4b')
+                plt.xticks(rotation=45)
+                st.pyplot(fig)
 
-        st.subheader("💊 Medicamentos")
-        nmed = st.text_input("Medicamento:")
-        dmed = st.text_input("Dosis:")
-        h_med = st.time_input("Hora de tomarlo:")
+        st.divider()
+        st.subheader("💊 Gestión de Medicamentos")
+        nmed = st.text_input("Nombre del Medicamento:")
+        dmed = st.text_input("Dosis (ej: 500mg):")
+        h_med = st.time_input("Hora de toma:")
         if st.button("Registrar Medicamento"):
-            try:
-                cursor.execute('INSERT INTO meds (nombre, dosis, hora) VALUES (?,?,?)', (nmed, dmed, str(h_med)))
-                conn.commit()
-                st.success("Medicamento registrado")
-            except Exception as e:
-                st.error(f"Error: {e}")
+            cursor.execute('INSERT INTO meds (nombre, dosis, hora) VALUES (?,?,?)', (nmed, dmed, str(h_med)))
+            conn.commit()
+            st.success("Medicamento añadido a la lista.")
         
         m_data = pd.read_sql_query('SELECT * FROM meds', conn)
-        st.write(m_data)
+        st.table(m_data)
 
+    # --- MÓDULO FINANZAS ---
     elif menu == "Finanzas":
-        st.subheader("💰 Finanzas")
-        monto_input = st.text_input("Monto (RD$):")
-        monto_val = validar_monto(monto_input)
-        tipo = st.selectbox("Tipo:", ["Ingreso","Gasto"])
-        categoria = st.selectbox("Categoría:", ["Comida","Salud","Servicios","Otros"])
+        st.subheader("💰 Control Financiero")
+        m_input = st.text_input("Monto en RD$:")
+        m_val = validar_monto(m_input)
+        t_mov = st.selectbox("Tipo de Movimiento:", ["Ingreso", "Gasto"])
+        c_mov = st.selectbox("Categoría:", ["Comida", "Salud", "Servicios", "Hogar", "Otros"])
         
-        if st.button("Registrar Movimiento") and monto_val is not None:
-            try:
-                cursor.execute('INSERT INTO finanzas (monto, tipo, categoria) VALUES (?,?,?)', (monto_val, tipo, categoria))
-                conn.commit()
-                st.success("Movimiento registrado")
-            except Exception as e:
-                st.error(f"Error: {e}")
+        if st.button("Procesar Transacción") and m_val is not None:
+            cursor.execute('INSERT INTO finanzas (monto, tipo, categoria) VALUES (?,?,?)', (m_val, t_mov, c_mov))
+            conn.commit()
+            st.success("Movimiento guardado en la base de datos.")
         
-        # Corrección: read_sql_query
         f_data = pd.read_sql_query('SELECT * FROM finanzas', conn)
-        st.write(f_data)
+        st.dataframe(f_data, use_container_width=True)
         
         if not f_data.empty:
-            pred = predecir_gastos(f_data)
-            if pred:
-                st.info(f"🤖 Predicción: próximo gasto estimado RD$ {pred:.2f}")
+            pred_f = predecir_gastos(f_data)
+            if pred_f:
+                st.info(f"🤖 Basado en su historial, el próximo gasto estimado es de RD$ {pred_f:.2f}")
 
-    elif menu == "Citas":
-        st.subheader("📅 Citas")
-        f_c = st.date_input("Fecha")
-        d_c = st.text_input("Doctor")
-        if st.button("Agendar Cita"):
-            try:
-                cursor.execute('INSERT INTO citas (fecha, doctor) VALUES (?,?)', (str(f_c), d_c))
-                conn.commit()
-                st.success("Cita registrada")
-            except Exception as e:
-                st.error(f"Error: {e}")
+    # --- MÓDULO CITAS ---
+    elif menu == "Citas Médicas":
+        st.subheader("📅 Agenda de Citas")
+        f_c = st.date_input("Fecha programada:")
+        d_c = st.text_input("Especialista / Centro:")
+        if st.button("Confirmar Cita"):
+            cursor.execute('INSERT INTO citas (fecha, doctor) VALUES (?,?)', (str(f_c), d_c))
+            conn.commit()
+            st.success("Cita agendada correctamente.")
         
         c_data = pd.read_sql_query('SELECT * FROM citas', conn)
         st.write(c_data)
 
-    elif menu == "Backup":
-        st.subheader("📤 Exportación")
-        st.info("Función de respaldo lista para implementación de descarga de base de datos.")
+    # --- MÓDULO RESPALDO ---
+    elif menu == "Respaldo":
+        st.subheader("📤 Exportación de Seguridad")
+        st.write("Sus datos están persistidos en `nexuspro.db`. Use esta sección para generar backups futuros.")
 
 if __name__ == "__main__":
     main()
