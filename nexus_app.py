@@ -2,107 +2,164 @@ import streamlit as st
 import pandas as pd
 import datetime
 from fpdf import FPDF
+import io
 
 # ==========================================
-# 1. MOTOR DE LÓGICA (BACKEND SIMULADO)
+# 1. MOTOR DE INTELIGENCIA Y PERSISTENCIA
 # ==========================================
 class MotorNEXUS:
     def __init__(self):
-        # Bases de Datos Independientes (como en su diagrama)
+        # Inicialización de Bases de Datos en Memoria (Session State)
         if 'db_finanzas' not in st.session_state: st.session_state.db_finanzas = []
         if 'db_salud' not in st.session_state: st.session_state.db_salud = []
-        if 'presupuesto' not in st.session_state: st.session_state.presupuesto = 5000.0
-        self.ingresos = 8500.0
+        if 'presupuesto' not in st.session_state: st.session_state.presupuesto = 10000.0
+        if 'ingresos_totales' not in st.session_state: st.session_state.ingresos_totales = 0.0
 
-    def obtener_alertas_ia(self):
-        total_g = sum(g['Monto'] for g in st.session_state.db_finanzas)
+    def calcular_metricas(self):
+        gastos = sum(item['Monto'] for item in st.session_state.db_finanzas if item['Tipo'] == 'Gasto')
+        ingresos = sum(item['Monto'] for item in st.session_state.db_finanzas if item['Tipo'] == 'Ingreso')
+        balance = ingresos - gastos
+        return balance, gastos, ingresos
+
+    def ia_predictiva(self):
         alertas = []
+        balance, gastos, _ = self.calcular_metricas()
+        
         # Predicción Financiera
-        if total_g > st.session_state.presupuesto * 0.8:
-            alertas.append("⚠️ IA FINANZAS: Predicción de agotamiento de presupuesto próximamente.")
-        # Análisis de Salud
-        if any(s['Glucosa'] > 140 for s in st.session_state.db_salud):
-            alertas.append("🚨 IA SALUD: Se detectaron picos de glucosa en el historial.")
-        return alertas, total_g
+        if gastos > st.session_state.presupuesto * 0.9:
+            alertas.append("⚠️ IA ALERTA: Has superado el 90% de tu presupuesto establecido.")
+        elif gastos > st.session_state.presupuesto * 0.7:
+            alertas.append("💡 IA SUGERENCIA: El ritmo de gasto indica que agotarás el presupuesto en 4 días.")
+            
+        # Predicción de Salud (Basado en Glucosa)
+        registros_glu = [r['Valor'] for r in st.session_state.db_salud if r['Categoría'] == 'Glucosa']
+        if registros_glu and registros_glu[-1] > 140:
+            alertas.append("🚨 IA SALUD: Nivel de glucosa elevado. Se recomienda revisión médica inmediata.")
+        
+        return alertas
 
 # ==========================================
-# 2. DASHBOARD PRINCIPAL (FRONTEND)
+# 2. INTERFAZ MODERNA (DASHBOARD)
 # ==========================================
 def main():
-    st.set_page_config(page_title="NEXUS PRO - Arquitectura", layout="wide")
+    st.set_page_config(page_title="NEXUS PRO - Dashboard", layout="wide", page_icon="🧬")
     nexus = MotorNEXUS()
 
-    # --- ENCABEZADO ESTILO DASHBOARD ---
-    st.title("🚀 NEXUS SMART: Dashboard Principal")
-    alertas_ia, total_gastado = nexus.obtener_alertas_ia()
+    # Estilo CSS para Elegancia Moderna
+    st.markdown("""
+        <style>
+        .stApp { background-color: #0d1117; color: #c9d1d9; }
+        .stButton>button { width: 100%; border-radius: 8px; border: 1px solid #30363d; background-color: #21262d; }
+        .stMetric { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; }
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.title("🧬 NEXUS SMART: Dashboard Integral")
     
-    # Métricas rápidas arriba
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Balance Disponible", f"RD$ {nexus.ingresos - total_gastado}")
-    c2.metric("Presupuesto Fijo", f"RD$ {st.session_state.presupuesto}")
-    c3.metric("Estado General", "Estable" if not alertas_ia else "Atención")
+    # --- MÉTRICAS SUPERIORES ---
+    balance, total_gastos, total_ingresos = nexus.calcular_metricas()
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Balance Neto", f"RD$ {balance:,.2f}")
+    m2.metric("Total Gastos", f"RD$ {total_gastos:,.2f}", delta_color="inverse")
+    m3.metric("Presupuesto", f"RD$ {st.session_state.presupuesto:,.2f}")
+    m4.metric("Salud Glucosa", f"{st.session_state.db_salud[-1]['Valor'] if st.session_state.db_salud else 'N/A'} mg/dL")
 
-    # --- SEPARACIÓN POR PESTAÑAS (Arquitectura de su diagrama) ---
-    tab_fin, tab_salud, tab_ia = st.tabs(["💰 ÁREA FINANZAS", "🩺 ÁREA SALUD", "🤖 MOTOR IA & REPORTES"])
+    # --- PESTAÑAS PRINCIPALES ---
+    tab_fin, tab_salud, tab_ia = st.tabs(["💰 GESTIÓN FINANCIERA", "🩺 CONTROL DE SALUD", "🤖 IA & REPORTES"])
 
-    # --- PESTAÑA FINANZAS ---
+    # 1. SECCIÓN FINANZAS
     with tab_fin:
-        st.subheader("Gestión de Ingresos & Gastos")
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            desc = st.text_input("Concepto:")
-            monto = st.number_input("Monto (RD$):", min_value=0.0, key="f_monto")
-            if st.button("AÑADIR GASTO"):
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            st.subheader("Registrar Movimiento")
+            tipo = st.selectbox("Tipo", ["Gasto", "Ingreso"])
+            concepto = st.text_input("Concepto (Ej: Supermercado)")
+            monto = st.number_input("Monto RD$", min_value=0.0)
+            if st.button("Añadir a Finanzas"):
                 st.session_state.db_finanzas.append({
-                    "Fecha": datetime.datetime.now().strftime("%d/%m/%Y %H:%M"),
-                    "Concepto": desc,
+                    "ID": len(st.session_state.db_finanzas),
+                    "Fecha": datetime.datetime.now().strftime("%d/%m/%Y"),
+                    "Tipo": tipo,
+                    "Concepto": concepto,
                     "Monto": monto
                 })
-        with col_f2:
-            st.write("Historial Financiero")
+                st.rerun()
+            
+            st.write("---")
+            st.session_state.presupuesto = st.number_input("Ajustar Presupuesto Mensual", value=st.session_state.presupuesto)
+
+        with col2:
+            st.subheader("Historial Financiero")
             if st.session_state.db_finanzas:
-                st.table(pd.DataFrame(st.session_state.db_finanzas))
-                if st.button("Limpiar Finanzas"):
+                df_fin = pd.DataFrame(st.session_state.db_finanzas)
+                st.dataframe(df_fin[["Fecha", "Tipo", "Concepto", "Monto"]], use_container_width=True)
+                if st.button("🗑️ Borrar Historial de Finanzas"):
                     st.session_state.db_finanzas = []
                     st.rerun()
 
-    # --- PESTAÑA SALUD ---
+    # 2. SECCIÓN SALUD
     with tab_salud:
-        st.subheader("Control Médico & Medicamentos")
-        col_s1, col_s2 = st.columns(2)
-        with col_s1:
-            glu = st.number_input("Registro de Glucosa:", min_value=0)
-            med = st.text_input("Medicamento / Cita:")
-            if st.button("REGISTRAR EN SALUD"):
+        s_col1, s_col2 = st.columns([1, 2])
+        with s_col1:
+            st.subheader("Ingreso de Datos Médicos")
+            cat_salud = st.selectbox("Categoría", ["Glucosa", "Medicamento", "Cita Médica"])
+            detalle_salud = st.text_input("Detalle (Nombre de Medicina / Doctor)")
+            valor_salud = st.number_input("Valor (Si es glucosa)", min_value=0.0)
+            
+            if st.button("Guardar en Salud"):
                 st.session_state.db_salud.append({
                     "Fecha": datetime.datetime.now().strftime("%d/%m/%Y %H:%M"),
-                    "Glucosa": glu,
-                    "Detalle": med
+                    "Categoría": cat_salud,
+                    "Detalle": detalle_salud,
+                    "Valor": valor_salud
                 })
-        with col_s2:
-            st.write("Historial Médico")
+                st.rerun()
+            
+            st.write("---")
+            if st.button("📷 SIMULAR ESCÁNER (OCR)"):
+                # Simulación de guardado de escáner
+                st.session_state.db_salud.append({
+                    "Fecha": datetime.datetime.now().strftime("%d/%m/%Y"),
+                    "Categoría": "Escáner",
+                    "Detalle": "Documento Analizado: Glucosa 125 mg/dL",
+                    "Valor": 125.0
+                })
+                st.success("Documento escaneado y guardado en Salud.")
+
+        with s_col2:
+            st.subheader("Historial Médico")
             if st.session_state.db_salud:
                 st.table(pd.DataFrame(st.session_state.db_salud))
-                if st.button("Limpiar Salud"):
+                if st.button("🗑️ Borrar Historial de Salud"):
                     st.session_state.db_salud = []
                     st.rerun()
 
-    # --- PESTAÑA IA & REPORTES ---
+    # 3. SECCIÓN IA Y EXPORTACIÓN
     with tab_ia:
-        st.subheader("Modelos Predictivos & Generador PDF")
-        for alerta in alertas_ia:
-            st.warning(alerta)
-        
-        st.write("---")
-        if st.button("📄 GENERAR REPORTE GLOBAL (PDF)"):
-            st.info("Generando reporte basado en la base de datos central...")
-            # Aquí iría la lógica del PDF que ya tenemos
+        st.subheader("Análisis Predictivo Nexus")
+        alertas = nexus.ia_predictiva()
+        for a in alertas:
+            st.info(a) if "Sugerencia" in a else st.warning(a) if "Presupuesto" in a else st.error(a)
 
-    # --- SIDEBAR (CONEXIONES EXTERNAS) ---
-    with st.sidebar:
-        st.header("Conexiones")
-        st.button("📲 API WHATSAPP")
-        st.button("📷 ESCÁNER DOCUMENTOS")
+        st.write("---")
+        st.subheader("Generación de Documentos")
+        c_pdf, c_wa = st.columns(2)
+        
+        with c_pdf:
+            if st.button("📄 GENERAR REPORTE PDF"):
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", 'B', 16)
+                pdf.cell(200, 10, txt="REPORTE OFICIAL NEXUS PRO", ln=True, align='C')
+                pdf.set_font("Arial", size=12)
+                pdf.cell(200, 10, txt=f"Balance Actual: RD$ {balance}", ln=True)
+                # (Lógica simplificada de PDF)
+                st.download_button("Descargar PDF", data=pdf.output(dest='S'), file_name="Reporte_Nexus.pdf")
+
+        with c_wa:
+            wa_msg = f"Reporte NEXUS: Balance RD$ {balance}. Glucosa: {st.session_state.db_salud[-1]['Valor'] if st.session_state.db_salud else 'N/A'}"
+            wa_url = f"https://wa.me/?text={wa_msg.replace(' ', '%20')}"
+            st.markdown(f'[📲 Enviar a WhatsApp]({wa_url})')
 
 if __name__ == "__main__":
     main()
