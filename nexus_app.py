@@ -91,7 +91,7 @@ def main():
 
     # Estilo CSS para Dark Mode y Botones
     st.markdown("""<style> .stButton>button {width: 100%; border-radius: 5px; height: 3em;} 
-                .stMetric {background-color: #1e1e1e; padding: 15px; border-radius: 10px;} </style>""", unsafeallowhtml=True)
+                .stMetric {background-color: #1e1e1e; padding: 15px; border-radius: 10px;} </style>""", unsafe_allow_html=True)
 
     if "loggedin" not in st.session_state:
         st.session_state.loggedin = False
