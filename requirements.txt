@@ -1,7 +1,4 @@
 streamlit
 pandas
-plotly
-pytz
-fpdf
 matplotlib
-openpyx1
+fpdf
