@@ -8,12 +8,12 @@ from fpdf import FPDF
 from sklearn.linear_model import LinearRegression
 import numpy as np
 
-# --- 1. SEGURIDAD Y ACCESO ---
+# --- 1. SEGURIDAD ---
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def check_login(username, password):
-    conn = sqlite3.connect('nexus_quevedo_core.db', check_same_thread=False)
+    conn = sqlite3.connect('nexus_total_pro.db', check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, password TEXT)')
     conn.commit()
@@ -26,42 +26,38 @@ def check_login(username, password):
         conn.commit()
         return True
 
-# --- 2. BASE DE DATOS (ESTRUCTURA COMPLETA SEGÚN ARQUITECTURA) ---
+# --- 2. BASE DE DATOS UNIFICADA (Lógica Pro) ---
 def init_db():
-    conn = sqlite3.connect('nexus_quevedo_core.db', check_same_thread=False)
+    conn = sqlite3.connect('nexus_total_pro.db', check_same_thread=False)
     cursor = conn.cursor()
-    # Salud
+    # Módulo Finanzas (Ingresos, Gastos y Presupuesto)
+    cursor.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, user_id TEXT, monto REAL, tipo TEXT, categoria TEXT, fecha TEXT)')
+    cursor.execute('CREATE TABLE IF NOT EXISTS presupuestos (id INTEGER PRIMARY KEY, user_id TEXT, categoria TEXT, limite REAL)')
+    # Módulo Salud
     cursor.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, user_id TEXT, fecha TEXT, valor REAL, estado TEXT)')
-    cursor.execute('CREATE TABLE IF NOT EXISTS meds (id INTEGER PRIMARY KEY, user_id TEXT, nombre TEXT, dosis TEXT, nota TEXT)')
-    cursor.execute('CREATE TABLE IF NOT EXISTS citas (id INTEGER PRIMARY KEY, user_id TEXT, fecha TEXT, doctor TEXT, nota TEXT)')
-    # Finanzas
-    cursor.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, user_id TEXT, monto REAL, tipo TEXT, categoria TEXT, nota TEXT)')
+    cursor.execute('CREATE TABLE IF NOT EXISTS meds (id INTEGER PRIMARY KEY, user_id TEXT, nombre TEXT, dosis TEXT)')
+    cursor.execute('CREATE TABLE IF NOT EXISTS citas (id INTEGER PRIMARY KEY, user_id TEXT, fecha TEXT, doctor TEXT)')
     conn.commit()
     return conn, cursor
 
 conn, cursor = init_db()
 
-# --- 3. MOTOR DE COMUNICACIÓN Y REPORTES (WHATSAPP, GMAIL, PDF) ---
-def compartir_whatsapp(texto):
-    url = f"https://wa.me/?text={urllib.parse.quote(texto)}"
-    st.markdown(f'<a href="{url}" target="_blank"><button style="background-color:#25D366;color:white;border:none;padding:10px;border-radius:5px;width:100%;">📲 Compartir por WhatsApp</button></a>', unsafe_allow_html=True)
+# --- 3. MOTOR DE COMUNICACIÓN Y PDF ---
+def enviar_whatsapp(texto):
+    msg = urllib.parse.quote(texto)
+    st.markdown(f'''<a href="https://wa.me/?text={msg}" target="_blank"><button style="background-color:#25D366; color:white; border:none; padding:10px; border-radius:5px;">📲 WhatsApp</button></a>''', unsafe_allow_html=True)
 
-def preparar_gmail(asunto, cuerpo):
-    url = f"https://mail.google.com/mail/?view=cm&fs=1&su={urllib.parse.quote(asunto)}&body={urllib.parse.quote(cuerpo)}"
-    st.markdown(f'<a href="{url}" target="_blank"><button style="background-color:#DB4437;color:white;border:none;padding:10px;border-radius:5px;width:100%;">📧 Enviar por Gmail</button></a>', unsafe_allow_html=True)
-
-def generar_pdf(img_file, titulo="Reporte Nexus Pro"):
+def generar_pdf_estudio(img_file):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(190, 10, titulo, ln=1, align='C')
-    with open("temp_img.png", "wb") as f:
-        f.write(img_file.getbuffer())
-    pdf.image("temp_img.png", x=10, y=30, w=180)
-    pdf.output("nexus_reporte.pdf")
-    return "nexus_reporte.pdf"
+    pdf.cell(190, 10, "Reporte Nexus Pro - Multiservicios Anael", ln=1, align='C')
+    with open("temp.png", "wb") as f: f.write(img_file.getbuffer())
+    pdf.image("temp.png", x=10, y=30, w=180)
+    pdf.output("reporte.pdf")
+    return "reporte.pdf"
 
-# --- 4. INTERFAZ PRINCIPAL ---
+# --- 4. INTERFAZ DASHBOARD PRINCIPAL ---
 def main():
     st.set_page_config(page_title="Nexus Quevedo Pro", layout="wide", page_icon="🛡️")
 
@@ -69,93 +65,81 @@ def main():
         st.session_state.loggedin = False
 
     if not st.session_state.loggedin:
-        st.sidebar.title("🔐 Acceso")
+        st.sidebar.title("🔐 Acceso Nexus")
         u = st.sidebar.text_input("Usuario")
         p = st.sidebar.text_input("Contraseña", type="password")
-        if st.sidebar.button("Entrar"):
+        if st.sidebar.button("Ingresar"):
             if check_login(u, p):
                 st.session_state.loggedin = True
                 st.session_state.userid = u
                 st.rerun()
         return
 
-    menu = st.sidebar.radio("Navegación", ["📊 Dashboard", "💰 Finanzas", "🩺 Salud", "📦 Escáner y Comunicación"])
+    menu = st.sidebar.radio("Navegación", ["💰 Finanzas e Ingresos", "🩺 Salud e IA", "📅 Citas y Agenda", "📦 Escáner y Envío"])
     
-    if st.sidebar.button("Cerrar Sesión"):
-        st.session_state.loggedin = False
-        st.rerun()
-
-    # --- MÓDULO FINANZAS ---
-    if menu == "💰 Finanzas":
-        st.header("💰 Gestión Financiera")
-        col1, col2 = st.columns(2)
-        with col1:
-            monto = st.number_input("Monto RD$:", min_value=0.0)
-            tipo = st.selectbox("Tipo:", ["Ingreso", "Gasto"])
-            cat = st.selectbox("Categoría:", ["Salud", "Hogar", "Comida", "Inversión", "Otros"])
-            if st.button("Registrar Movimiento"):
-                cursor.execute('INSERT INTO finanzas (user_id, monto, tipo, categoria) VALUES (?,?,?,?)', (st.session_state.userid, monto, tipo, cat))
-                conn.commit()
-                st.success("Registrado")
+    # --- MÓDULO FINANZAS (PRESUPUESTO INCLUIDO) ---
+    if menu == "💰 Finanzas e Ingresos":
+        st.header("💰 Gestión Financiera Inteligente")
+        t1, t2 = st.tabs(["📊 Ingresos & Gastos", "🎯 Definir Presupuesto"])
         
-        df_f = pd.read_sql_query('SELECT * FROM finanzas WHERE user_id=?', conn, params=(st.session_state.userid,))
-        st.dataframe(df_f, use_container_width=True)
-        
-        if len(df_f) >= 3:
-            st.subheader("📈 Predicción Financiera")
-            # Lógica simple de IA para tendencia de gasto
-            st.info("🤖 El motor de IA proyecta estabilidad en su flujo de caja actual.")
-
-    # --- MÓDULO SALUD ---
-    elif menu == "🩺 Salud":
-        st.header("🩺 Control de Salud")
-        tab1, tab2, tab3 = st.tabs(["🩸 Glucosa e IA", "💊 Medicamentos", "📅 Citas"])
-        
-        with tab1:
-            val = st.number_input("Nivel de Glucosa:", min_value=0)
-            if st.button("Guardar Glucosa"):
-                fec = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-                est = "🟢 Normal" if val <= 125 else "🔴 Alerta"
-                cursor.execute('INSERT INTO glucosa (user_id, fecha, valor, estado) VALUES (?,?,?,?)', (st.session_state.userid, fec, val, est))
+        with t2:
+            st.subheader("Configurar Presupuesto Mensual")
+            cat_p = st.selectbox("Categoría Presupuesto:", ["Salud", "Comida", "Hogar", "Servicios"])
+            limite = st.number_input("Límite de Gasto (RD$):", min_value=0.0)
+            if st.button("Establecer Presupuesto"):
+                cursor.execute('INSERT INTO presupuestos (user_id, categoria, limite) VALUES (?,?,?)', (st.session_state.userid, cat_p, limite))
                 conn.commit()
-            df_g = pd.read_sql_query('SELECT * FROM glucosa WHERE user_id=?', conn, params=(st.session_state.userid,))
-            st.line_chart(df_g.set_index('fecha')['valor'])
-            
-        with tab2:
-            med = st.text_input("Nombre del Medicamento:")
-            dosis = st.text_input("Dosis:")
-            if st.button("Añadir Medicamento"):
-                cursor.execute('INSERT INTO meds (user_id, nombre, dosis) VALUES (?,?,?)', (st.session_state.userid, med, dosis))
-                conn.commit()
-            st.table(pd.read_sql_query('SELECT nombre, dosis FROM meds WHERE user_id=?', conn, params=(st.session_state.userid,)))
+                st.success(f"Presupuesto para {cat_p} guardado.")
 
-        with tab3:
-            doc = st.text_input("Doctor:")
-            f_cita = st.date_input("Fecha de Cita:")
-            if st.button("Agendar Cita"):
-                cursor.execute('INSERT INTO citas (user_id, fecha, doctor) VALUES (?,?,?)', (st.session_state.userid, str(f_cita), doc))
-                conn.commit()
-            st.write(pd.read_sql_query('SELECT fecha, doctor FROM citas WHERE user_id=?', conn, params=(st.session_state.userid,)))
+        with t1:
+            col1, col2 = st.columns(2)
+            with col1:
+                monto = st.number_input("Monto (RD$):", min_value=0.0)
+                tipo = st.selectbox("Tipo:", ["Ingreso", "Gasto"])
+                cat = st.selectbox("Categoría:", ["Comida", "Salud", "Hogar", "Servicios", "Otros"])
+                if st.button("Registrar Movimiento"):
+                    fec = datetime.datetime.now().strftime("%Y-%m-%d")
+                    cursor.execute('INSERT INTO finanzas (user_id, monto, tipo, categoria, fecha) VALUES (?,?,?,?,?)', (st.session_state.userid, monto, tipo, cat, fec))
+                    conn.commit()
+                    st.success("Registrado.")
 
-    # --- MÓDULO ESCÁNER Y COMUNICACIÓN ---
-    elif menu == "📦 Escáner y Comunicación":
-        st.header("📦 Escáner y Envío de Reportes")
-        archivo = st.file_uploader("📸 Escanear Documento/Receta", type=['jpg', 'png', 'jpeg'])
+            # Comparativa vs Presupuesto
+            df_f = pd.read_sql_query('SELECT * FROM finanzas WHERE user_id=?', conn, params=(st.session_state.userid,))
+            df_p = pd.read_sql_query('SELECT * FROM presupuestos WHERE user_id=?', conn, params=(st.session_state.userid,))
+            st.write("### Resumen vs Presupuesto")
+            st.dataframe(df_f)
+
+    # --- MÓDULO SALUD e IA ---
+    elif menu == "🩺 Salud e IA":
+        st.header("🩺 Salud Inteligente")
+        val = st.number_input("Glucosa:", min_value=0)
+        if st.button("Guardar"):
+            fec = datetime.datetime.now().strftime("%d/%m %H:%M")
+            est = "🟢 NORMAL" if val <= 125 else "🔴 ALERTA"
+            cursor.execute('INSERT INTO glucosa (user_id, fecha, valor, estado) VALUES (?,?,?,?)', (st.session_state.userid, fec, val, est))
+            conn.commit()
         
-        if archivo:
-            if st.button("📄 Generar PDF"):
-                path = generar_pdf(archivo)
-                with open(path, "rb") as f:
-                    st.download_button("📥 Descargar Reporte PDF", f, file_name="Nexus_Reporte.pdf")
+        df_g = pd.read_sql_query('SELECT * FROM glucosa WHERE user_id=?', conn, params=(st.session_state.userid,))
+        st.line_chart(df_g['valor'])
+        if len(df_g) >= 5:
+            X = np.arange(len(df_g)).reshape(-1, 1); y = df_g['valor'].values
+            model = LinearRegression().fit(X, y); pred = model.predict([[len(df_g) + 1]])
+            st.info(f"🤖 Predicción IA: {pred[0]:.1f} mg/dL")
+
+    # --- MÓDULO ESCÁNER Y ENVÍO ---
+    elif menu == "📦 Escáner y Envío":
+        st.header("📦 Documentos y Comunicación")
+        archivo = st.file_uploader("Subir estudio", type=['jpg', 'png', 'jpeg'])
+        if archivo and st.button("📄 Generar PDF"):
+            path = generar_pdf_estudio(archivo)
+            with open(path, "rb") as f: st.download_button("📥 Descargar", f, file_name="Reporte.pdf")
         
         st.divider()
-        st.subheader("✉️ Canales de Comunicación")
-        msg = st.text_area("Mensaje de Reporte:", "Adjunto mi reporte de salud/finanzas desde Nexus Pro.")
+        txt = st.text_area("Mensaje:", "Reporte Nexus Pro enviado.")
         col_w, col_g = st.columns(2)
-        with col_w:
-            compartir_whatsapp(msg)
-        with col_g:
-            preparar_gmail("Reporte Nexus Pro", msg)
+        with col_w: enviar_whatsapp(txt)
+        with col_g: 
+            st.markdown(f'<a href="https://mail.google.com/mail/?view=cm&fs=1&body={txt}" target="_blank"><button style="background-color:#DB4437; color:white; border:none; padding:10px; border-radius:5px;">📧 Gmail</button></a>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
