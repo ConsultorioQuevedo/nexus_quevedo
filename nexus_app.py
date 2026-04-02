@@ -15,7 +15,7 @@ st.markdown(
     """<style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;700&display=swap');
     html, body, [class*="css"] { font-family: 'Poppins', sans-serif; background-color: #0E1117; color: #E6EEF3; }
-    .stButton>button { background-color:#2563EB; color: white; width: 100%; }
+    .stButton>button { background-color:#2563EB; color: white; width: 100%; border-radius: 5px; height: 3em; }
     </style>""",
     unsafe_allow_html=True,
 )
@@ -239,9 +239,15 @@ if menu == "💰 Finanzas":
         gastos = df_f[df_f['tipo']=='Gasto']['monto'].sum() if not df_f.empty else 0.0
         bal = ingresos - gastos
         st.metric("Presupuesto Disponible", f"RD$ {bal:,.2f}", delta=f"RD$ {ingresos:,.2f} ingresos / RD$ {gastos:,.2f} gastos")
+        
         if st.button("Generar Backup (Excel)"):
             bio = generar_backup_excel_bytes(st.session_state.user)
-            st.download_button("📥 Descargar Backup Excel", data=bio, file_name="backup_nexus.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            st.download_button(
+                label="📥 Descargar Backup Excel",
+                data=bio,
+                file_name="backup_nexus.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
 elif menu == "🏥 Salud e IA":
     st.header("Módulo de Salud Inteligente")
@@ -253,9 +259,12 @@ elif menu == "🏥 Salud e IA":
         if st.button("Guardar Glucosa"):
             ok, fecha = guardar_glucosa(st.session_state.user, gluc)
             if ok:
-                if 70 <= gluc <= 125: st.success("🟢 NORMAL")
-                elif 126 <= gluc <= 160: st.warning("🟡 PRECAUCIÓN")
-                else: st.error("🔴 ALERTA CRÍTICA")
+                if 70 <= gluc <= 125:
+                    st.success("🟢 NORMAL")
+                elif 126 <= gluc <= 160:
+                    st.warning("🟡 PRECAUCIÓN")
+                else:
+                    st.error("🔴 ALERTA CRÍTICA")
                 st.rerun()
             else:
                 st.error("No se pudo guardar el registro.")
@@ -276,7 +285,7 @@ elif menu == "🏥 Salud e IA":
                 dfplot['fechadt'] = pd.to_datetime(dfplot['fecha'])
                 dfplot_sorted = dfplot.sort_values('fechadt')
                 fig, ax = plt.subplots(figsize=(8,3))
-                ax.plot(dfplot_sorted['fechadt'], dfplot_sorted['valor'], marker='o', color='#60A5FA')
+                ax.plot(df_plot_sorted['fechadt'], df_plot_sorted['valor'], marker='o', color='#60A5FA')
                 ax.set_title("Tendencia de Glucosa")
                 ax.set_ylabel("mg/dL")
                 plt.xticks(rotation=25)
@@ -288,8 +297,8 @@ elif menu == "🏥 Salud e IA":
             st.info("Aún no hay registros de glucosa.")
 
     with col2:
-        st.subheader("Medicamentos y Citas")
-        nombre_m = st.text_input("Medicamento")
+        st.subheader("Medicamentos")
+        nombre_m = st.text_input("Nombre del Medicamento")
         dosis_m = st.text_input("Dosis")
         hora_m = st.time_input("Hora de toma")
         if st.button("Registrar Medicamento"):
@@ -297,7 +306,7 @@ elif menu == "🏥 Salud e IA":
             st.success("Medicamento registrado.")
 
         st.write("---")
-        st.subheader("Registrar Cita")
+        st.subheader("Agendar Cita")
         fecha_c = st.date_input("Fecha de cita")
         doctor_c = st.text_input("Doctor / Especialidad", key="doctorinput")
         if st.button("Agendar Cita"):
