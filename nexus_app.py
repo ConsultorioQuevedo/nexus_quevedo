@@ -95,8 +95,8 @@ def generar_reportes():
 
     reporte = "📑 Reporte Nexus\n\n"
     reporte += "🩸 Glucosa:\n"
-    for , r in gdata.iterrows():
-        reporte += f"- {r['fecha']}: {r['valor']} ({r['estado']})\n"
+    for i , r in gdata.iterrows():
+    reporte += f"- {r['fecha']}: {r['valor']} ({r['estado']})\n"
     reporte += "\n📅 Citas:\n"
     for , c in cdata.iterrows():
         reporte += f"- {c['fecha']}: {c['doctor']}\n"
