@@ -4,6 +4,7 @@ import sqlite3
 import datetime
 import urllib.parse
 from fpdf import FPDF
+import matplotlib.pyplot as plt
 import os
 
 def init_db():
@@ -13,7 +14,7 @@ def init_db():
     cursor.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, fecha TEXT, valor REAL, estado TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS meds (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS citas (id INTEGER PRIMARY KEY, fecha TEXT, doctor TEXT)')
-    cursor.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, monto REAL, tipo TEXT)')
+    cursor.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, monto REAL, tipo TEXT, categoria TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS escaneo (id INTEGER PRIMARY KEY, fecha TEXT, archivo TEXT)')
     conn.commit()
     return conn, cursor
@@ -37,18 +38,30 @@ def generarpdf(img, nombre_archivo="documento_nexus.pdf"):
         os.remove(img_path)
     return nombre_archivo
 
+def exportar_backup():
+    data_glucosa = pd.read_sql_query('SELECT * FROM glucosa', conn)
+    data_meds = pd.read_sql_query('SELECT * FROM meds', conn)
+    data_citas = pd.read_sql_query('SELECT * FROM citas', conn)
+    data_fin = pd.read_sql_query('SELECT * FROM finanzas', conn)
+    
+    # Usamos CSV para máxima compatibilidad y simplicidad en la limpieza
+    data_glucosa.to_csv("backup_glucosa.csv", index=False)
+    with open("backup_glucosa.csv", "rb") as f:
+        st.download_button("📥 Descargar Backup Glucosa (CSV)", f, file_name="backup_glucosa.csv")
+
 def mostrar_finanzas():
-    st.subheader("Gestión Financiera")
+    st.subheader("📊 Gestión Financiera Pro")
     presupuesto = st.number_input("Presupuesto mensual (RD$):", min_value=0.0, format="%.2f", step=100.0)
     if st.button("Guardar Presupuesto"):
-        cursor.execute('INSERT INTO finanzas (monto, tipo) VALUES (?,?)', (presupuesto, "Presupuesto"))
+        cursor.execute('INSERT INTO finanzas (monto, tipo, categoria) VALUES (?,?,?)', (presupuesto, "Presupuesto","General"))
         conn.commit()
         st.success(f"Presupuesto registrado: RD$ {presupuesto:,.2f}")
     
     monto = st.number_input("Monto (RD$):", min_value=0.0, format="%.2f", step=1.0)
     tipo = st.selectbox("Tipo de movimiento:", ["Ingreso", "Gasto"])
+    categoria = st.selectbox("Categoría:", ["Comida","Salud","Servicios","Otros"])
     if st.button("Registrar Movimiento"):
-        cursor.execute('INSERT INTO finanzas (monto, tipo) VALUES (?,?)', (monto, tipo))
+        cursor.execute('INSERT INTO finanzas (monto, tipo, categoria) VALUES (?,?,?)', (monto, tipo, categoria))
         conn.commit()
         st.success(f"{tipo} registrado: RD$ {monto:,.2f}")
     
@@ -56,25 +69,29 @@ def mostrar_finanzas():
     st.write(data)
     
     borrar_id = st.number_input("ID a borrar en Finanzas:", min_value=0, step=1, key="fin_del")
-    if st.button("Borrar Finanzas"):
+    if st.button("Borrar Registro"):
         cursor.execute('DELETE FROM finanzas WHERE id=?', (borrar_id,))
         conn.commit()
-        st.success("Registro eliminado")
+        st.rerun()
 
     ingresos = data[data['tipo']=="Ingreso"]['monto'].sum()
     gastos = data[data['tipo']=="Gasto"]['monto'].sum()
     presupuesto_total = data[data['tipo']=="Presupuesto"]['monto'].sum()
     balance = ingresos - gastos
     
-    st.metric("Ingresos", f"RD$ {ingresos:,.2f}")
-    st.metric("Gastos", f"RD$ {gastos:,.2f}")
-    st.metric("Balance", f"RD$ {balance:,.2f}")
-    st.metric("Presupuesto", f"RD$ {presupuesto_total:,.2f}")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Ingresos", f"RD$ {ingresos:,.2f}")
+    c2.metric("Gastos", f"RD$ {gastos:,.2f}")
+    c3.metric("Balance", f"RD$ {balance:,.2f}")
+    c4.metric("Presupuesto", f"RD$ {presupuesto_total:,.2f}")
     
-    if balance < presupuesto_total:
-        st.warning("⚠️ El balance está por debajo del presupuesto. IA recomienda reducir gastos.")
-    else:
-        st.info("✅ Balance dentro del presupuesto.")
+    if not data.empty:
+        gastos_cat = data[data['tipo']=="Gasto"].groupby("categoria")['monto'].sum()
+        if not gastos_cat.empty:
+            fig, ax = plt.subplots()
+            ax.pie(gastos_cat, labels=gastos_cat.index, autopct='%1.1f%%', startangle=90)
+            ax.set_title("Distribución de Gastos")
+            st.pyplot(fig)
 
 def mostrar_salud():
     t_gluc, t_meds, t_citas, t_scan = st.tabs(["🩸 Glucosa", "💊 Medicamentos", "📅 Citas", "📸 Escáner"])
@@ -91,96 +108,66 @@ def mostrar_salud():
         g_data = pd.read_sql_query('SELECT * FROM glucosa', conn)
         st.write(g_data)
         
-        borrar_id = st.number_input("ID a borrar en Glucosa:", min_value=0, step=1, key="glu_del")
-        if st.button("Borrar Glucosa"):
-            cursor.execute('DELETE FROM glucosa WHERE id=?', (borrar_id,))
-            conn.commit()
-            st.success("Registro eliminado")
+        if not g_data.empty:
+            fig, ax = plt.subplots()
+            ax.plot(g_data['fecha'], g_data['valor'], marker='o', color='red')
+            ax.set_title("Tendencia de Glucosa")
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
 
     with t_meds:
         nmed = st.text_input("Medicamento:")
         dmed = st.text_input("Dosis:")
-        if st.button("Registrar Medicamento"):
+        if st.button("Registrar"):
             cursor.execute('INSERT INTO meds (nombre, dosis) VALUES (?,?)', (nmed, dmed))
             conn.commit()
         
         m_data = pd.read_sql_query('SELECT * FROM meds', conn)
         st.write(m_data)
-        
-        borrar_id = st.number_input("ID a borrar en Medicamentos:", min_value=0, step=1, key="med_del")
-        if st.button("Borrar Medicamento"):
-            cursor.execute('DELETE FROM meds WHERE id=?', (borrar_id,))
-            conn.commit()
-            st.success("Registro eliminado")
+        if not m_data.empty:
+            st.info(f"💊 Recordatorio: {m_data.iloc[-1]['nombre']} ({m_data.iloc[-1]['dosis']})")
 
     with t_citas:
-        fc = st.date_input("Fecha")
-        dc = st.text_input("Doctor")
-        if st.button("Agendar Cita"):
+        fc = st.date_input("Fecha de Cita")
+        dc = st.text_input("Doctor/Especialidad")
+        if st.button("Agendar"):
             cursor.execute('INSERT INTO citas (fecha, doctor) VALUES (?,?)', (str(fc), dc))
             conn.commit()
         
         c_data = pd.read_sql_query('SELECT * FROM citas', conn)
         st.write(c_data)
         
-        borrar_id = st.number_input("ID a borrar en Citas:", min_value=0, step=1, key="cit_del")
-        if st.button("Borrar Cita"):
-            cursor.execute('DELETE FROM citas WHERE id=?', (borrar_id,))
-            conn.commit()
-            st.success("Registro eliminado")
+        hoy = datetime.date.today()
+        for _, row in c_data.iterrows():
+            try:
+                f_cita = datetime.datetime.strptime(row['fecha'], "%Y-%m-%d").date()
+                dias = (f_cita - hoy).days
+                if 0 <= dias <= 2:
+                    st.warning(f"📅 Cita próxima en {dias} días con: {row['doctor']}")
+            except: pass
 
     with t_scan:
-        if st.checkbox("Abrir Escáner"):
-            img = st.camera_input("Escanee documento")
+        if st.checkbox("Activar Cámara"):
+            img = st.camera_input("Capturar")
             if img:
-                pdf_file = generarpdf(img, "documento_nexus.pdf")
-                cursor.execute(
-                    'INSERT INTO escaneo (fecha, archivo) VALUES (?,?)',
-                    (datetime.datetime.now().strftime("%d/%m %H:%M"), pdf_file)
-                )
-                conn.commit()
-                st.success("Documento escaneado y guardado como PDF")
-                with open(pdf_file, "rb") as f:
-                    st.download_button("📥 Descargar PDF", f, file_name=pdf_file)
-                
-                # Botones de compartir
-                text_share = urllib.parse.quote("Documento escaneado disponible en PDF")
-                st.markdown(f'[📲 Compartir por WhatsApp](https://wa.me/?text={text_share})')
-                gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&su=Documento+Escaneado&body={text_share}"
-                st.markdown(f'[📧 Compartir por Gmail]({gmail_url})')
-
-def generar_reportes():
-    gdata = pd.read_sql_query('SELECT * FROM glucosa', conn)
-    cdata = pd.read_sql_query('SELECT * FROM citas', conn)
-    fdata = pd.read_sql_query('SELECT * FROM finanzas', conn)
-    
-    reporte = "📑 Reporte Nexus\n\n"
-    reporte += "🩸 Glucosa:\n"
-    for _, r in gdata.iterrows():
-        reporte += f"- {r['fecha']}: {r['valor']} ({r['estado']})\n"
-    
-    reporte += "\n📅 Citas:\n"
-    for _, c in cdata.iterrows():
-        reporte += f"- {c['fecha']}: {c['doctor']}\n"
-    
-    reporte += "\n💰 Finanzas:\n"
-    ingresos = fdata[fdata['tipo']=="Ingreso"]['monto'].sum()
-    gastos = fdata[fdata['tipo']=="Gasto"]['monto'].sum()
-    presupuesto_total = fdata[fdata['tipo']=="Presupuesto"]['monto'].sum()
-    balance = ingresos - gastos
-    reporte += f"Ingresos: RD$ {ingresos:,.2f}\nGastos: RD$ {gastos:,.2f}\nBalance: RD$ {balance:,.2f}\n"
-    
-    st.text_area("Vista previa del reporte:", reporte, height=200)
-    rep_enc = urllib.parse.quote(reporte)
-    st.markdown(f'[📲 WhatsApp](https://wa.me/?text={rep_enc})')
+                p_file = generarpdf(img)
+                st.success("PDF Generado")
+                with open(p_file, "rb") as f:
+                    st.download_button("📥 Descargar", f, file_name=p_file)
 
 def main():
     st.set_page_config(page_title="NEXUS PRO GLOBAL", layout="wide")
-    st.title("📊 Dashboard Principal - Finanzas & Salud Inteligente")
-    t_fin, t_salud, t_rep = st.tabs(["💰 Finanzas", "🩺 Salud", "📤 Reportes"])
-    with t_fin: mostrar_finanzas()
-    with t_salud: mostrar_salud()
-    with t_rep: generar_reportes()
+    st.title("🛡️ NEXUS PRO - Panel de Control Sr. Quevedo")
+    
+    menu = st.sidebar.selectbox("Menú", ["Dashboard", "Backup"])
+    
+    if menu == "Dashboard":
+        t_fin, t_salud = st.tabs(["💰 Finanzas", "🩺 Salud"])
+        with t_fin: mostrar_finanzas()
+        with t_salud: mostrar_salud()
+    else:
+        st.subheader("Soberanía de Datos")
+        exportar_backup()
 
 if __name__ == "__main__":
     main()
