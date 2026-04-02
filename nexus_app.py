@@ -63,14 +63,13 @@ def mostrar_finanzas():
     st.write(data)
 
     borrar_id = st.number_input("ID a borrar en Finanzas:", min_value=0, step=1, key="fin_del")
-    if st.button("Borrar Registro"):
+    if st.button("Borrar Registro Finanzas"):
         cursor.execute('DELETE FROM finanzas WHERE id=?', (borrar_id,))
         conn.commit()
         st.rerun()
 
     ingresos = data[data['tipo']=="Ingreso"]['monto'].sum()
     gastos = data[data['tipo']=="Gasto"]['monto'].sum()
-    presu = data[data['tipo']=="Presupuesto"]['monto'].sum()
     
     col1, col2, col3 = st.columns(3)
     col1.metric("Ingresos", f"RD$ {ingresos:,.2f}")
@@ -82,6 +81,7 @@ def mostrar_finanzas():
         data[data['tipo']=="Gasto"].groupby("categoria")['monto'].sum().plot(kind='pie', autopct='%1.1f%%', ax=ax)
         ax.set_ylabel('')
         st.pyplot(fig)
+        plt.close(fig)
 
 def mostrar_salud():
     t1, t2, t3, t4 = st.tabs(["🩸 Glucosa", "💊 Medicamentos", "📅 Citas", "📸 Escáner"])
@@ -96,9 +96,9 @@ def mostrar_salud():
         g_data = pd.read_sql_query('SELECT * FROM glucosa', conn)
         st.write(g_data)
         
-        borrar_id = st.number_input("ID a borrar en Glucosa:", min_value=0, step=1, key="glu_del")
-        if st.button("Borrar Glucosa"):
-            cursor.execute('DELETE FROM glucosa WHERE id=?', (borrar_id,))
+        borrar_id_glu = st.number_input("ID a borrar en Glucosa:", min_value=0, step=1, key="glu_del")
+        if st.button("Borrar Registro Glucosa"):
+            cursor.execute('DELETE FROM glucosa WHERE id=?', (borrar_id_glu,))
             conn.commit()
             st.rerun()
 
@@ -107,6 +107,7 @@ def mostrar_salud():
             ax.plot(g_data['fecha'], g_data['valor'], marker='o', color='red')
             plt.xticks(rotation=45)
             st.pyplot(fig)
+            plt.close(fig)
 
     with t2:
         nmed = st.text_input("Medicamento:")
@@ -114,8 +115,16 @@ def mostrar_salud():
         if st.button("Registrar Med"):
             cursor.execute('INSERT INTO meds (nombre, dosis) VALUES (?,?)', (nmed, dmed))
             conn.commit()
+        
         m_data = pd.read_sql_query('SELECT * FROM meds', conn)
         st.write(m_data)
+
+        borrar_id_med = st.number_input("ID a borrar en Medicamentos:", min_value=0, step=1, key="med_del")
+        if st.button("Borrar Registro Med"):
+            cursor.execute('DELETE FROM meds WHERE id=?', (borrar_id_med,))
+            conn.commit()
+            st.rerun()
+
         if not m_data.empty:
             st.info(f"💊 Recordatorio: {m_data.iloc[-1]['nombre']} ({m_data.iloc[-1]['dosis']})")
 
@@ -125,8 +134,16 @@ def mostrar_salud():
         if st.button("Agendar"):
             cursor.execute('INSERT INTO citas (fecha, doctor) VALUES (?,?)', (str(fc), dc))
             conn.commit()
+        
         c_data = pd.read_sql_query('SELECT * FROM citas', conn)
         st.write(c_data)
+
+        borrar_id_cit = st.number_input("ID a borrar en Citas:", min_value=0, step=1, key="cit_del")
+        if st.button("Borrar Registro Cita"):
+            cursor.execute('DELETE FROM citas WHERE id=?', (borrar_id_cit,))
+            conn.commit()
+            st.rerun()
+
         hoy = datetime.date.today()
         for _, r in c_data.iterrows():
             try:
@@ -142,16 +159,23 @@ def mostrar_salud():
             st.success("PDF Creado")
             with open(pdf_file, "rb") as f:
                 st.download_button("📥 Descargar PDF", f, file_name=pdf_file)
+            
+            # WhatsApp y Gmail restaurados
+            msg = urllib.parse.quote(f"Sr. Quevedo: Documento escaneado el {datetime.datetime.now().strftime('%d/%m/%Y')}")
+            st.markdown(f'[📲 Compartir por WhatsApp](https://wa.me/?text={msg})')
+            gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&su=Documento+Nexus&body={msg}"
+            st.markdown(f'[📧 Compartir por Gmail]({gmail_url})')
 
 def main():
     st.set_page_config(page_title="NEXUS PRO GLOBAL", layout="wide")
-    st.title("🛡️ NEXUS PRO - Dashboard Sr. Quevedo")
+    st.title("🛡️ NEXUS PRO - Panel de Control Sr. Quevedo")
     menu = st.sidebar.radio("Navegación", ["Principal", "Backup"])
     if menu == "Principal":
         tab_f, tab_s = st.tabs(["💰 Finanzas", "🩺 Salud"])
         with tab_f: mostrar_finanzas()
         with tab_s: mostrar_salud()
-    else: exportar_backup()
+    else:
+        exportar_backup()
 
 if __name__ == "__main__":
     main()
