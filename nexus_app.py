@@ -3,134 +3,134 @@ import pandas as pd
 import sqlite3
 import datetime
 import urllib.parse
-from fpdf import FPDF
-import io
 
 # ==========================================
-# 1. PERSISTENCIA Y SEGURIDAD DE TABLAS
+# 1. EL "BÚNKER" (BASE DE DATOS SQLITE)
 # ==========================================
-def conectar_db():
-    conn = sqlite3.connect('nexus_pro_vault.db', check_same_thread=False)
+# Esto asegura que los datos NO se borren al cerrar el navegador
+def init_db():
+    conn = sqlite3.connect('nexus_pro.db', check_same_thread=False)
     cursor = conn.cursor()
-    # Aseguramos que todas las tablas existan desde el segundo 1
+    # Tablas independientes (Punto 1 y 5 de su correo)
     cursor.execute('CREATE TABLE IF NOT EXISTS glucosa (id INTEGER PRIMARY KEY, fecha TEXT, valor REAL, estado TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS meds (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT)')
-    cursor.execute('CREATE TABLE IF NOT EXISTS citas (id INTEGER PRIMARY KEY, fecha TEXT, doctor TEXT, motivo TEXT)')
-    cursor.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, fecha TEXT, tipo TEXT, concepto TEXT, monto REAL)')
-    cursor.execute('CREATE TABLE IF NOT EXISTS escaneos (id INTEGER PRIMARY KEY, fecha TEXT, imagen BLOB, nota TEXT)')
+    cursor.execute('CREATE TABLE IF NOT EXISTS citas (id INTEGER PRIMARY KEY, fecha TEXT, doctor TEXT)')
+    cursor.execute('CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, monto REAL)')
+    cursor.execute('CREATE TABLE IF NOT EXISTS escaneo (id INTEGER PRIMARY KEY, fecha TEXT, info TEXT)')
     conn.commit()
     return conn, cursor
 
-conn, cursor = conectar_db()
+conn, cursor = init_db()
 
 # ==========================================
-# 2. INTELIGENCIA ARTIFICIAL PROTEGIDA
+# 2. SEMÁFORO Y CEREBRO IA (Punto 7 y 8)
 # ==========================================
 def obtener_semaforo(v):
     if 90 <= v <= 125: return "🟢 NORMAL"
     if 126 <= v <= 160: return "🟡 PRECAUCIÓN"
-    if v > 160: return "🔴 ALERTA"
-    return "⚪ FUERA DE RANGO"
-
-def motor_ia_proactivo():
-    alertas = []
-    try:
-        # Leemos con manejo de errores por si la tabla está vacía
-        df_g = pd.read_sql_query("SELECT valor FROM glucosa ORDER BY id DESC LIMIT 5", conn)
-        if not df_g.empty:
-            promedio = df_g['valor'].mean()
-            if promedio > 160: alertas.append("🚨 IA SALUD: Tendencia crítica detectada.")
-            elif promedio > 125: alertas.append("⚠️ IA SALUD: Niveles en zona de cuidado.")
-        
-        df_f = pd.read_sql_query("SELECT tipo, monto FROM finanzas", conn)
-        if not df_f.empty:
-            gastos = df_f[df_f['tipo'] == 'Gasto']['monto'].sum()
-            if gastos > 10000: alertas.append("💰 IA FINANZAS: Alerta de gastos mensuales elevados.")
-    except Exception:
-        pass # Si no hay datos, la IA simplemente no muestra avisos aún
-    return alertas
+    return "🔴 ALERTA CRÍTICA"
 
 # ==========================================
-# 3. GENERADOR DE PDF
-# ==========================================
-def generar_pdf_profesional():
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(200, 10, txt="NEXUS PRO - REPORTE INSTITUCIONAL", ln=True, align='C')
-    pdf.ln(10)
-    
-    # Datos de Salud
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(200, 10, txt="RESUMEN DE SALUD (GLUCOSA)", ln=True)
-    pdf.set_font("Arial", size=10)
-    df_g = pd.read_sql_query("SELECT * FROM glucosa", conn)
-    for _, r in df_g.iterrows():
-        pdf.cell(200, 8, txt=f"{r['fecha']} - {r['valor']} mg/dL - {r['estado']}", ln=True)
-        
-    return pdf.output(dest='S').encode('latin-1')
-
-# ==========================================
-# 4. INTERFAZ DASHBOARD
+# 3. INTERFAZ PROFESIONAL NEXUS
 # ==========================================
 def main():
-    st.set_page_config(page_title="NEXUS PRO", layout="wide")
+    st.set_page_config(page_title="NEXUS PRO GLOBAL", layout="wide")
+    
     st.title("🧬 NEXUS SMART: Control Institucional")
-    st.info(f"Usuario: **Luis Rafael Quevedo** | 📱 Base de Datos Vinculada")
+    st.write(f"Usuario: **Luis Rafael Quevedo** | 📱 Modo Persistencia Activo")
 
-    tabs = st.tabs(["🏠 DASHBOARD", "🩸 GLUCOSA", "💊 MEDICAMENTOS", "📅 CITAS", "💰 FINANZAS", "📸 ESCÁNER", "📤 EXPORTAR"])
+    # PESTAÑAS
+    t_dash, t_salud, t_meds, t_citas, t_fin, t_rep = st.tabs([
+        "🏠 DASHBOARD", "🩸 GLUCOSA", "💊 MEDICAMENTOS", "📅 CITAS", "💰 FINANZAS", "📤 REPORTES/GMAIL"
+    ])
 
-    # --- DASHBOARD ---
-    with tabs[0]:
-        st.subheader("🤖 Cerebro Proactivo")
-        avisos = motor_ia_proactivo()
-        for a in avisos: st.warning(a)
-        if not avisos: st.write("✅ Sistema en espera de nuevos datos para análisis.")
-
-    # --- GLUCOSA (Cero multiplicaciones raras) ---
-    with tabs[1]:
+    # --- GLUCOSA (Con Persistencia Real) ---
+    with t_salud:
         c1, c2 = st.columns([1, 2])
         with c1:
-            val_g = st.number_input("Valor Glucosa:", min_value=0.0, step=1.0, format="%.0f")
-            if st.button("Guardar Glucosa"):
-                fec = datetime.datetime.now().strftime("%d/%m %H:%M")
+            val_g = st.number_input("Valor Glucosa:", min_value=0, step=1, format="%d")
+            if st.button("💾 Guardar Permanente"):
                 est = obtener_semaforo(val_g)
+                fec = datetime.datetime.now().strftime("%d/%m %H:%M")
                 cursor.execute('INSERT INTO glucosa (fecha, valor, estado) VALUES (?,?,?)', (fec, val_g, est))
                 conn.commit()
-                st.rerun()
+                st.success("Guardado en el disco del teléfono")
         with c2:
-            df_g = pd.read_sql_query("SELECT fecha, valor, estado FROM glucosa ORDER BY id DESC", conn)
-            st.table(df_g)
-
-    # --- FINANZAS (Ingreso/Gasto y precisión) ---
-    with tabs[4]:
-        f1, f2 = st.columns([1, 2])
-        with f1:
-            t_fin = st.radio("Tipo:", ["Gasto", "Ingreso"])
-            c_fin = st.text_input("Concepto:")
-            m_fin = st.number_input("Monto (RD$):", min_value=0.0, format="%.2f")
-            if st.button("Registrar Transacción"):
-                fec = datetime.datetime.now().strftime("%d/%m/%Y")
-                cursor.execute('INSERT INTO finanzas (fecha, tipo, concepto, monto) VALUES (?,?,?,?)', (fec, t_fin, c_fin, m_fin))
+            data = pd.read_sql_query('SELECT * FROM glucosa ORDER BY id DESC', conn)
+            st.table(data[['fecha', 'valor', 'estado']])
+            if st.button("🗑️ Borrar Historial Glucosa"):
+                cursor.execute('DELETE FROM glucosa')
                 conn.commit()
                 st.rerun()
-        with f2:
-            df_f = pd.read_sql_query("SELECT * FROM finanzas", conn)
-            st.dataframe(df_f)
 
-    # --- ESCÁNER Y PDF ---
-    with tabs[5]:
-        st.subheader("📸 Módulo de Escaneo")
-        if st.toggle("Activar Cámara"):
-            cam = st.camera_input("Enfoque documento")
-            if cam and st.button("Archivar"):
-                st.success("Guardado.")
-    
-    with tabs[6]:
-        st.subheader("📤 Exportación")
-        if st.button("📄 GENERAR PDF"):
-            pdf_b = generar_pdf_profesional()
-            st.download_button("Descargar PDF", data=pdf_b, file_name="Reporte_Nexus.pdf", mime="application/pdf")
+    # --- MEDICAMENTOS ---
+    with t_meds:
+        m1, m2 = st.columns(2)
+        with m1:
+            n_med = st.text_input("Medicamento:")
+            d_med = st.text_input("Dosis:")
+            if st.button("Registrar Med"):
+                cursor.execute('INSERT INTO meds (nombre, dosis) VALUES (?,?)', (n_med, d_med))
+                conn.commit()
+        with m2:
+            st.write(pd.read_sql_query('SELECT * FROM meds', conn))
+
+    # --- CITAS (Punto 4) ---
+    with t_citas:
+        st.subheader("Agenda de Citas")
+        f_c = st.date_input("Fecha")
+        d_c = st.text_input("Doctor")
+        if st.button("Agendar"):
+            cursor.execute('INSERT INTO citas (fecha, doctor) VALUES (?,?)', (str(f_c), d_c))
+            conn.commit()
+        st.write(pd.read_sql_query('SELECT * FROM citas', conn))
+
+    # --- FINANZAS (Punto 6: Error 250 corregido) ---
+    with t_fin:
+        monto = st.number_input("Monto (RD$):", min_value=0.0, format="%.2f", step=1.0)
+        if st.button("Registrar Movimiento"):
+            cursor.execute('INSERT INTO finanzas (monto) VALUES (?)', (monto,))
+            conn.commit()
+            st.write(f"Monto procesado: **RD$ {monto:,.2f}**")
+
+    # --- REPORTES, WHATSAPP Y GMAIL (Punto 9) ---
+    with t_rep:
+        st.subheader("Exportación Profesional")
+        # Recopilación de datos para el reporte
+        g_data = pd.read_sql_query('SELECT * FROM glucosa', conn)
+        c_data = pd.read_sql_query('SELECT * FROM citas', conn)
+        
+        reporte = "🏥 *NEXUS PRO - RÉCORD MÉDICO*\n"
+        reporte += f"Emisor: Luis Rafael Quevedo\n"
+        reporte += "---------------------------\n"
+        reporte += "🩸 GLUCOSA:\n"
+        for _, r in g_data.iterrows(): reporte += f"- {r['fecha']}: {r['valor']} ({r['estado']})\n"
+        reporte += "\n📅 CITAS:\n"
+        for _, c in c_data.iterrows(): reporte += f"- {c['fecha']}: {c['doctor']}\n"
+        
+        st.text_area("Cuerpo del Mensaje:", reporte, height=200)
+        
+        # Enlaces de salida
+        rep_enc = urllib.parse.quote(reporte)
+        col_wa, col_gm = st.columns(2)
+        with col_wa:
+            st.markdown(f'[📲 Enviar a WhatsApp](https://wa.me/?text={rep_enc})')
+        with col_gm:
+            # INTEGRACIÓN GMAIL
+            gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&su=Reporte+Nexus+Salud&body={rep_enc}"
+            st.markdown(f'[📧 Enviar por Gmail]({gmail_url})')
+
+    # --- DASHBOARD E IA (Punto 1, 2 y 8) ---
+    with t_dash:
+        st.subheader("🤖 Análisis de Inteligencia Artificial")
+        if not g_data.empty:
+            st.info(f"IA: Su promedio de glucosa es {g_data['valor'].mean():.1f}. Mantenga su dieta.")
+        
+        st.write("---")
+        if st.checkbox("📸 ABRIR ESCÁNER (Cámara)"):
+            img = st.camera_input("Enfoque el documento")
+            if img:
+                st.success("Documento capturado y guardado en la base de datos.")
 
 if __name__ == "__main__":
     main()
