@@ -80,10 +80,10 @@ def generar_reportes():
     cdata = pd.readsql_query('SELECT * FROM citas', conn)
     reporte = "📑 Reporte Nexus\n\n"
     reporte += "🩸 Glucosa:\n"
-    for i , r in gdata.iterrows():
+    for , r in gdata.iterrows():
         reporte += f"- {r['fecha']}: {r['valor']} ({r['estado']})\n"
     reporte += "\n📅 Citas:\n"
-    for i , c in cdata.iterrows():
+    for , c in cdata.iterrows():
         reporte += f"- {c['fecha']}: {c['doctor']}\n"
     st.text_area("Vista previa del reporte:", reporte, height=200)
     rep_enc = urllib.parse.quote(reporte)
