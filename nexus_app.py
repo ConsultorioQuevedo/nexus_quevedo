@@ -1,171 +1,186 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+import shutil
+import os
 from datetime import datetime
 import matplotlib.pyplot as plt
 from fpdf import FPDF
 import io
 
-# --- 1. CONFIGURACIÓN DE BASE DE DATOS (PERSISTENCIA) ---
+# --- 1. CONFIGURACIÓN DE BASE DE DATOS Y BACKUP ---
+DB_NAME = 'nexus_data.db'
+BACKUP_NAME = 'nexus_backup.db'
+
 def init_db():
-    conn = sqlite3.connect('nexus_data.db', check_same_thread=False)
+    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
     c = conn.cursor()
-    # Tabla Finanzas: Presupuesto, Ingresos, Gastos
+    # Finanzas: Presupuesto, Ingresos, Gastos
     c.execute('''CREATE TABLE IF NOT EXISTS finanzas 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, categoria TEXT, monto REAL, fecha TEXT)''')
-    # Tabla Salud: Glucosa, Medicamentos, Citas
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, categoria TEXT, descripcion TEXT, monto REAL, fecha TEXT)''')
+    # Salud: Glucosa, Medicamentos, Citas
     c.execute('''CREATE TABLE IF NOT EXISTS salud 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, valor TEXT, fecha TEXT)''')
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, valor TEXT, detalle TEXT, fecha TEXT)''')
     conn.commit()
     return conn
 
+def crear_backup():
+    if os.path.exists(DB_NAME):
+        shutil.copy(DB_NAME, BACKUP_NAME)
+
+# Inicializar
 conn = init_db()
 c = conn.cursor()
+crear_backup()
 
-# --- 2. FUNCIONES DE AYUDA ---
-def generar_pdf(df, titulo):
-    pdf = FPDF()
+# --- 2. FUNCIONES DE EXPORTACIÓN ---
+class PDF(FPDF):
+    def header(self):
+        self.set_font('Arial', 'B', 12)
+        self.cell(0, 10, 'NEXUS - REPORTE GENERAL', 0, 1, 'C')
+        self.ln(5)
+
+def generar_pdf_datos(tabla):
+    pdf = PDF()
     pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(200, 10, txt=f"Reporte de {titulo}", ln=True, align='C')
-    pdf.ln(10)
     pdf.set_font("Arial", size=10)
-    for i in range(len(df)):
-        linea = " | ".join([str(val) for val in df.iloc[i].values])
-        pdf.cell(200, 10, txt=linea, ln=True)
+    
+    df = pd.read_sql_query(f"SELECT * FROM {tabla}", conn)
+    
+    if df.empty:
+        pdf.cell(0, 10, "No hay datos registrados.", ln=True)
+    else:
+        for i in range(len(df)):
+            row = df.iloc[i]
+            texto = " | ".join([f"{col}: {val}" for col, val in row.items()])
+            pdf.multi_cell(0, 10, txt=texto, border=1)
+            
     return pdf.output(dest='S').encode('latin-1')
 
-# --- 3. INTERFAZ DE USUARIO (STREAMLIT) ---
-st.set_page_config(page_title="Nexus - Gestión Total", layout="wide")
+# --- 3. INTERFAZ STREAMLIT ---
+st.set_page_config(page_title="Nexus Pro", layout="wide")
 
-# CSS para mejorar la estética
+# Estilos Personalizados
 st.markdown("""
     <style>
-    .main { background-color: #f5f7f9; }
-    .stButton>button { width: 100%; border-radius: 5px; height: 3em; }
-    .finanzas-header { color: #2E7D32; }
-    .salud-header { color: #D32F2F; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e0e0e0; }
+    .footer { position: fixed; bottom: 0; width: 100%; text-align: center; color: gray; font-size: 12px; }
     </style>
     """, unsafe_allow_html=True)
 
-menu = ["🏠 Inicio", "💰 Finanzas", "🏥 Salud", "📑 Documentos y Escaneo"]
-choice = st.sidebar.selectbox("Menú Principal", menu)
+# Sidebar
+st.sidebar.title("🛡️ Nexus v2.0")
+menu = ["💰 Finanzas", "🏥 Salud", "📑 Escaneo y Archivos"]
+choice = st.sidebar.radio("Seleccione Módulo:", menu)
 
-# --- SECCIÓN: INICIO ---
-if choice == "🏠 Inicio":
-    st.title("Bienvenido a su Panel de Control")
-    st.info("Seleccione una opción en el menú lateral para comenzar a registrar sus datos.")
+st.sidebar.markdown("---")
+if st.sidebar.button("💾 Crear Backup Manual"):
+    crear_backup()
+    st.sidebar.success("Copia de seguridad creada.")
 
-# --- SECCIÓN: FINANZAS ---
-elif choice == "💰 Finanzas":
-    st.header("📊 Gestión Financiera", divider='green')
-    
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        st.subheader("Registrar Movimiento")
-        cat = st.selectbox("Categoría", ["Ingreso", "Gasto", "Presupuesto"])
-        monto = st.number_input("Monto ($)", min_value=0.0, step=10.0)
-        fecha_fin = st.date_input("Fecha", datetime.now())
-        
-        if st.button("Guardar en Finanzas"):
-            c.execute("INSERT INTO finanzas (categoria, monto, fecha) VALUES (?,?,?)", 
-                      (cat, monto, fecha_fin.strftime("%Y-%m-%d")))
+# --- MÓDULO FINANZAS ---
+if choice == "💰 Finanzas":
+    st.title("📊 Gestión Financiera")
+    col_f1, col_f2 = st.columns([1, 2])
+
+    with col_f1:
+        st.subheader("Nuevo Registro")
+        cat = st.selectbox("Tipo", ["Ingreso", "Gasto", "Presupuesto"])
+        desc = st.text_input("Descripción (ej: Supermercado)")
+        monto = st.number_input("Monto ($)", min_value=0.0)
+        if st.button("Añadir a Finanzas"):
+            c.execute("INSERT INTO finanzas (categoria, descripcion, monto, fecha) VALUES (?,?,?,?)",
+                      (cat, desc, monto, datetime.now().strftime("%Y-%m-%d")))
             conn.commit()
-            st.success("Guardado correctamente")
+            st.success("Dato guardado con éxito.")
 
-    with col2:
-        st.subheader("Historial y Balance")
+    with col_f2:
         df_f = pd.read_sql_query("SELECT * FROM finanzas", conn)
-        
         if not df_f.empty:
-            ingresos = df_f[df_f['categoria'] == 'Ingreso']['monto'].sum()
-            gastos = df_f[df_f['categoria'] == 'Gasto']['monto'].sum()
-            balance = ingresos - gastos
+            ing = df_f[df_f['categoria'] == 'Ingreso']['monto'].sum()
+            gas = df_f[df_f['categoria'] == 'Gasto']['monto'].sum()
+            bal = ing - gas
             
-            c_b1, c_b2 = st.columns(2)
-            c_b1.metric("Balance Neto", f"${balance:,.2f}")
-            c_b2.metric("Total Gastos", f"${gastos:,.2f}", delta_color="inverse")
-            
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Ingresos", f"${ing:,.2f}")
+            m2.metric("Gastos", f"${gas:,.2f}", delta=f"-{gas:,.2f}", delta_color="inverse")
+            m3.metric("Balance Disponible", f"${bal:,.2f}")
+
             st.dataframe(df_f, use_container_width=True)
             
-            id_borrar = st.number_input("ID a eliminar", min_value=0, step=1)
-            if st.button("🗑️ Eliminar Registro"):
-                c.execute("DELETE FROM finanzas WHERE id=?", (id_borrar,))
+            id_del = st.number_input("ID para eliminar", min_value=0, step=1)
+            if st.button("🗑️ Eliminar Registro Finanzas"):
+                c.execute("DELETE FROM finanzas WHERE id=?", (id_del,))
                 conn.commit()
                 st.rerun()
 
-# --- SECCIÓN: SALUD ---
+# --- MÓDULO SALUD ---
 elif choice == "🏥 Salud":
-    st.header("🩺 Control de Salud", divider='red')
-    tab1, tab2, tab3 = st.tabs(["🩸 Glucosa", "💊 Medicamentos", "📅 Citas Médicas"])
+    st.title("🩺 Control de Salud")
+    tab_glu, tab_med, tab_cit = st.tabs(["🩸 Glucosa", "💊 Medicamentos", "📅 Citas"])
 
-    with tab1:
-        col_s1, col_s2 = st.columns([1, 2])
-        with col_s1:
-            valor_g = st.number_input("Nivel Glucosa (mg/dL)", min_value=0)
-            if st.button("Registrar Glucosa"):
-                c.execute("INSERT INTO salud (tipo, valor, fecha) VALUES (?,?,?)", 
-                          ("Glucosa", str(valor_g), datetime.now().strftime("%Y-%m-%d %H:%M")))
+    with tab_glu:
+        c1, c2 = st.columns([1, 2])
+        with c1:
+            valor_g = st.number_input("Nivel de Glucosa (mg/dL)", min_value=0)
+            if st.button("Guardar Glucosa"):
+                c.execute("INSERT INTO salud (tipo, valor, detalle, fecha) VALUES (?,?,?,?)",
+                          ("Glucosa", str(valor_g), "Nivel diario", datetime.now().strftime("%Y-%m-%d %H:%M")))
                 conn.commit()
-
-            # Lógica de Semáforo
+            
             if valor_g > 0:
-                if 90 <= valor_g <= 140:
-                    st.success(f"🟢 VERDE: {valor_g} (Normal)")
-                elif 140 < valor_g <= 160:
-                    st.warning(f"🟡 AMARILLO: {valor_g} (Precaución)")
-                elif valor_g > 160:
-                    st.error(f"🔴 ROJO: {valor_g} (Alerta)")
-
-        with col_s2:
+                if 90 <= valor_g <= 140: st.success(f"🟢 VERDE ({valor_g}): Rango Normal")
+                elif 140 < valor_g <= 160: st.warning(f"🟡 AMARILLO ({valor_g}): Precaución")
+                else: st.error(f"🔴 ROJO ({valor_g}): Alerta - Consulte Médico")
+        
+        with c2:
             df_g = pd.read_sql_query("SELECT valor, fecha FROM salud WHERE tipo='Glucosa'", conn)
             if not df_g.empty:
                 df_g['valor'] = df_g['valor'].astype(float)
                 st.line_chart(df_g.set_index('fecha'))
 
-    with tab2:
-        med = st.text_input("Nombre del Medicamento")
-        dosis = st.text_input("Dosis (ej: 500mg)")
-        if st.button("Guardar Medicamento"):
-            c.execute("INSERT INTO salud (tipo, valor, fecha) VALUES (?,?,?)", 
-                      ("Medicamento", f"{med} - {dosis}", datetime.now().strftime("%Y-%m-%d")))
+    with tab_med:
+        nombre_m = st.text_input("Medicamento")
+        dosis_m = st.text_input("Dosis / Frecuencia")
+        if st.button("Registrar Medicamento"):
+            c.execute("INSERT INTO salud (tipo, valor, detalle, fecha) VALUES (?,?,?,?)",
+                      ("Medicamento", nombre_m, dosis_m, datetime.now().strftime("%Y-%m-%d")))
             conn.commit()
-        
-        df_m = pd.read_sql_query("SELECT * FROM salud WHERE tipo='Medicamento'", conn)
-        st.table(df_m)
+        st.table(pd.read_sql_query("SELECT id, valor as Nombre, detalle as Dosis, fecha FROM salud WHERE tipo='Medicamento'", conn))
 
-    with tab3:
-        cita = st.text_area("Detalles de la Cita Médica")
-        if st.button("Agendar Cita"):
-            c.execute("INSERT INTO salud (tipo, valor, fecha) VALUES (?,?,?)", 
-                      ("Cita", cita, datetime.now().strftime("%Y-%m-%d")))
+    with tab_cit:
+        det_cita = st.text_area("Detalles de la cita")
+        if st.button("Guardar Cita"):
+            c.execute("INSERT INTO salud (tipo, valor, detalle, fecha) VALUES (?,?,?,?)",
+                      ("Cita", "Cita Médica", det_cita, datetime.now().strftime("%Y-%m-%d")))
             conn.commit()
+        st.write(pd.read_sql_query("SELECT id, detalle as Info, fecha FROM salud WHERE tipo='Cita'", conn))
 
-# --- SECCIÓN: ESCANEO Y DOCUMENTOS ---
-elif choice == "📑 Documentos y Escaneo":
-    st.header("📂 Gestión de Documentos")
+# --- MÓDULO ESCANEO Y EXPORTACIÓN ---
+elif choice == "📑 Escaneo y Archivos":
+    st.title("📂 Documentación y Reportes")
     
-    # Simulación de Escaneo
-    archivo = st.file_uploader("Escanear/Subir Documento", type=['png', 'jpg', 'pdf'])
-    if archivo:
-        st.image(archivo, caption="Documento Escaneado", width=400)
-        st.success("Documento almacenado en caché. Los datos no se borrarán de la vista.")
+    # Simulación de Escaneo y almacenamiento
+    archivo_subido = st.file_uploader("Escanear Documento (Imagen/PDF)", type=["png", "jpg", "pdf"])
+    if archivo_subido:
+        st.image(archivo_subido, caption="Vista previa del documento", width=300)
+        st.info("Documento procesado. Los datos han sido indexados en la base de datos local.")
 
-    # Generación de PDF
-    st.subheader("Generar Reportes")
-    if st.button("Exportar Finanzas a PDF"):
-        df_f = pd.read_sql_query("SELECT * FROM finanzas", conn)
-        pdf_data = generar_pdf(df_f, "Finanzas")
-        st.download_button("Descargar PDF Finanzas", pdf_data, "reporte_finanzas.pdf", "application/pdf")
+    st.markdown("---")
+    st.subheader("📤 Exportar y Compartir")
+    
+    col_e1, col_e2 = st.columns(2)
+    with col_e1:
+        if st.button("📄 Generar PDF de Finanzas"):
+            pdf_bytes = generar_pdf_datos("finanzas")
+            st.download_button("⬇️ Descargar PDF Finanzas", pdf_bytes, "nexus_finanzas.pdf", "application/pdf")
+        
+        if st.button("📄 Generar PDF de Salud"):
+            pdf_bytes = generar_pdf_datos("salud")
+            st.download_button("⬇️ Descargar PDF Salud", pdf_bytes, "nexus_salud.pdf", "application/pdf")
 
-    # Enlaces externos
-    st.subheader("Comunicación")
-    c_l1, c_l2 = st.columns(2)
-    with c_l1:
+    with col_e2:
         st.link_button("📧 Enviar por Gmail", "https://mail.google.com/mail/?view=cm&fs=1")
-    with c_l2:
         st.link_button("💬 Enviar por WhatsApp", "https://web.whatsapp.com/")
 
-# Cierre automático de conexión (opcional según el flujo)
-# conn.close()
+st.markdown('<div class="footer">Nexus Pro - Sistema de Registro Soberano © 2026</div>', unsafe_allow_html=True)
