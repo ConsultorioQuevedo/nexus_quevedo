@@ -5,18 +5,17 @@ import datetime
 import openai
 from fpdf import FPDF
 import plotly.express as px
-from PIL import Image
-from pyzbar.pyzbar import decode
+import numpy as np
 
 # --- CONFIGURACIÓN DE SEGURIDAD (Motor de IA) ---
+# Recuerda colocar tu API Key real aquí
 openai.api_key = "TU_API_KEY_AQUI"
 
-st.set_page_config(page_title="Nexus AI - Arquitectura Inteligente", layout="wide")
+st.set_page_config(page_title="Nexus AI - Sistema Integral", layout="wide")
 
-# --- CAPA DE DATOS (Backend & DB) ---
-# Siguiendo tu diagrama: Centralizamos el manejo de la base de datos
 DB_FILE = "nexus_intelligent.db"
 
+# --- CAPA DE DATOS (Backend & DB) ---
 def query_db(query, params=()):
     with sqlite3.connect(DB_FILE, check_same_thread=False) as conn:
         cursor = conn.cursor()
@@ -25,133 +24,161 @@ def query_db(query, params=()):
         return cursor.fetchall()
 
 def init_db():
-    # Salud
-    query_db('''CREATE TABLE IF NOT EXISTS salud_glucosa (id INTEGER PRIMARY KEY, fecha TEXT, valor REAL, nota TEXT)''')
-    query_db('''CREATE TABLE IF NOT EXISTS salud_meds (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT)''')
-    query_db('''CREATE TABLE IF NOT EXISTS salud_citas (id INTEGER PRIMARY KEY, fecha TEXT, doctor TEXT)''')
-    # Finanzas
-    query_db('''CREATE TABLE IF NOT EXISTS finanzas_movs (id INTEGER PRIMARY KEY, fecha TEXT, tipo TEXT, monto REAL, categoria TEXT)''')
-    query_db('''CREATE TABLE IF NOT EXISTS finanzas_presupuesto (id INTEGER PRIMARY KEY, categoria TEXT, limite REAL)''')
+    # Tablas de Salud
+    query_db('''CREATE TABLE IF NOT EXISTS salud_glucosa 
+                (id INTEGER PRIMARY KEY, fecha TEXT, valor REAL, nota TEXT)''')
+    query_db('''CREATE TABLE IF NOT EXISTS salud_meds 
+                (id INTEGER PRIMARY KEY, nombre TEXT, dosis TEXT, horario TEXT)''')
+    query_db('''CREATE TABLE IF NOT EXISTS salud_citas 
+                (id INTEGER PRIMARY KEY, fecha TEXT, doctor TEXT, motivo TEXT)''')
+    # Tablas de Finanzas
+    query_db('''CREATE TABLE IF NOT EXISTS finanzas_movs 
+                (id INTEGER PRIMARY KEY, fecha TEXT, tipo TEXT, monto REAL, categoria TEXT)''')
 
 init_db()
 
-# --- MOTOR DE IA (Modelos Predictivos) ---
-def ia_motor_predictivo(prompt):
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "system", "content": "Eres el Motor de IA de Nexus. Analizas finanzas y salud."},
-                      {"role": "user", "content": prompt}]
-        )
-        return response["choices"][0]["message"]["content"]
-    except:
-        return "Motor de IA en modo offline (Revisa tu API Key)."
-
-# --- COMPONENTE: GENERADOR DE PDF ---
-def generar_reporte_pdf(data_type):
+# --- FUNCIONES DE SOPORTE (PDF & IA) ---
+def generar_reporte_pdf(titulo, df):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(200, 10, f"Reporte de {data_type} - Nexus AI", ln=True, align='C')
-    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, f"NEXUS AI - {titulo}", ln=True, align='C')
+    pdf.set_font("Arial", size=10)
     pdf.ln(10)
-    pdf.cell(200, 10, f"Generado el: {datetime.date.today()}", ln=True)
+    for index, row in df.iterrows():
+        linea = " | ".join([f"{col}: {val}" for col, val in row.items()])
+        pdf.cell(0, 10, linea, ln=True)
     return pdf.output(dest='S').encode('latin-1')
 
-# --- INTERFAZ DE USUARIO (Dashboard Principal) ---
-st.title("🛡️ Nexus: Finanzas y Salud Inteligente")
+# --- INTERFAZ DE USUARIO ---
+st.title("🛡️ Nexus: Inteligencia en Finanzas y Salud")
 st.markdown("---")
 
-# Módulos principales basados en tu diagrama
-menu = st.sidebar.radio("Navegación Arquitectónica", ["🏠 Dashboard Principal", "💰 Finanzas", "🏥 Salud", "🤖 Motor de IA"])
+menu = st.sidebar.radio("Módulos de Arquitectura", 
+                       ["🏠 Dashboard", "💰 Finanzas", "🏥 Salud", "🤖 Motor de IA"])
 
-# --- 1. DASHBOARD PRINCIPAL ---
-if menu == "🏠 Dashboard Principal":
-    st.subheader("Dashboard Principal (Vista Holística)")
-    col1, col2 = st.columns(2)
+# --- 1. DASHBOARD ---
+if menu == "🏠 Dashboard":
+    st.subheader("Panel de Control Principal")
+    c1, c2 = st.columns(2)
     
-    with col1:
-        st.info("### Resumen Financiero")
+    with c1:
+        st.info("### Salud")
+        ult_g = query_db("SELECT valor, fecha FROM salud_glucosa ORDER BY id DESC LIMIT 1")
+        if ult_g:
+            st.metric("Última Glucosa", f"{ult_g[0][0]} mg/dL", f"Registrado: {ult_g[0][1]}")
+        
+        prox_c = query_db("SELECT fecha, doctor FROM salud_citas WHERE fecha >= ? ORDER BY fecha ASC LIMIT 1", (str(datetime.date.today()),))
+        if prox_c:
+            st.write(f"📅 **Próxima Cita:** {prox_c[0][0]} con Dr. {prox_c[0][1]}")
+
+    with c2:
+        st.success("### Finanzas")
         res_f = query_db("SELECT tipo, monto FROM finanzas_movs")
         if res_f:
             df_f = pd.DataFrame(res_f, columns=["tipo", "monto"])
-            balance = df_f[df_f['tipo']=='ingreso']['monto'].sum() - df_f[df_f['tipo']=='gasto']['monto'].sum()
-            st.metric("Balance Neto", f"${balance:,.2f}")
-        else:
-            st.write("Sin datos financieros.")
+            bal = df_f[df_f['tipo']=='ingreso']['monto'].sum() - df_f[df_f['tipo']=='gasto']['monto'].sum()
+            st.metric("Balance Neto", f"${bal:,.2f}")
 
-    with col2:
-        st.success("### Resumen de Salud")
-        res_g = query_db("SELECT valor FROM salud_glucosa ORDER BY id DESC LIMIT 1")
-        if res_g:
-            st.metric("Última Glucosa", f"{res_g[0][0]} mg/dL")
-        else:
-            st.write("Sin registros médicos.")
-
-# --- 2. MÓDULO FINANZAS ---
+# --- 2. FINANZAS ---
 elif menu == "💰 Finanzas":
-    st.header("Módulo de Finanzas")
-    tab1, tab2, tab3 = st.tabs(["➕ Ingresos & Gastos", "🎯 Presupuesto", "📈 Predicción"])
+    st.header("Gestión Financiera")
+    col_in, col_vis = st.columns([1, 2])
     
-    with tab1:
-        c1, c2 = st.columns(2)
-        tipo = c1.selectbox("Tipo", ["ingreso", "gasto"])
-        monto = c2.number_input("Monto", min_value=0.0)
-        cat = st.selectbox("Categoría", ["Sueldo", "Comida", "Salud", "Ocio"])
+    with col_in:
+        tipo = st.radio("Operación", ["ingreso", "gasto"], horizontal=True)
+        monto = st.number_input("Cantidad ($)", min_value=0.0)
+        cat = st.selectbox("Categoría", ["Sueldo", "Comida", "Hogar", "Salud", "Transporte"])
         if st.button("Registrar Movimiento"):
-            query_db("INSERT INTO finanzas_movs VALUES(NULL, ?, ?, ?, ?)", (str(datetime.date.today()), tipo, monto, cat))
-            st.toast("Movimiento Guardado")
+            query_db("INSERT INTO finanzas_movs VALUES(NULL, ?, ?, ?, ?)", 
+                     (str(datetime.date.today()), tipo, monto, cat))
+            st.rerun()
 
-    with tab3:
-        st.write("Análisis del Motor de IA sobre tus gastos...")
-        if st.button("Generar Predicción Financiera"):
-            st.write(ia_motor_predictivo("Analiza mis gastos de este mes y dime si podré ahorrar."))
+    with col_vis:
+        data = query_db("SELECT * FROM finanzas_movs ORDER BY id DESC")
+        if data:
+            df_f = pd.DataFrame(data, columns=["id", "Fecha", "Tipo", "Monto", "Cat"])
+            st.dataframe(df_f[["Fecha", "Tipo", "Monto", "Cat"]], use_container_width=True)
+            
+            with st.expander("🗑️ Borrar Registros"):
+                for i, row in df_f.iterrows():
+                    if st.button(f"Eliminar {row['Tipo']} ${row['Monto']}", key=f"f_{row['id']}"):
+                        query_db("DELETE FROM finanzas_movs WHERE id=?", (row['id'],))
+                        st.rerun()
 
-# --- 3. MÓDULO SALUD ---
+# --- 3. SALUD ---
 elif menu == "🏥 Salud":
-    st.header("Módulo de Salud")
-    tab1, tab2, tab3, tab4 = st.tabs(["🩸 Glucosa", "💊 Medicamentos", "📅 Citas", "📄 Escáner & PDF"])
-    
+    st.header("Centro de Salud")
+    tab1, tab2, tab3 = st.tabs(["🩸 Glucosa", "💊 Medicamentos", "📅 Citas"])
+
     with tab1:
-        val = st.number_input("Nivel de Glucosa (mg/dL)", value=100.0)
-        nota = st.text_input("Nota (Ayunas/Postprandial)")
-        if st.button("Guardar Registro"):
-            query_db("INSERT INTO salud_glucosa VALUES(NULL, ?, ?, ?)", (datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), val, nota))
+        v = st.number_input("mg/dL", value=100.0)
+        n = st.text_input("Nota", "Ayunas")
+        if st.button("Guardar Glucosa"):
+            query_db("INSERT INTO salud_glucosa VALUES(NULL, ?, ?, ?)", 
+                     (datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), v, n))
             st.rerun()
         
-        datos = query_db("SELECT fecha, valor FROM salud_glucosa")
-        if datos:
-            df = pd.DataFrame(datos, columns=["Fecha", "Valor"])
-            fig = px.line(df, x="Fecha", y="Valor", title="Evolución de Glucosa")
-            st.plotly_chart(fig)
+        hist_g = query_db("SELECT fecha, valor FROM salud_glucosa ORDER BY id DESC")
+        if hist_g:
+            df_g = pd.DataFrame(hist_g, columns=["Fecha", "Valor"])
+            st.plotly_chart(px.line(df_g, x="Fecha", y="Valor", markers=True))
+            st.dataframe(df_g, use_container_width=True)
 
-    with tab4:
-        st.subheader("Generación de Documentos (Gacenos & PDF)")
-        if st.button("Generar Reporte de Salud PDF"):
-            pdf_data = generar_reporte_pdf("Salud")
-            st.download_button("Descargar Reporte", pdf_data, "reporte_salud.pdf")
+    with tab2:
+        st.subheader("Registro de Medicamentos")
+        col_m1, col_m2 = st.columns(2)
+        m_nom = col_m1.text_input("Nombre Med")
+        m_dos = col_m2.text_input("Dosis (ej. 500mg)")
+        if st.button("Añadir a mi lista"):
+            query_db("INSERT INTO salud_meds VALUES(NULL, ?, ?, ?)", (m_nom, m_dos, "Diario"))
+            st.rerun()
+        
+        data_m = query_db("SELECT * FROM salud_meds")
+        if data_m:
+            df_m = pd.DataFrame(data_m, columns=["id", "Nombre", "Dosis", "Horario"])
+            st.table(df_m[["Nombre", "Dosis"]])
+            for i, r in df_m.iterrows():
+                if st.button(f"Quitar {r['Nombre']}", key=f"m_{r['id']}"):
+                    query_db("DELETE FROM salud_meds WHERE id=?", (r['id'],))
+                    st.rerun()
 
-# --- 4. MOTOR DE IA & CONECTIVIDAD ---
+    with tab3:
+        st.subheader("Agenda Médica")
+        f_c = st.date_input("Fecha")
+        d_c = st.text_input("Doctor")
+        if st.button("Agendar"):
+            query_db("INSERT INTO salud_citas VALUES(NULL, ?, ?, ?)", (str(f_c), d_c, "Consulta"))
+            st.rerun()
+        
+        data_c = query_db("SELECT * FROM salud_citas ORDER BY fecha ASC")
+        if data_c:
+            df_c = pd.DataFrame(data_c, columns=["id", "Fecha", "Doctor", "Motivo"])
+            st.dataframe(df_c[["Fecha", "Doctor"]], use_container_width=True)
+            for i, r in df_c.iterrows():
+                if st.button(f"Borrar Cita: {r['Fecha']}", key=f"c_{r['id']}"):
+                    query_db("DELETE FROM salud_citas WHERE id=?", (r['id'],))
+                    st.rerun()
+
+# --- 4. MOTOR DE IA & REPORTES ---
 elif menu == "🤖 Motor de IA":
-    st.header("Centro de Inteligencia y Conectividad")
+    st.header("Análisis Nexus Intelligence")
     
-    st.subheader("API de WhatsApp")
-    msg = st.text_area("Mensaje para compartir")
-    st.link_button("Enviar vía WhatsApp", f"https://wa.me/?text={msg}")
-    
-    st.divider()
-    st.subheader("Modelos Predictivos")
-    pregunta = st.text_input("Pregunta al Motor de IA sobre tu arquitectura:")
-    if st.button("Consultar"):
-        st.write(ia_motor_predictivo(pregunta))
+    st.subheader("Generación de Reportes PDF")
+    if st.button("Generar Reporte Completo de Salud"):
+        data = query_db("SELECT fecha, valor FROM salud_glucosa")
+        pdf = generar_reporte_pdf("HISTORIAL SALUD", pd.DataFrame(data, columns=["Fecha", "Valor"]))
+        st.download_button("Descargar PDF", pdf, "reporte_salud.pdf")
 
-# --- GESTIÓN DE BORRADO (Para correcciones) ---
-st.sidebar.divider()
-if st.sidebar.checkbox("Modo Edición (Borrar Datos)"):
-    st.sidebar.warning("Selecciona qué tabla deseas limpiar:")
-    if st.sidebar.button("Limpiar Finanzas"):
-        query_db("DELETE FROM finanzas_movs")
-        st.rerun()
-    if st.sidebar.button("Limpiar Salud"):
-        query_db("DELETE FROM salud_glucosa")
-        st.rerun()
+    st.divider()
+    st.subheader("Consulta al Motor de IA")
+    pregunta = st.text_input("¿Qué quieres consultar hoy?")
+    if st.button("Preguntar"):
+        try:
+            r = openai.ChatCompletion.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": pregunta}]
+            )
+            st.write(r["choices"][0]["message"]["content"])
+        except:
+            st.error("Error de conexión. Verifica tu API Key.")
