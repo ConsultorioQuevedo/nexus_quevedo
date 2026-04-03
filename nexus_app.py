@@ -6,181 +6,201 @@ import os
 from datetime import datetime
 import matplotlib.pyplot as plt
 from fpdf import FPDF
+from PIL import Image
+import pytesseract
 import io
 
-# --- 1. CONFIGURACIÓN DE BASE DE DATOS Y BACKUP ---
-DB_NAME = 'nexus_data.db'
-BACKUP_NAME = 'nexus_backup.db'
+# --- 1. CONFIGURACIÓN INICIAL Y PERSISTENCIA ---
+DB_NAME = 'nexus_ultra.db'
 
 def init_db():
     conn = sqlite3.connect(DB_NAME, check_same_thread=False)
     c = conn.cursor()
-    # Finanzas: Presupuesto, Ingresos, Gastos
+    # Tabla Finanzas: Incluye presupuesto para comparar
     c.execute('''CREATE TABLE IF NOT EXISTS finanzas 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, categoria TEXT, descripcion TEXT, monto REAL, fecha TEXT)''')
-    # Salud: Glucosa, Medicamentos, Citas
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, categoria TEXT, 
+                  monto REAL, fecha TEXT, nota TEXT)''')
+    # Tabla Salud: Glucosa, Medicamentos y Citas
     c.execute('''CREATE TABLE IF NOT EXISTS salud 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, valor TEXT, detalle TEXT, fecha TEXT)''')
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, valor_num REAL, 
+                  texto_detalle TEXT, fecha TEXT, estado TEXT)''')
     conn.commit()
     return conn
 
-def crear_backup():
-    if os.path.exists(DB_NAME):
-        shutil.copy(DB_NAME, BACKUP_NAME)
-
-# Inicializar
 conn = init_db()
 c = conn.cursor()
-crear_backup()
 
-# --- 2. FUNCIONES DE EXPORTACIÓN ---
-class PDF(FPDF):
-    def header(self):
-        self.set_font('Arial', 'B', 12)
-        self.cell(0, 10, 'NEXUS - REPORTE GENERAL', 0, 1, 'C')
-        self.ln(5)
+# --- 2. FUNCIONES DE LÓGICA DE NEGOCIO ---
 
-def generar_pdf_datos(tabla):
-    pdf = PDF()
+def save_finance(tipo, cat, monto, nota):
+    c.execute("INSERT INTO finanzas (tipo, categoria, monto, fecha, nota) VALUES (?,?,?,?,?)",
+              (tipo, cat, monto, datetime.now().strftime("%Y-%m-%d %H:%M"), nota))
+    conn.commit()
+
+def save_health(tipo, valor, detalle, estado=""):
+    c.execute("INSERT INTO salud (tipo, valor_num, texto_detalle, fecha, estado) VALUES (?,?,?,?,?)",
+              (tipo, valor, detalle, datetime.now().strftime("%Y-%m-%d %H:%M"), estado))
+    conn.commit()
+
+def generar_reporte_pdf(tabla_nombre):
+    pdf = FPDF()
     pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, f"REPORTE OFICIAL NEXUS - {tabla_nombre.upper()}", ln=True, align='C')
     pdf.set_font("Arial", size=10)
+    pdf.ln(10)
     
-    df = pd.read_sql_query(f"SELECT * FROM {tabla}", conn)
-    
-    if df.empty:
-        pdf.cell(0, 10, "No hay datos registrados.", ln=True)
-    else:
-        for i in range(len(df)):
-            row = df.iloc[i]
-            texto = " | ".join([f"{col}: {val}" for col, val in row.items()])
-            pdf.multi_cell(0, 10, txt=texto, border=1)
-            
+    df = pd.read_sql_query(f"SELECT * FROM {tabla_nombre}", conn)
+    for i in range(len(df)):
+        dato = " | ".join([f"{col}: {val}" for col, val in df.iloc[i].items()])
+        pdf.multi_cell(0, 10, txt=dato, border=1)
     return pdf.output(dest='S').encode('latin-1')
 
-# --- 3. INTERFAZ STREAMLIT ---
-st.set_page_config(page_title="Nexus Pro", layout="wide")
+# --- 3. INTERFAZ DE USUARIO ---
+st.set_page_config(page_title="Nexus Ultra", layout="wide", initial_sidebar_state="expanded")
 
-# Estilos Personalizados
-st.markdown("""
-    <style>
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e0e0e0; }
-    .footer { position: fixed; bottom: 0; width: 100%; text-align: center; color: gray; font-size: 12px; }
-    </style>
-    """, unsafe_allow_html=True)
+# Sidebar con Navegación y Backup
+st.sidebar.title("🛡️ NEXUS ULTRA")
+st.sidebar.markdown("Sistema Soberano de Datos")
+menu = ["📊 Dashboard", "💰 Finanzas Pro", "🩺 Salud & Glucosa", "🔍 Escáner OCR", "⚙️ Configuración"]
+choice = st.sidebar.selectbox("Navegación", menu)
 
-# Sidebar
-st.sidebar.title("🛡️ Nexus v2.0")
-menu = ["💰 Finanzas", "🏥 Salud", "📑 Escaneo y Archivos"]
-choice = st.sidebar.radio("Seleccione Módulo:", menu)
-
-st.sidebar.markdown("---")
-if st.sidebar.button("💾 Crear Backup Manual"):
-    crear_backup()
-    st.sidebar.success("Copia de seguridad creada.")
-
-# --- MÓDULO FINANZAS ---
-if choice == "💰 Finanzas":
-    st.title("📊 Gestión Financiera")
-    col_f1, col_f2 = st.columns([1, 2])
-
-    with col_f1:
-        st.subheader("Nuevo Registro")
-        cat = st.selectbox("Tipo", ["Ingreso", "Gasto", "Presupuesto"])
-        desc = st.text_input("Descripción (ej: Supermercado)")
-        monto = st.number_input("Monto ($)", min_value=0.0)
-        if st.button("Añadir a Finanzas"):
-            c.execute("INSERT INTO finanzas (categoria, descripcion, monto, fecha) VALUES (?,?,?,?)",
-                      (cat, desc, monto, datetime.now().strftime("%Y-%m-%d")))
-            conn.commit()
-            st.success("Dato guardado con éxito.")
-
-    with col_f2:
-        df_f = pd.read_sql_query("SELECT * FROM finanzas", conn)
-        if not df_f.empty:
-            ing = df_f[df_f['categoria'] == 'Ingreso']['monto'].sum()
-            gas = df_f[df_f['categoria'] == 'Gasto']['monto'].sum()
-            bal = ing - gas
-            
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Ingresos", f"${ing:,.2f}")
-            m2.metric("Gastos", f"${gas:,.2f}", delta=f"-{gas:,.2f}", delta_color="inverse")
-            m3.metric("Balance Disponible", f"${bal:,.2f}")
-
-            st.dataframe(df_f, use_container_width=True)
-            
-            id_del = st.number_input("ID para eliminar", min_value=0, step=1)
-            if st.button("🗑️ Eliminar Registro Finanzas"):
-                c.execute("DELETE FROM finanzas WHERE id=?", (id_del,))
-                conn.commit()
-                st.rerun()
-
-# --- MÓDULO SALUD ---
-elif choice == "🏥 Salud":
-    st.title("🩺 Control de Salud")
-    tab_glu, tab_med, tab_cit = st.tabs(["🩸 Glucosa", "💊 Medicamentos", "📅 Citas"])
-
-    with tab_glu:
-        c1, c2 = st.columns([1, 2])
-        with c1:
-            valor_g = st.number_input("Nivel de Glucosa (mg/dL)", min_value=0)
-            if st.button("Guardar Glucosa"):
-                c.execute("INSERT INTO salud (tipo, valor, detalle, fecha) VALUES (?,?,?,?)",
-                          ("Glucosa", str(valor_g), "Nivel diario", datetime.now().strftime("%Y-%m-%d %H:%M")))
-                conn.commit()
-            
-            if valor_g > 0:
-                if 90 <= valor_g <= 140: st.success(f"🟢 VERDE ({valor_g}): Rango Normal")
-                elif 140 < valor_g <= 160: st.warning(f"🟡 AMARILLO ({valor_g}): Precaución")
-                else: st.error(f"🔴 ROJO ({valor_g}): Alerta - Consulte Médico")
-        
-        with c2:
-            df_g = pd.read_sql_query("SELECT valor, fecha FROM salud WHERE tipo='Glucosa'", conn)
-            if not df_g.empty:
-                df_g['valor'] = df_g['valor'].astype(float)
-                st.line_chart(df_g.set_index('fecha'))
-
-    with tab_med:
-        nombre_m = st.text_input("Medicamento")
-        dosis_m = st.text_input("Dosis / Frecuencia")
-        if st.button("Registrar Medicamento"):
-            c.execute("INSERT INTO salud (tipo, valor, detalle, fecha) VALUES (?,?,?,?)",
-                      ("Medicamento", nombre_m, dosis_m, datetime.now().strftime("%Y-%m-%d")))
-            conn.commit()
-        st.table(pd.read_sql_query("SELECT id, valor as Nombre, detalle as Dosis, fecha FROM salud WHERE tipo='Medicamento'", conn))
-
-    with tab_cit:
-        det_cita = st.text_area("Detalles de la cita")
-        if st.button("Guardar Cita"):
-            c.execute("INSERT INTO salud (tipo, valor, detalle, fecha) VALUES (?,?,?,?)",
-                      ("Cita", "Cita Médica", det_cita, datetime.now().strftime("%Y-%m-%d")))
-            conn.commit()
-        st.write(pd.read_sql_query("SELECT id, detalle as Info, fecha FROM salud WHERE tipo='Cita'", conn))
-
-# --- MÓDULO ESCANEO Y EXPORTACIÓN ---
-elif choice == "📑 Escaneo y Archivos":
-    st.title("📂 Documentación y Reportes")
+# --- MÓDULO: DASHBOARD (Resumen General) ---
+if choice == "📊 Dashboard":
+    st.title("Vista General del Sistema")
+    df_f = pd.read_sql_query("SELECT * FROM finanzas", conn)
+    df_s = pd.read_sql_query("SELECT * FROM salud WHERE tipo='Glucosa'", conn)
     
-    # Simulación de Escaneo y almacenamiento
-    archivo_subido = st.file_uploader("Escanear Documento (Imagen/PDF)", type=["png", "jpg", "pdf"])
-    if archivo_subido:
-        st.image(archivo_subido, caption="Vista previa del documento", width=300)
-        st.info("Documento procesado. Los datos han sido indexados en la base de datos local.")
+    col1, col2, col3 = st.columns(3)
+    if not df_f.empty:
+        ing = df_f[df_f['tipo'] == 'Ingreso']['monto'].sum()
+        gas = df_f[df_f['tipo'] == 'Gasto']['monto'].sum()
+        col1.metric("Balance Total", f"${ing - gas:,.2f}")
+        col2.metric("Total Gastos", f"${gas:,.2f}", delta_color="inverse")
+    
+    if not df_s.empty:
+        ultima_g = df_s['valor_num'].iloc[-1]
+        col3.metric("Última Glucosa", f"{ultima_g} mg/dL")
 
-    st.markdown("---")
-    st.subheader("📤 Exportar y Compartir")
+# --- MÓDULO: FINANZAS PRO ---
+elif choice == "💰 Finanzas Pro":
+    st.header("Gestión Financiera Avanzada")
+    t1, t2 = st.tabs(["Nuevo Registro", "Historial y Gráficos"])
+    
+    with t1:
+        with st.form("finanzas_form"):
+            col_a, col_b = st.columns(2)
+            f_tipo = col_a.radio("Tipo de Movimiento", ["Ingreso", "Gasto", "Presupuesto"])
+            f_cat = col_b.selectbox("Categoría", ["Alimentación", "Salud", "Vivienda", "Transporte", "Ocio", "Otros"])
+            f_monto = st.number_input("Monto Exacto", min_value=0.0)
+            f_nota = st.text_area("Notas adicionales")
+            if st.form_submit_button("Registrar en Base de Datos"):
+                save_finance(f_tipo, f_cat, f_monto, f_nota)
+                st.success("Registro guardado permanentemente.")
+    
+    with t2:
+        df_f = pd.read_sql_query("SELECT * FROM finanzas", conn)
+        st.dataframe(df_f, use_container_width=True)
+        if not df_f.empty:
+            fig, ax = plt.subplots()
+            df_f[df_f['tipo'] == 'Gasto'].groupby('categoria')['monto'].sum().plot(kind='bar', ax=ax, color='salmon')
+            st.pyplot(fig)
+        
+        st.divider()
+        id_borrar = st.number_input("ID a eliminar", min_value=0, step=1)
+        if st.button("🗑️ Eliminar permanentemente"):
+            c.execute("DELETE FROM finanzas WHERE id=?", (id_borrar,))
+            conn.commit()
+            st.rerun()
+
+# --- MÓDULO: SALUD & GLUCOSA ---
+elif choice == "🩺 Salud & Glucosa":
+    st.header("Control Médico y Glucémico")
+    col_s1, col_s2 = st.columns([1, 2])
+    
+    with col_s1:
+        st.subheader("Entrada de Datos")
+        s_tipo = st.selectbox("Tipo de Dato", ["Glucosa", "Medicamento", "Cita Médica"])
+        
+        if s_tipo == "Glucosa":
+            s_val = st.number_input("Nivel (mg/dL)", min_value=0.0)
+            # Semáforo dinámico
+            if s_val > 0:
+                if 90 <= s_val <= 140: st.success(f"🟢 {s_val}: RANGO NORMAL")
+                elif 140 < s_val <= 160: st.warning(f"🟡 {s_val}: PRECAUCIÓN")
+                else: st.error(f"🔴 {s_val}: ALERTA ALTA")
+            if st.button("Guardar Glucosa"):
+                save_health("Glucosa", s_val, "Manual")
+        
+        elif s_tipo == "Medicamento":
+            m_nom = st.text_input("Nombre Medicamento")
+            m_dos = st.text_input("Dosis")
+            if st.button("Guardar Medicamento"):
+                save_health("Medicamento", 0, f"{m_nom} - {m_dos}")
+
+    with col_s2:
+        st.subheader("Gráfico de Tendencia")
+        df_glu = pd.read_sql_query("SELECT valor_num, fecha FROM salud WHERE tipo='Glucosa'", conn)
+        if not df_glu.empty:
+            st.line_chart(df_glu.set_index('fecha'))
+        
+        st.subheader("Próximas Citas")
+        st.write(pd.read_sql_query("SELECT texto_detalle, fecha FROM salud WHERE tipo='Cita Médica'", conn))
+
+# --- MÓDULO: ESCÁNER OCR (LA JOYA DE LA CORONA) ---
+elif choice == "🔍 Escáner OCR":
+    st.header("Escaneo y Reconocimiento de Texto")
+    st.info("Sube una foto de un recibo o receta. El sistema extraerá el texto y lo guardará.")
+    
+    fuente = st.radio("Origen de imagen:", ["Archivo/Galería", "Cámara Directa"])
+    if fuente == "Cámara Directa":
+        img_file = st.camera_input("Toma la foto")
+    else:
+        img_file = st.file_uploader("Subir Imagen", type=['jpg', 'png', 'jpeg'])
+
+    if img_file:
+        img = Image.open(img_file)
+        st.image(img, caption="Imagen cargada", width=400)
+        
+        if st.button("🚀 Procesar Escaneo"):
+            with st.spinner("Analizando texto con motor OCR..."):
+                try:
+                    # OCR Real
+                    texto_final = pytesseract.image_to_string(img, lang='spa')
+                    st.subheader("Texto Extraído:")
+                    st.text_area("Contenido del documento", texto_final, height=300)
+                    
+                    # Guardar automáticamente el escaneo
+                    save_health("Escaneo", 0, texto_final, "Procesado")
+                    st.success("Datos almacenados en el historial de Salud.")
+                except Exception as e:
+                    st.error("Error: Tesseract no configurado. Si estás en móvil, usa la versión web.")
+
+# --- MÓDULO: CONFIGURACIÓN Y EXPORTACIÓN ---
+elif choice == "⚙️ Configuración":
+    st.header("Herramientas del Sistema")
     
     col_e1, col_e2 = st.columns(2)
     with col_e1:
-        if st.button("📄 Generar PDF de Finanzas"):
-            pdf_bytes = generar_pdf_datos("finanzas")
-            st.download_button("⬇️ Descargar PDF Finanzas", pdf_bytes, "nexus_finanzas.pdf", "application/pdf")
-        
-        if st.button("📄 Generar PDF de Salud"):
-            pdf_bytes = generar_pdf_datos("salud")
-            st.download_button("⬇️ Descargar PDF Salud", pdf_bytes, "nexus_salud.pdf", "application/pdf")
+        st.subheader("Exportar Datos")
+        if st.button("📦 Generar PDF Finanzas"):
+            data = generar_reporte_pdf("finanzas")
+            st.download_button("Descargar PDF", data, "Finanzas_Nexus.pdf")
+            
+        if st.button("📦 Generar PDF Salud"):
+            data = generar_reporte_pdf("salud")
+            st.download_button("Descargar PDF", data, "Salud_Nexus.pdf")
 
     with col_e2:
-        st.link_button("📧 Enviar por Gmail", "https://mail.google.com/mail/?view=cm&fs=1")
-        st.link_button("💬 Enviar por WhatsApp", "https://web.whatsapp.com/")
+        st.subheader("Seguridad")
+        if st.button("💾 Crear Backup de Base de Datos"):
+            shutil.copy(DB_NAME, 'backup_nexus.db')
+            st.success("Copia creada como 'backup_nexus.db'")
+            
+    st.divider()
+    st.subheader("Comunicación Directa")
+    st.link_button("📧 Gmail", "https://mail.google.com")
+    st.link_button("💬 WhatsApp Web", "https://web.whatsapp.com")
 
-st.markdown('<div class="footer">Nexus Pro - Sistema de Registro Soberano © 2026</div>', unsafe_allow_html=True)
+st.sidebar.markdown("---")
+st.sidebar.write(f"Última sincronización: {datetime.now().strftime('%H:%M:%S')}")
