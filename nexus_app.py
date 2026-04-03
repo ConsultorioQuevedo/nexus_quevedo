@@ -1,206 +1,224 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-import shutil
-import os
-from datetime import datetime
-import matplotlib.pyplot as plt
+import datetime
+import numpy as np
+import requests
+import openai
 from fpdf import FPDF
+import plotly.express as px
 from PIL import Image
-import pytesseract
-import io
+from pyzbar.pyzbar import decode
+from sklearn.linear_model import LinearRegression
 
-# --- 1. CONFIGURACIÓN INICIAL Y PERSISTENCIA ---
-DB_NAME = 'nexus_ultra.db'
+# -------------------------
+# CONFIG & SEGURIDAD
+# -------------------------
+# Reemplaza con tu clave real
+openai.api_key = "TUAPIKEYAQUI"
 
-def init_db():
-    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
-    c = conn.cursor()
-    # Tabla Finanzas: Incluye presupuesto para comparar
-    c.execute('''CREATE TABLE IF NOT EXISTS finanzas 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, categoria TEXT, 
-                  monto REAL, fecha TEXT, nota TEXT)''')
-    # Tabla Salud: Glucosa, Medicamentos y Citas
-    c.execute('''CREATE TABLE IF NOT EXISTS salud 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, valor_num REAL, 
-                  texto_detalle TEXT, fecha TEXT, estado TEXT)''')
-    conn.commit()
-    return conn
+st.set_page_config(page_title="Nexus AI Personal", layout="wide", initial_sidebar_state="expanded")
 
-conn = init_db()
-c = conn.cursor()
+DB = "nexus_personal.db"
 
-# --- 2. FUNCIONES DE LÓGICA DE NEGOCIO ---
+def run(q, p=()):
+    with sqlite3.connect(DB, check_same_thread=False) as c:
+        cur = c.cursor()
+        cur.execute(q, p)
+        c.commit()
+        return cur.fetchall()
 
-def save_finance(tipo, cat, monto, nota):
-    c.execute("INSERT INTO finanzas (tipo, categoria, monto, fecha, nota) VALUES (?,?,?,?,?)",
-              (tipo, cat, monto, datetime.now().strftime("%Y-%m-%d %H:%M"), nota))
-    conn.commit()
+# -------------------------
+# DB INITIALIZATION
+# -------------------------
+def init():
+    run('''CREATE TABLE IF NOT EXISTS glucosa(id INTEGER PRIMARY KEY, fecha TEXT, valor REAL, nota TEXT)''')
+    run('''CREATE TABLE IF NOT EXISTS medicamentos(id INTEGER PRIMARY KEY, fecha TEXT, nombre TEXT, dosis TEXT)''')
+    run('''CREATE TABLE IF NOT EXISTS citas(id INTEGER PRIMARY KEY, fecha TEXT, doctor TEXT, especialidad TEXT)''')
+    run('''CREATE TABLE IF NOT EXISTS finanzas(id INTEGER PRIMARY KEY, fecha TEXT, tipo TEXT, monto REAL, categoria TEXT)''')
+    run('''CREATE TABLE IF NOT EXISTS escaneos(id INTEGER PRIMARY KEY, fecha TEXT, codigo TEXT, producto TEXT, tipo TEXT)''')
 
-def save_health(tipo, valor, detalle, estado=""):
-    c.execute("INSERT INTO salud (tipo, valor_num, texto_detalle, fecha, estado) VALUES (?,?,?,?,?)",
-              (tipo, valor, detalle, datetime.now().strftime("%Y-%m-%d %H:%M"), estado))
-    conn.commit()
+init()
 
-def generar_reporte_pdf(tabla_nombre):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, f"REPORTE OFICIAL NEXUS - {tabla_nombre.upper()}", ln=True, align='C')
-    pdf.set_font("Arial", size=10)
-    pdf.ln(10)
+# -------------------------
+# FUNCIONES DE APOYO
+# -------------------------
+def balance_total():
+    res = run("SELECT tipo, monto FROM finanzas")
+    if not res: return 0.0
+    df = pd.DataFrame(res, columns=["tipo", "monto"])
+    ingresos = df[df.tipo == "ingreso"]["monto"].sum()
+    gastos = df[df.tipo == "gasto"]["monto"].sum()
+    return ingresos - gastos
+
+def color_glucosa_logic(val):
+    if 90 <= val <= 130: return "background-color: #d4edda" # Verde
+    elif 130 < val <= 160: return "background-color: #fff3cd" # Amarillo
+    elif val > 160: return "background-color: #f8d7da" # Rojo
+    return ""
+
+# -------------------------
+# UI - SIDEBAR
+# -------------------------
+with st.sidebar:
+    st.title("🚀 Nexus Control")
+    st.metric("Balance Actual", f"${balance_total():,.2f}")
+    st.divider()
+    st.link_button("💬 WhatsApp", "https://web.whatsapp.com")
+    st.link_button("📧 Gmail", "https://mail.google.com")
     
-    df = pd.read_sql_query(f"SELECT * FROM {tabla_nombre}", conn)
-    for i in range(len(df)):
-        dato = " | ".join([f"{col}: {val}" for col, val in df.iloc[i].items()])
-        pdf.multi_cell(0, 10, txt=dato, border=1)
-    return pdf.output(dest='S').encode('latin-1')
-
-# --- 3. INTERFAZ DE USUARIO ---
-st.set_page_config(page_title="Nexus Ultra", layout="wide", initial_sidebar_state="expanded")
-
-# Sidebar con Navegación y Backup
-st.sidebar.title("🛡️ NEXUS ULTRA")
-st.sidebar.markdown("Sistema Soberano de Datos")
-menu = ["📊 Dashboard", "💰 Finanzas Pro", "🩺 Salud & Glucosa", "🔍 Escáner OCR", "⚙️ Configuración"]
-choice = st.sidebar.selectbox("Navegación", menu)
-
-# --- MÓDULO: DASHBOARD (Resumen General) ---
-if choice == "📊 Dashboard":
-    st.title("Vista General del Sistema")
-    df_f = pd.read_sql_query("SELECT * FROM finanzas", conn)
-    df_s = pd.read_sql_query("SELECT * FROM salud WHERE tipo='Glucosa'", conn)
-    
-    col1, col2, col3 = st.columns(3)
-    if not df_f.empty:
-        ing = df_f[df_f['tipo'] == 'Ingreso']['monto'].sum()
-        gas = df_f[df_f['tipo'] == 'Gasto']['monto'].sum()
-        col1.metric("Balance Total", f"${ing - gas:,.2f}")
-        col2.metric("Total Gastos", f"${gas:,.2f}", delta_color="inverse")
-    
-    if not df_s.empty:
-        ultima_g = df_s['valor_num'].iloc[-1]
-        col3.metric("Última Glucosa", f"{ultima_g} mg/dL")
-
-# --- MÓDULO: FINANZAS PRO ---
-elif choice == "💰 Finanzas Pro":
-    st.header("Gestión Financiera Avanzada")
-    t1, t2 = st.tabs(["Nuevo Registro", "Historial y Gráficos"])
-    
-    with t1:
-        with st.form("finanzas_form"):
-            col_a, col_b = st.columns(2)
-            f_tipo = col_a.radio("Tipo de Movimiento", ["Ingreso", "Gasto", "Presupuesto"])
-            f_cat = col_b.selectbox("Categoría", ["Alimentación", "Salud", "Vivienda", "Transporte", "Ocio", "Otros"])
-            f_monto = st.number_input("Monto Exacto", min_value=0.0)
-            f_nota = st.text_area("Notas adicionales")
-            if st.form_submit_button("Registrar en Base de Datos"):
-                save_finance(f_tipo, f_cat, f_monto, f_nota)
-                st.success("Registro guardado permanentemente.")
-    
-    with t2:
-        df_f = pd.read_sql_query("SELECT * FROM finanzas", conn)
-        st.dataframe(df_f, use_container_width=True)
-        if not df_f.empty:
-            fig, ax = plt.subplots()
-            df_f[df_f['tipo'] == 'Gasto'].groupby('categoria')['monto'].sum().plot(kind='bar', ax=ax, color='salmon')
-            st.pyplot(fig)
-        
-        st.divider()
-        id_borrar = st.number_input("ID a eliminar", min_value=0, step=1)
-        if st.button("🗑️ Eliminar permanentemente"):
-            c.execute("DELETE FROM finanzas WHERE id=?", (id_borrar,))
-            conn.commit()
+    if st.button("🗑️ Borrar TODO el historial financiero"):
+        if st.checkbox("Confirmar acción irreversible"):
+            run("DELETE FROM finanzas")
             st.rerun()
 
-# --- MÓDULO: SALUD & GLUCOSA ---
-elif choice == "🩺 Salud & Glucosa":
-    st.header("Control Médico y Glucémico")
-    col_s1, col_s2 = st.columns([1, 2])
+# -------------------------
+# TABS PRINCIPALES
+# -------------------------
+tabs = st.tabs(["📊 Dashboard", "🩸 Salud", "💊 Meds", "📅 Citas", "💸 Finanzas", "🔍 Escáner", "🤖 IA Chat"])
+
+# --- DASHBOARD ---
+with tabs[0]:
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Balance", f"${balance_total():,.2f}")
     
-    with col_s1:
-        st.subheader("Entrada de Datos")
-        s_tipo = st.selectbox("Tipo de Dato", ["Glucosa", "Medicamento", "Cita Médica"])
-        
-        if s_tipo == "Glucosa":
-            s_val = st.number_input("Nivel (mg/dL)", min_value=0.0)
-            # Semáforo dinámico
-            if s_val > 0:
-                if 90 <= s_val <= 140: st.success(f"🟢 {s_val}: RANGO NORMAL")
-                elif 140 < s_val <= 160: st.warning(f"🟡 {s_val}: PRECAUCIÓN")
-                else: st.error(f"🔴 {s_val}: ALERTA ALTA")
-            if st.button("Guardar Glucosa"):
-                save_health("Glucosa", s_val, "Manual")
-        
-        elif s_tipo == "Medicamento":
-            m_nom = st.text_input("Nombre Medicamento")
-            m_dos = st.text_input("Dosis")
-            if st.button("Guardar Medicamento"):
-                save_health("Medicamento", 0, f"{m_nom} - {m_dos}")
-
-    with col_s2:
-        st.subheader("Gráfico de Tendencia")
-        df_glu = pd.read_sql_query("SELECT valor_num, fecha FROM salud WHERE tipo='Glucosa'", conn)
-        if not df_glu.empty:
-            st.line_chart(df_glu.set_index('fecha'))
-        
-        st.subheader("Próximas Citas")
-        st.write(pd.read_sql_query("SELECT texto_detalle, fecha FROM salud WHERE tipo='Cita Médica'", conn))
-
-# --- MÓDULO: ESCÁNER OCR (LA JOYA DE LA CORONA) ---
-elif choice == "🔍 Escáner OCR":
-    st.header("Escaneo y Reconocimiento de Texto")
-    st.info("Sube una foto de un recibo o receta. El sistema extraerá el texto y lo guardará.")
+    ultima_g = run("SELECT valor FROM glucosa ORDER BY id DESC LIMIT 1")
+    if ultima_g:
+        c2.metric("Última Glucosa", f"{ultima_g[0][0]} mg/dL")
     
-    fuente = st.radio("Origen de imagen:", ["Archivo/Galería", "Cámara Directa"])
-    if fuente == "Cámara Directa":
-        img_file = st.camera_input("Toma la foto")
-    else:
-        img_file = st.file_uploader("Subir Imagen", type=['jpg', 'png', 'jpeg'])
+    prox_cita = run("SELECT fecha, doctor FROM citas WHERE fecha >= ? ORDER BY fecha ASC LIMIT 1", (str(datetime.date.today()),))
+    if prox_cita:
+        c3.metric("Próxima Cita", f"{prox_cita[0][1]}", help=f"Fecha: {prox_cita[0][0]}")
 
-    if img_file:
-        img = Image.open(img_file)
-        st.image(img, caption="Imagen cargada", width=400)
-        
-        if st.button("🚀 Procesar Escaneo"):
-            with st.spinner("Analizando texto con motor OCR..."):
-                try:
-                    # OCR Real
-                    texto_final = pytesseract.image_to_string(img, lang='spa')
-                    st.subheader("Texto Extraído:")
-                    st.text_area("Contenido del documento", texto_final, height=300)
-                    
-                    # Guardar automáticamente el escaneo
-                    save_health("Escaneo", 0, texto_final, "Procesado")
-                    st.success("Datos almacenados en el historial de Salud.")
-                except Exception as e:
-                    st.error("Error: Tesseract no configurado. Si estás en móvil, usa la versión web.")
+# --- SALUD (GLUCOSA) ---
+with tabs[1]:
+    col_in, col_hist = st.columns([1, 2])
+    with col_in:
+        val = st.number_input("Medición (mg/dL)", min_value=0.0, value=130.0, key="input_glu")
+        nota = st.text_input("Nota (ej. Ayuna)", key="nota_glu")
+        if st.button("Registrar Medición"):
+            run("INSERT INTO glucosa VALUES(NULL,?,?,?)", 
+                (datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), val, nota))
+            st.rerun()
 
-# --- MÓDULO: CONFIGURACIÓN Y EXPORTACIÓN ---
-elif choice == "⚙️ Configuración":
-    st.header("Herramientas del Sistema")
-    
-    col_e1, col_e2 = st.columns(2)
-    with col_e1:
-        st.subheader("Exportar Datos")
-        if st.button("📦 Generar PDF Finanzas"):
-            data = generar_reporte_pdf("finanzas")
-            st.download_button("Descargar PDF", data, "Finanzas_Nexus.pdf")
+    with col_hist:
+        res_g = run("SELECT * FROM glucosa ORDER BY id DESC")
+        if res_g:
+            df_g = pd.DataFrame(res_g, columns=["id", "fecha", "valor", "nota"])
+            # El fix de .map() para evitar el AttributeError
+            st.dataframe(df_g.style.map(color_glucosa_logic, subset=["valor"]), use_container_width=True)
             
-        if st.button("📦 Generar PDF Salud"):
-            data = generar_reporte_pdf("salud")
-            st.download_button("Descargar PDF", data, "Salud_Nexus.pdf")
+            with st.expander("Gestionar Registros de Salud"):
+                for i, row in df_g.iterrows():
+                    cols = st.columns([3, 1])
+                    cols[0].write(f"{row['fecha']} - {row['valor']} mg/dL")
+                    if cols[1].button("Borrar", key=f"del_g_{row['id']}"):
+                        run("DELETE FROM glucosa WHERE id=?", (row['id'],))
+                        st.rerun()
 
-    with col_e2:
-        st.subheader("Seguridad")
-        if st.button("💾 Crear Backup de Base de Datos"):
-            shutil.copy(DB_NAME, 'backup_nexus.db')
-            st.success("Copia creada como 'backup_nexus.db'")
-            
-    st.divider()
-    st.subheader("Comunicación Directa")
-    st.link_button("📧 Gmail", "https://mail.google.com")
-    st.link_button("💬 WhatsApp Web", "https://web.whatsapp.com")
+# --- MEDICAMENTOS ---
+with tabs[2]:
+    n_med = st.text_input("Nombre del Medicamento")
+    d_med = st.text_input("Dosis / Horario")
+    if st.button("Guardar Medicamento"):
+        run("INSERT INTO medicamentos VALUES(NULL,?,?,?)", (str(datetime.date.today()), n_med, d_med))
+        st.rerun()
+    
+    res_m = run("SELECT * FROM medicamentos")
+    if res_m:
+        for m in res_m:
+            cols = st.columns([4, 1])
+            cols[0].write(f"💊 {m[2]} - {m[3]}")
+            if cols[1].button("Eliminar", key=f"del_m_{m[0]}"):
+                run("DELETE FROM medicamentos WHERE id=?", (m[0],))
+                st.rerun()
 
-st.sidebar.markdown("---")
-st.sidebar.write(f"Última sincronización: {datetime.now().strftime('%H:%M:%S')}")
+# --- CITAS ---
+with tabs[3]:
+    f_cita = st.date_input("Fecha de Cita")
+    doc = st.text_input("Doctor / Clínica")
+    esp = st.text_input("Especialidad")
+    if st.button("Agendar Cita"):
+        run("INSERT INTO citas VALUES(NULL,?,?,?)", (str(f_cita), doc, esp))
+        st.rerun()
+    
+    res_c = run("SELECT * FROM citas ORDER BY fecha ASC")
+    if res_c:
+        df_c = pd.DataFrame(res_c, columns=["id", "fecha", "doctor", "especialidad"])
+        st.dataframe(df_c[["fecha", "doctor", "especialidad"]], use_container_width=True)
+        for c in res_c:
+            if st.button(f"Borrar Cita con {c[2]}", key=f"del_c_{c[0]}"):
+                run("DELETE FROM citas WHERE id=?", (c[0],))
+                st.rerun()
+
+# --- FINANZAS ---
+with tabs[4]:
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        t_fin = st.radio("Tipo de Movimiento", ["ingreso", "gasto"], horizontal=True)
+        m_fin = st.number_input("Monto total", min_value=0.0)
+        cat_fin = st.selectbox("Categoría", ["Salud", "Comida", "Sueldo", "Hogar", "Otros"])
+        if st.button("Registrar Movimiento"):
+            run("INSERT INTO finanzas VALUES(NULL,?,?,?,?)", 
+                (datetime.datetime.now().strftime("%Y-%m-%d"), t_fin, m_fin, cat_fin))
+            st.rerun()
+    
+    with col_f2:
+        res_f = run("SELECT * FROM finanzas ORDER BY id DESC")
+        if res_f:
+            df_f = pd.DataFrame(res_f, columns=["id", "fecha", "tipo", "monto", "cat"])
+            st.dataframe(df_f[["fecha", "tipo", "monto", "cat"]], use_container_width=True)
+            for f in res_f:
+                if st.button(f"Borrar ${f[3]} ({f[4]})", key=f"del_f_{f[0]}"):
+                    run("DELETE FROM finanzas WHERE id=?", (f[0],))
+                    st.rerun()
+
+# --- ESCÁNER ---
+with tabs[5]:
+    st.write("### Escáner de Productos")
+    cam = st.camera_input("Capturar código de barras")
+    if cam:
+        img = Image.open(cam)
+        decoded = decode(np.array(img))
+        if decoded:
+            code = decoded[0].data.decode("utf-8")
+            st.info(f"Código detectado: {code}")
+            # Intento de búsqueda en API externa
+            try:
+                r = requests.get(f"https://world.openfoodfacts.org/api/v0/product/{code}.json", timeout=5).json()
+                if r.get("status") == 1:
+                    p_name = r["product"].get("product_name", "Producto desconocido")
+                    st.success(f"Encontrado: {p_name}")
+                else:
+                    st.warning("Producto no encontrado en OpenFoodFacts")
+            except:
+                st.error("No se pudo conectar con el servidor de búsqueda")
+        else:
+            st.warning("No se detectó ningún código claro")
+
+# --- IA CHAT ---
+with tabs[6]:
+    st.write("### Consulta a Nexus AI")
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    if prompt := st.chat_input("¿Qué quieres saber de tus datos?"):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            try:
+                # Se le puede pasar contexto de la DB aquí si se desea
+                response = openai.ChatCompletion.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "system", "content": "Eres Nexus AI, asistente de salud y finanzas."}] + st.session_state.messages
+                )["choices"][0]["message"]["content"]
+                st.markdown(response)
+                st.session_state.messages.append({"role": "assistant", "content": response})
+            except:
+                st.error("Error al conectar con OpenAI. Revisa tu API Key.")
